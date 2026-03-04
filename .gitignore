@@ -1,0 +1,22 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Entorno
+.env
+.env.local
+
+# Credenciales y secretos
+credenciales-google.json
+
+# Archivos de SO
+.DS_Store
+Thumbs.db
+
+# Clasp local (archivos dinámicos si se requiere)
+.clasp.json
+
+# Bot Data
+agent-bot/baileys_auth_info/
+agent-bot/bot_sessions/
