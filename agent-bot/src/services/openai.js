@@ -5,10 +5,12 @@ const { OpenAI } = require("openai");
  * @param {string} incomingMessage El mensaje del usuario de WhatsApp
  * @param {object} config La configuración del cliente cargada desde Google Sheets
  * @param {Array} servicesCatalog El catálogo dinámico de servicios
+ * @param {Array} knowledgeCatalog Catálogo RAG de FAQs y URLs Multimedia
  * @param {Array} messageHistory El historial de la conversación actual con el número
+ * @param {string} userName El nombre del cliente recuperado del state
  * @returns {Promise<string>} La respuesta generada por el asistente de IA
  */
-async function generateAIResponse(incomingMessage, config, servicesCatalog, messageHistory = []) {
+async function generateAIResponse(incomingMessage, config, servicesCatalog, knowledgeCatalog = [], messageHistory = [], userName = "Cliente") {
     // Verificación de seguridad de API Key
     if (!config.openApiKey || config.openApiKey === "sk-..." || config.openApiKey === "PEGAR_AQUI_API_KEY") {
         console.error("🔴 Bloqueo OpenAI: API Key no configurada o es la plantilla por defecto.");
@@ -25,6 +27,11 @@ async function generateAIResponse(incomingMessage, config, servicesCatalog, mess
             `- ID_INTERNO: ${s.id} | Categoría: ${s.category} | Servicio: ${s.intent} | Info/Precio: ${s.response} | Tiempo: ${s.timeMins} min`
         ).join('\n');
 
+        // 1.5 Construir Base de Conocimiento / Media RAG
+        const knowledgeText = knowledgeCatalog.map(k =>
+            `- Si el usuario pregunta por: "${k.intent}", DEBES responder con esta información: "${k.response}". Si aplica, acompáñalo SIEMPRE con este enlace exacto de tipo ${k.mediaType}: ${k.url}`
+        ).join('\n');
+
         // 2. Inyectar Reglas de Negocio Estrictas (RAG y Restricciones)
         const businessRules = `
 ---
@@ -35,14 +42,18 @@ async function generateAIResponse(incomingMessage, config, servicesCatalog, mess
 4. RESUMEN CLARO: Entrega el resumen organizado de precios y tiempos, preparándolo suavemente para agendar.
 5. LÍMITE DE CONOCIMIENTO: Responde estrictamente con la información del catálogo. Si piden algo que no está ahí, di cortésmente que aún no ofreces ese servicio.
 6. ESTÉTICA Y EMPATÍA: Tu rubro es belleza y SPA. SIEMPRE incluye abundantes emojis de estética (ej. 💅, 💇‍♀️, 💆‍♀️, ✨, 🌸, 💖) en tus respuestas.
+7. COMPARTIR MATERIAL MULTIMEDIA (PDFs, Imágenes, Videos): Tienes acceso a material de apoyo. Si el usuario te lo pide O si tú crees que es persuasivo para la venta, envíale el enlace URL EXACTO usando el listado de abajo y coméntale qué es. NUNCA inventes enlaces URL.
 
 🛍️ CATÁLOGO DE SERVICIOS DISPONIBLES:
 ${catalogText}
+
+📚 BASE DE CONOCIMIENTO / MULTIMEDIA (Úsalo para responder FAQs o enviar catálogos visuales):
+${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado."}
 ---
 `;
 
         // 3. Iniciar con el Prompt del Sistema (Reglas del bot + Catálogo)
-        const systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\n${businessRules}`;
+        const systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando ahora mismo con el cliente: ${userName}\n\n${businessRules}`;
 
         const messages = [
             {

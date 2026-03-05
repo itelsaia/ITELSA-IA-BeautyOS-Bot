@@ -2,8 +2,9 @@ require('dotenv').config({ path: '../.env' });
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
-const { loadClientConfig, loadServicesConfig } = require('./services/sheets');
+const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients } = require('./services/sheets');
 const { generateAIResponse } = require('./services/openai');
+const { handleOnboarding } = require('./services/session');
 const { isValidLicense } = require('./utils/license');
 
 // Objeto para almacenar la memoria a corto plazo por número de teléfono
@@ -15,13 +16,25 @@ const main = async () => {
 
     // 1. Cargar Configuración Dinámica del Cliente desde el Master Sheet
     const sheetId = process.env.SHEET_ID_MASTER;
-    const config = await loadClientConfig(sheetId);
+    let config = await loadClientConfig(sheetId);
 
     // Cargar Catálogo de Servicios (RAG)
-    const servicesCatalog = await loadServicesConfig(sheetId);
+    let servicesCatalog = await loadServicesConfig(sheetId);
+
+    // Cargar Base de Conocimiento (RAG Multimedia)
+    let knowledgeCatalog = await loadKnowledgeConfig(sheetId);
+
+    // Cargar CRM Actual (Memoria de Clientes)
+    let registeredClients = await loadRegisteredClients(sheetId);
+
     console.log("=== CATALOGO CARGADO ===");
     console.log(JSON.stringify(servicesCatalog, null, 2));
     console.log("========================");
+
+    console.log("========================");
+
+    console.log(`📚 Base de Conocimiento RAG cargada: ${knowledgeCatalog.length} recursos.`);
+    console.log(`👥 Clientes registrados en memoria CRM: ${Object.keys(registeredClients).length}`);
 
     if (!config) {
         console.error("🔴 Abortando inicio. Fallo crítico leyendo Google Sheets.");
@@ -57,8 +70,21 @@ const main = async () => {
     client.on('ready', () => {
         console.log(`\n======================================`);
         console.log(`🤖 BOT CONECTADO Y LISTO`);
-        console.log(`Tono Configurado: ${config.tone}`);
         console.log(`======================================\n`);
+
+        // Tarea en segundo plano: Refrescar Google Sheets cada 5 minutos
+        setInterval(async () => {
+            try {
+                console.log("🔄 Sincronizando datos 'en caliente' desde Google Sheets (Catálogos y CRM)...");
+                config = await loadClientConfig(sheetId);
+                servicesCatalog = await loadServicesConfig(sheetId);
+                knowledgeCatalog = await loadKnowledgeConfig(sheetId);
+                registeredClients = await loadRegisteredClients(sheetId);
+                console.log("✅ Memoria del Agente actualizada con éxito.");
+            } catch (error) {
+                console.error("⚠️ Error en la sincronización automática:", error.message);
+            }
+        }, 5 * 60 * 1000); // 300,000 milisegundos = 5 minutos
     });
 
     client.on('authenticated', () => {
@@ -77,14 +103,26 @@ const main = async () => {
         const sender = msg.from;
         console.log(`💬 Nuevo mensaje de [Usuario ${sender.split('@')[0]}]: ${msg.body}`);
 
-        // --- Flujo: Inteligencia Artificial (OpenAI) ---
+        // --- Flujo: Inteligencia Artificial y Memoria de Estado ---
 
-        // 1. Inicializar sesión de memoria si es un usuario nuevo
+        // 1. Inicializar sesión de memoria consultando la base CRM
         if (!userSessions[sender]) {
-            userSessions[sender] = [];
+            const numeroTel = sender.split('@')[0];
+
+            if (registeredClients[numeroTel]) {
+                // El usuario ya existe en Google Sheets
+                userSessions[sender] = {
+                    history: [],
+                    estado: 'REGISTRADO',
+                    datos: registeredClients[numeroTel]
+                };
+            } else {
+                // Es un usuario 100% nuevo
+                userSessions[sender] = { history: [], estado: null, datos: null };
+            }
         }
 
-        // 2. Simular que un humano está escribiendo en el WhatsApp
+        // 2. Simular escritura en WhatsApp
         try {
             const chat = await msg.getChat();
             await chat.sendStateTyping();
@@ -92,20 +130,30 @@ const main = async () => {
             console.error("⚠️ Error intentando mostrar 'escribiendo...'", e.message);
         }
 
-        // 3. Obtener respuesta inteligente a través del servicio OpenAI
-        const aiReply = await generateAIResponse(msg.body, config, servicesCatalog, userSessions[sender]);
+        // 3. Ejecutar Máquina de Estados (Onboarding CRM)
+        const sessionPayload = await handleOnboarding(sender, msg.body, userSessions[sender], config);
 
-        // 4. Actualizar el contexto en la memoria
-        userSessions[sender].push({ role: 'user', content: msg.body });
-        userSessions[sender].push({ role: 'assistant', content: aiReply });
-
-        // 5. Economía de TOKENS LIMITADA: 
-        // Recordará solo los últimos 6 mensajes (las 3 previas interacciones)
-        if (userSessions[sender].length > 6) {
-            userSessions[sender].splice(0, 2);
+        if (!sessionPayload.isGpt) {
+            // Si el estado no es GPT, la máquina de estados responde y corta el flujo.
+            await msg.reply(sessionPayload.text);
+            return;
         }
 
-        // 6. Enviar mensaje de respuesta
+        // 4. Obtener respuesta inteligente a través del servicio OpenAI (Usuario Registrado)
+        // Pasamos específicamente el history y el nombre
+        const userName = userSessions[sender].datos ? userSessions[sender].datos.nombre : "Cliente";
+        const aiReply = await generateAIResponse(msg.body, config, servicesCatalog, knowledgeCatalog, userSessions[sender].history, userName);
+
+        // 5. Actualizar la memoria del chat GPT
+        userSessions[sender].history.push({ role: 'user', content: msg.body });
+        userSessions[sender].history.push({ role: 'assistant', content: aiReply });
+
+        // 6. Economía de TOKENS LIMITADA (recordar solo últimos 6 mensajes)
+        if (userSessions[sender].history.length > 6) {
+            userSessions[sender].history.splice(0, 2);
+        }
+
+        // 7. Enviar mensaje de respuesta OpenAI
         await msg.reply(aiReply);
     });
 

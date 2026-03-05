@@ -14,41 +14,83 @@ function inicializarEntorno() {
     return;
   }
 
-  // 1. Crear pestaña CONFIG_SISTEMA
-  let sheetConfig = getOrCreateSheet(ss, "CONFIG_SISTEMA");
+  // 1. CONFIGURACION (Estilo Clave/Valor)
+  let sheetConfig = getOrCreateSheet(ss, "CONFIGURACION");
   sheetConfig.clear();
-  sheetConfig.appendRow(["ESTADO_LICENCIA", "TONO_IA", "NOMBRE_NEGOCIO", "URL_LOGO", "COLOR_PRIMARIO", "MENSAJE_BIENVENIDA", "PROMPT_SISTEMA", "MODELO_IA", "OPENAI_API_KEY"]);
-  sheetConfig.appendRow(["ACTIVO", "Amable y Empático", "Demo Spa", "", "#E91E63", "¡Hola! Soy tu asistente virtual de citas.", "Eres Leydi Cejas, asesora de servicio al cliente del Demo Spa. Responde de forma amable, persuasiva y siempre de forma BREVE. Ayuda al cliente a conocer nuestro catálogo de servicios y guíalo para agendar una cita.", "gpt-4o-mini", "sk-..."]);
+  sheetConfig.appendRow(["CLAVE", "VALOR", "DESCRIPCION_TECNICA"]);
+  sheetConfig.appendRow(["ESTADO_SERVICIO", "ACTIVO", "Kill Switch (Control SaaS)"]);
+  sheetConfig.appendRow(["CLAVE_OPENAI", "sk-...", "API Key IA"]);
+  sheetConfig.appendRow(["NOMBRE_NEGOCIO", "Estética Divina", "Contexto general"]);
+  sheetConfig.appendRow(["NOMBRE_AGENTE", "Valentina", "Identidad del Bot"]);
+  sheetConfig.appendRow(["SALUDO_BASE", "¡Hola! Soy Valentina, tu asistente de belleza.", "Mensaje inicial"]);
+  sheetConfig.appendRow(["CELULAR_DUEÑA", "573000000000", "Alertas Críticas"]);
+  sheetConfig.appendRow(["CORREO_DUEÑA", "admin@spa.com", "Reportes Email"]);
+  sheetConfig.appendRow(["ENLACE_LOGO", "https://...", "Branding Automático"]);
+  sheetConfig.appendRow(["COLOR_MARCA", "#E91E63", "UI Theme"]);
   formatHeaders(sheetConfig);
 
-  // 2. Crear pestaña CONFIG_SERVICIOS (Catálogo RAG)
-  let sheetRag = getOrCreateSheet(ss, "CONFIG_SERVICIOS");
-  sheetRag.clear();
-  sheetRag.appendRow(["ID_SERVICIO", "INTENCION", "RESPUESTA_BASE", "TIEMPO_SERVICIO", "CATEGORIA"]);
-  sheetRag.appendRow(["CEJ-001", "precios_cejas", "El diseño de cejas vale $20.", "30", "Estética"]);
-  sheetRag.appendRow(["MAN-001", "precios_manicure", "El manicure tradicional cuesta $15.", "45", "Manos y Pies"]);
-  sheetRag.appendRow(["COR-001", "corte_cabello", "El corte de cabello para dama cuesta $25.", "40", "Peluquería"]);
-  formatHeaders(sheetRag);
+  // 2. CLIENTES (CRM)
+  let sheetClientes = getOrCreateSheet(ss, "CLIENTES");
+  sheetClientes.clear();
+  sheetClientes.appendRow(["ID_CLIENTE", "CELULAR", "NOMBRE", "CORREO", "CUMPLE", "DIRECCION", "TIPO", "REGISTRO"]);
+  formatHeaders(sheetClientes);
 
-  // 3. Crear pestaña CITAS_DB
-  let sheetCitas = getOrCreateSheet(ss, "CITAS_DB");
-  sheetCitas.clear();
-  sheetCitas.appendRow(["ID", "FECHA", "HORA", "CLIENTE", "TELEFONO", "SERVICIO", "ESTADO"]);
-  formatHeaders(sheetCitas);
+  // 3. SESIONES (Máquina de Estados)
+  let sheetSesiones = getOrCreateSheet(ss, "SESIONES");
+  sheetSesiones.clear();
+  sheetSesiones.appendRow(["CELULAR", "ESTADO_ACTUAL", "DATOS_PARCIALES", "TIMESTAMP"]);
+  formatHeaders(sheetSesiones);
 
-  // 4. Crear pestaña LEADS
-  let sheetLeads = getOrCreateSheet(ss, "LEADS");
-  sheetLeads.clear();
-  sheetLeads.appendRow(["FECHA_REGISTRO", "NOMBRE", "TELEFONO", "INTERES", "ORIGEN"]);
-  formatHeaders(sheetLeads);
+  // 4. COLABORADORES
+  let sheetColaboradores = getOrCreateSheet(ss, "COLABORADORES");
+  sheetColaboradores.clear();
+  sheetColaboradores.appendRow(["ID_COLABORADOR", "NOMBRE", "CELULAR", "ROL", "PIN", "ESTADO"]);
+  sheetColaboradores.appendRow(["ADMIN-001", "Andrea", "573001112233", "ADMIN", "1010", "ACTIVO"]);
+  sheetColaboradores.appendRow(["COL-001", "Camila", "573004445566", "STAFF", "2020", "ACTIVO"]);
+  formatHeaders(sheetColaboradores);
 
-  // Limpiar "Hoja 1" si existe por defecto
-  let sheetDefault = ss.getSheetByName("Hoja 1") || ss.getSheetByName("Sheet1");
-  if (sheetDefault && ss.getSheets().length > 1) {
-    ss.deleteSheet(sheetDefault);
-  }
+  // 5. DISPONIBILIDAD
+  let sheetDisponibilidad = getOrCreateSheet(ss, "DISPONIBILIDAD");
+  sheetDisponibilidad.clear();
+  sheetDisponibilidad.appendRow(["TIPO", "FECHA_DIA", "HORA_INI", "HORA_FIN", "MOTIVO", "APLICA_A", "HORARIO"]);
+  sheetDisponibilidad.appendRow(["Jornada", "Lunes", "09:00", "18:00", "Horario Base", "TODOS", "DIARIO"]);
+  formatHeaders(sheetDisponibilidad);
 
-  Logger.log("¡Entorno inicializado correctamente!");
+  // 6. AGENDA
+  let sheetAgenda = getOrCreateSheet(ss, "AGENDA");
+  sheetAgenda.clear();
+  sheetAgenda.appendRow(["ID", "FECHA", "INICIO", "FIN", "CLIENTE", "SERVICIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
+  formatHeaders(sheetAgenda);
+
+  // 7. PROMOCIONES
+  let sheetPromociones = getOrCreateSheet(ss, "PROMOCIONES");
+  sheetPromociones.clear();
+  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "ESTADO", "VENCE", "APLICA_DIA"]);
+  formatHeaders(sheetPromociones);
+
+  // 8. NOVEDADES
+  let sheetNovedades = getOrCreateSheet(ss, "NOVEDADES");
+  sheetNovedades.clear();
+  sheetNovedades.appendRow(["FECHA", "HORA", "STAFF", "TIPO", "MENSAJE", "ESTADO"]);
+  formatHeaders(sheetNovedades);
+
+  // 9. CONOCIMIENTO (RAG y Multimedia extra)
+  let sheetConocimiento = getOrCreateSheet(ss, "CONOCIMIENTO");
+  sheetConocimiento.clear();
+  sheetConocimiento.appendRow(["INTENCION", "RESPUESTA", "TIPO_MEDIA", "URL"]);
+  sheetConocimiento.appendRow(["catalogo", "Para ver todos nuestros modelos ingresa a este link", "pdf", "https://drive.google.com/..."]);
+  formatHeaders(sheetConocimiento);
+
+  // Limpiar Hojas viejas
+  const oldSheets = ["CONFIG_SISTEMA", "ESPECIALIDADES", "SERVICIOS", "BASE_CONOCIMIENTO", "CITAS_DB", "LEADS", "Hoja 1", "Sheet1"];
+  oldSheets.forEach(name => {
+    let oldS = ss.getSheetByName(name);
+    if (oldS && ss.getSheets().length > 1) {
+      ss.deleteSheet(oldS); 
+    }
+  });
+
+  Logger.log("¡Entorno V7 inicializado correctamente (Limpio)!");
 }
 
 /**

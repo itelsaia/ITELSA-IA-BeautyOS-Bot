@@ -9,7 +9,8 @@ const serviceAccountAuth = new JWT({
 });
 
 /**
- * Carga la configuración del cliente desde su hoja "CONFIG_SISTEMA"
+ * Carga la configuración del cliente desde su hoja "CONFIGURACION"
+ * Formato esperado Col A: CLAVE, Col B: VALOR
  * @param {string} sheetId 
  */
 async function loadClientConfig(sheetId) {
@@ -17,25 +18,36 @@ async function loadClientConfig(sheetId) {
         const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
         await doc.loadInfo();
 
-        // Extraemos Configuración Fila 2
-        const sheet = doc.sheetsByTitle['CONFIG_SISTEMA'];
-        if (!sheet) throw new Error("La pestaña CONFIG_SISTEMA no existe en este Sheet.");
+        const sheet = doc.sheetsByTitle['CONFIGURACION'];
+        if (!sheet) throw new Error("La pestaña CONFIGURACION no existe en este Sheet.");
 
-        await sheet.loadCells('A2:I2');
+        const rows = await sheet.getRows();
+        const configRaw = {};
 
+        // Recorrer filas y convertir en diccionario clave-valor
+        rows.forEach(row => {
+            const rowObj = row.toObject();
+            const rawKey = rowObj['CLAVE'];
+            const rawVal = rowObj['VALOR'];
+
+            if (rawKey && rawKey.trim() !== '') {
+                configRaw[rawKey.trim()] = rawVal || '';
+            }
+        });
+
+        // Mapeo unificado para el agente
         return {
-            status: sheet.getCell(1, 0).value,      // A2: ESTADO_LICENCIA
-            tone: sheet.getCell(1, 1).value,        // B2: TONO_IA
-            businessName: sheet.getCell(1, 2).value,// C2: NOMBRE_NEGOCIO
-            logoUrl: sheet.getCell(1, 3).value,     // D2: URL_LOGO
-            primaryColor: sheet.getCell(1, 4).value,// E2: COLOR_PRIMARIO
-            welcomeMsg: sheet.getCell(1, 5).value,  // F2: MENSAJE_BIENVENIDA
-            systemPrompt: sheet.getCell(1, 6).value,// G2: PROMPT_SISTEMA
-            aiModel: sheet.getCell(1, 7).value,     // H2: MODELO_IA
-            openApiKey: sheet.getCell(1, 8).value   // I2: OPENAI_API_KEY
+            status: configRaw['ESTADO_SERVICIO'],
+            openApiKey: configRaw['CLAVE_OPENAI'],
+            businessName: configRaw['NOMBRE_NEGOCIO'],
+            agentName: configRaw['NOMBRE_AGENTE'],
+            welcomeMsg: configRaw['SALUDO_BASE'],
+            ownerPhone: configRaw['CELULAR_DUEÑA'],
+            ownerEmail: configRaw['CORREO_DUEÑA'],
+            systemPrompt: `Eres ${configRaw['NOMBRE_AGENTE'] || 'un asistente virtual amable y conciso'}, y trabajas para el negocio de estética y belleza llamado ${configRaw['NOMBRE_NEGOCIO'] || 'la tienda'}.`
         };
     } catch (e) {
-        console.error("❌ Error conectando a Google Sheets:", e.message);
+        console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
         return null;
     }
 }
@@ -86,4 +98,81 @@ async function loadServicesConfig(sheetId) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig };
+/**
+ * Extrae la Base de Conocimiento (RAG para Multimedia/FAQs) configurada
+ * @param {string} sheetId 
+ * @returns {Promise<Array>} Arreglo de respuestas predefinidas y URLs
+ */
+async function loadKnowledgeConfig(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['CONOCIMIENTO'];
+        if (!sheet) {
+            console.warn("⚠️ La pestaña CONOCIMIENTO no existe.");
+            return [];
+        }
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        return rows.map(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+
+            return {
+                intent: cleanData['INTENCION'] || '',
+                response: cleanData['RESPUESTA'] || '',
+                mediaType: cleanData['TIPO_MEDIA'] || '',
+                url: cleanData['URL'] || ''
+            };
+        }).filter(item => item.intent !== ''); // Solo filas válidas
+
+    } catch (e) {
+        console.error("❌ Error cargando Base de Conocimiento:", e.message);
+        return [];
+    }
+}
+
+/**
+ * Carga todo el CRM de clientes al arrancar para reconocer usuarios viejos si el bot se reinicia
+ * @param {string} sheetId 
+ * @returns {Promise<Object>} Diccionario con { "57314...": { nombre: "Juan" } }
+ */
+async function loadRegisteredClients(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['CLIENTES'];
+        if (!sheet) return {};
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        const clientsDict = {};
+        rows.forEach(row => {
+            const data = row.toObject();
+            const celular = (data['CELULAR'] || '').toString().trim();
+            if (celular) {
+                clientsDict[celular] = {
+                    nombre: data['NOMBRE'] || '',
+                    correo: data['CORREO'] || '',
+                    id: data['ID_CLIENTE'] || ''
+                };
+            }
+        });
+
+        return clientsDict;
+
+    } catch (e) {
+        console.error("❌ Error cargando Base de Clientes (CRM):", e.message);
+        return {};
+    }
+}
+
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients };
