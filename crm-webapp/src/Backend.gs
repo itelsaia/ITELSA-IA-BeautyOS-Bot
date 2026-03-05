@@ -226,10 +226,15 @@ function handleRescheduleAgenda(ss, payload) {
       const fila = i + 1;
       
       // Capturar datos antiguos para trazabilidad
-      const fecAntigua = data[i][1];
-      const iniAntiguo = data[i][2];
+      const fecObj = data[i][1];
+      const iniObj = data[i][2];
+      
+      // Formatear fechas si son objetos Date, de lo contrario usarlos como strings
+      const fecAntigua = fecObj instanceof Date ? Utilities.formatDate(fecObj, Session.getScriptTimeZone(), "dd/MM/yyyy") : fecObj;
+      const iniAntiguo = iniObj instanceof Date ? Utilities.formatDate(iniObj, Session.getScriptTimeZone(), "HH:mm") : iniObj;
+      
       const srvAntiguo = data[i][6];
-      const traza = `[Reagendamiento - Antes: ${fecAntigua} ${iniAntiguo} | ${srvAntiguo}]`;
+      const traza = `[Reagendamiento - Antes: ${fecAntigua} a las ${iniAntiguo} | ${srvAntiguo}]`;
       const notasPrevias = data[i][10] ? data[i][10] + "\n" : "";
 
       // Actualizar datos de la fila
