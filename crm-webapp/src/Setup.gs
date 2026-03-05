@@ -59,8 +59,25 @@ function inicializarEntorno() {
   // 6. AGENDA
   let sheetAgenda = getOrCreateSheet(ss, "AGENDA");
   sheetAgenda.clear();
-  sheetAgenda.appendRow(["ID", "FECHA", "INICIO", "FIN", "CLIENTE", "SERVICIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
+  sheetAgenda.appendRow(["ID", "FECHA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
   formatHeaders(sheetAgenda);
+
+  // 6.1 LISTA_ESTADOS (Tabla de referencia para validación de datos)
+  let sheetEstados = getOrCreateSheet(ss, "LISTA_ESTADOS");
+  sheetEstados.clear();
+  sheetEstados.appendRow(["ESTADO", "DESCRIPCION", "USO"]);
+  sheetEstados.appendRow(["PENDIENTE", "Cita agendada, servicio aún no prestado", "Bot IA al crear nueva cita"]);
+  sheetEstados.appendRow(["EJECUTADO", "Cliente asistió y el servicio fue prestado", "Admin/Colaborador cierra la cita en el CRM"]);
+  sheetEstados.appendRow(["RECHAZADO", "Cliente no asistió a la cita programada", "Admin/Colaborador marca inasistencia"]);
+  sheetEstados.appendRow(["REAGENDADO", "Cliente solicitó cambio de fecha/hora/servicio", "Bot IA al reprogramar una cita existente"]);
+  formatHeaders(sheetEstados);
+  // Aplicar validación de datos a la columna ESTADO de AGENDA (columna J)
+  const estadosRange = sheetEstados.getRange("A2:A5");
+  const estadosRule = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(estadosRange, true)
+    .setAllowInvalid(false)
+    .build();
+  sheetAgenda.getRange("J2:J1000").setDataValidation(estadosRule);
 
   // 7. PROMOCIONES
   let sheetPromociones = getOrCreateSheet(ss, "PROMOCIONES");
@@ -90,7 +107,23 @@ function inicializarEntorno() {
     }
   });
 
-  Logger.log("¡Entorno V7 inicializado correctamente (Limpio)!");
+
+  // 10. CONFIG_SERVICIOS (Catálogo de servicios con nombre oficial)
+  let sheetServiciosCfg = ss.getSheetByName("CONFIG_SERVICIOS");
+  if (sheetServiciosCfg) {
+    const headers = sheetServiciosCfg.getRange(1, 1, 1, sheetServiciosCfg.getLastColumn()).getValues()[0];
+    if (!headers.includes('TIPO_SERVICIO')) {
+      // Agregar columna TIPO_SERVICIO al final si no existe
+      const nextCol = sheetServiciosCfg.getLastColumn() + 1;
+      sheetServiciosCfg.getRange(1, nextCol).setValue('TIPO_SERVICIO');
+      sheetServiciosCfg.getRange(1, nextCol).setFontWeight('bold').setBackground('#f3f3f3');
+      Logger.log('✅ Columna TIPO_SERVICIO agregada a CONFIG_SERVICIOS.');
+    } else {
+      Logger.log('ℹ️ CONFIG_SERVICIOS ya tiene la columna TIPO_SERVICIO.');
+    }
+  }
+
+  Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");
 }
 
 /**

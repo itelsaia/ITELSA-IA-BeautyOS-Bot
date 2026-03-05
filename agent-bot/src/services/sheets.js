@@ -83,11 +83,23 @@ async function loadServicesConfig(sheetId) {
                 if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
             }
 
+            // Intentar extraer un precio numérico de la descripción para agendamientos.
+            // Busca símbolos como $25.000 o 25000 y extrae el número base.
+            const textResponse = cleanData['RESPUESTA_BASE'] || '';
+            let parsedPrice = 0;
+            const priceMatch = textResponse.match(/\$?\s*([\d.,]+)/);
+            if (priceMatch) {
+                // Remueve puntos y comas para guardarlo como int puro
+                parsedPrice = parseInt(priceMatch[1].replace(/[.,]/g, ''), 10) || 0;
+            }
+
             return {
                 id: cleanData['ID_SERVICIO'] || 'SIN_ID',
                 intent: cleanData['INTENCION'] || '',
-                response: cleanData['RESPUESTA_BASE'] || '',
+                name: cleanData['TIPO_SERVICIO'] || cleanData['INTENCION'] || '',
+                response: textResponse,
                 timeMins: cleanData['TIEMPO_SERVICIO'] || '0',
+                price: parsedPrice, // Precio explícito extraído
                 category: cleanData['CATEGORIA'] || 'General'
             };
         }).filter(item => item.id !== 'SIN_ID' || item.intent !== ''); // Filtrar filas vacías
@@ -175,4 +187,51 @@ async function loadRegisteredClients(sheetId) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients };
+/**
+ * Carga las citas de la hoja AGENDA que estén en estado PENDIENTE o REAGENDADO.
+ * @param {string} sheetId 
+ * @returns {Promise<Object>} Diccionario donde la llave es el celular del cliente y el valor es un array de sus citas activas.
+ */
+async function loadPendingAppointments(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['AGENDA'];
+        if (!sheet) return {};
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+        const pendingAppointments = {};
+
+        rows.forEach(row => {
+            const data = row.toObject(); // Use toObject() to get data as in other functions
+            const estado = (data['ESTADO'] || '').toUpperCase().trim();
+            // Ambos estados (PENDIENTE y REAGENDADO) significan que la cita aún no ha sucedido y puede ser modificada/cancelada
+            if (estado === 'PENDIENTE' || estado === 'REAGENDADO') {
+                const celular = (data['CELULAR_CLIENTE'] || '').toString().trim();
+                if (celular) {
+                    if (!pendingAppointments[celular]) {
+                        pendingAppointments[celular] = [];
+                    }
+                    pendingAppointments[celular].push({
+                        id: data['ID'] || 'N/A',
+                        fecha: data['FECHA'] || 'N/A',
+                        inicio: data['INICIO'] || 'N/A',
+                        fin: data['FIN'] || 'N/A',
+                        servicio: data['SERVICIO'] || 'N/A',
+                        precio: data['PRECIO'] || 'N/A',
+                        estado: estado
+                    });
+                }
+            }
+        });
+
+        return pendingAppointments;
+    } catch (error) {
+        console.error("❌ Error cargando AGENDA pendiente:", error.message);
+        return {};
+    }
+}
+
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments };

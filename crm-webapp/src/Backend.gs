@@ -31,6 +31,12 @@ function doPost(e) {
       case 'createAgenda':
         result = handleCreateAgenda(ss, payload);
         break;
+      case 'updateAgendaStatus':
+        result = handleUpdateAgendaStatus(ss, payload);
+        break;
+      case 'rescheduleAgenda':
+        result = handleRescheduleAgenda(ss, payload);
+        break;
       default:
         return responseJSON(400, "Acción no reconocida: " + action);
     }
@@ -133,21 +139,118 @@ function handleCreateAgenda(ss, payload) {
   const sheet = ss.getSheetByName("AGENDA");
   if (!sheet) throw new Error("La hoja AGENDA no existe.");
   
-  // payload: { id, fecha, inicio, fin, cliente, servicio, profesional, notas }
-  
+  // payload: { fecha, inicio, fin, cliente, celularCliente, servicio, precio, profesional, notas }
+
+  // ── Generar ID inteligente: AG-CS-001 ──────────────────────────────────────
+  // AG = Agendamiento | CS = Iniciales del nombre del cliente | 001 = Consecutivo por cliente
+  const nombreCliente = (payload.cliente || "XX").trim();
+  const palabras = nombreCliente.split(/\s+/).filter(p => p.length > 0);
+  const iniciales = palabras.map(p => p[0].toUpperCase()).join('').substring(0, 3);
+  const prefix = `AG-${iniciales}-`;
+
+  // Contar citas existentes con el mismo prefijo de cliente para calcular el consecutivo
+  let maxNum = 0;
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    const idVal = (data[i][0] || "").toString().trim();
+    if (idVal.startsWith(prefix)) {
+      const numStr = idVal.replace(prefix, "");
+      const num = parseInt(numStr, 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  }
+  const agendaId = prefix + (maxNum + 1).toString().padStart(3, '0');
+  // ──────────────────────────────────────────────────────────────────────────
+
   sheet.appendRow([
-    payload.id || Utilities.getUuid().slice(0, 8),
+    agendaId,
     payload.fecha || "",
     payload.inicio || "",
     payload.fin || "",
     payload.cliente || "",
+    payload.celularCliente || "",
     payload.servicio || "",
-    payload.profesional || "",
+    payload.precio || 0,
+    payload.profesional || "Por asignar",
     "PENDIENTE",
     payload.notas || ""
   ]);
   
-  return { status: "Cita agendada exitosamente", id: payload.id };
+  return { status: "Cita agendada exitosamente", id: agendaId };
+}
+
+/**
+ * Actualiza el estado de una cita existente en la hoja AGENDA.
+ * Payload: { id, nuevoEstado }
+ * Estados válidos: PENDIENTE | EJECUTADO | RECHAZADO | REAGENDADO
+ */
+function handleUpdateAgendaStatus(ss, payload) {
+  const sheet = ss.getSheetByName("AGENDA");
+  if (!sheet) throw new Error("La hoja AGENDA no existe.");
+
+  const estadosValidos = ["PENDIENTE", "EJECUTADO", "RECHAZADO", "REAGENDADO"];
+  const nuevoEstado = (payload.nuevoEstado || "").toUpperCase().trim();
+
+  if (!estadosValidos.includes(nuevoEstado)) {
+    throw new Error("Estado inválido: " + nuevoEstado + ". Debe ser uno de: " + estadosValidos.join(", "));
+  }
+
+  const data = sheet.getDataRange().getValues();
+  // La columna ESTADO es la columna J (index 9, base 1 = columna 10)
+  const ESTADO_COL = 10; 
+  const ID_COL = 1;
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][ID_COL - 1].toString().trim() === payload.id.toString().trim()) {
+      sheet.getRange(i + 1, ESTADO_COL).setValue(nuevoEstado);
+      return { status: "Estado actualizado a " + nuevoEstado, id: payload.id };
+    }
+  }
+
+  throw new Error("No se encontró la cita con ID: " + payload.id);
+}
+
+/**
+ * Reagenda una cita existente: modifica los datos in-place, cambia estado a REAGENDADO y deja traza en NOTAS.
+ * Payload: { id, nuevaFecha, nuevoInicio, nuevoFin, nuevosServicios, nuevoPrecio, notasAdicionales }
+ */
+function handleRescheduleAgenda(ss, payload) {
+  const sheet = ss.getSheetByName("AGENDA");
+  if (!sheet) throw new Error("La hoja AGENDA no existe.");
+
+  const data = sheet.getDataRange().getValues();
+  // Columnas base 1:
+  // 1: ID, 2: FECHA, 3: INICIO, 4: FIN, 7: SERVICIO, 8: PRECIO, 10: ESTADO, 11: NOTAS
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0].toString().trim() === payload.id.toString().trim()) {
+      const fila = i + 1;
+      
+      // Capturar datos antiguos para trazabilidad
+      const fecAntigua = data[i][1];
+      const iniAntiguo = data[i][2];
+      const srvAntiguo = data[i][6];
+      const traza = `[Reagendamiento - Antes: ${fecAntigua} ${iniAntiguo} | ${srvAntiguo}]`;
+      const notasPrevias = data[i][10] ? data[i][10] + "\n" : "";
+
+      // Actualizar datos de la fila
+      sheet.getRange(fila, 2).setValue(payload.nuevaFecha);
+      sheet.getRange(fila, 3).setValue(payload.nuevoInicio);
+      sheet.getRange(fila, 4).setValue(payload.nuevoFin);
+      sheet.getRange(fila, 7).setValue(payload.nuevosServicios);
+      sheet.getRange(fila, 8).setValue(payload.nuevoPrecio);
+      
+      // Cambiar estado
+      sheet.getRange(fila, 10).setValue("REAGENDADO");
+      
+      // Añadir notas
+      const nuevasNotas = notasPrevias + traza + (payload.notasAdicionales ? "\n" + payload.notasAdicionales : "");
+      sheet.getRange(fila, 11).setValue(nuevasNotas);
+
+      return { status: "Cita reagendada e in-place actualizada", id: payload.id };
+    }
+  }
+
+  throw new Error("No se encontró la cita con ID: " + payload.id + " para reagendar.");
 }
 
 // ============================================
