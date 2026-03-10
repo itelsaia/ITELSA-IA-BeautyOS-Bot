@@ -59,7 +59,7 @@ function inicializarEntorno() {
   // 6. AGENDA
   let sheetAgenda = getOrCreateSheet(ss, "AGENDA");
   sheetAgenda.clear();
-  sheetAgenda.appendRow(["ID", "FECHA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
+  sheetAgenda.appendRow(["ID", "FECHA", "TIPO_DIA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
   formatHeaders(sheetAgenda);
 
   // 6.1 LISTA_ESTADOS (Tabla de referencia para validación de datos)
@@ -71,18 +71,19 @@ function inicializarEntorno() {
   sheetEstados.appendRow(["RECHAZADO", "Cliente no asistió a la cita programada", "Admin/Colaborador marca inasistencia"]);
   sheetEstados.appendRow(["REAGENDADO", "Cliente solicitó cambio de fecha/hora/servicio", "Bot IA al reprogramar una cita existente"]);
   formatHeaders(sheetEstados);
-  // Aplicar validación de datos a la columna ESTADO de AGENDA (columna J)
+  // Aplicar validación de datos a la columna ESTADO de AGENDA (columna K, por la nueva columna TIPO_DIA)
   const estadosRange = sheetEstados.getRange("A2:A5");
   const estadosRule = SpreadsheetApp.newDataValidation()
     .requireValueInRange(estadosRange, true)
     .setAllowInvalid(false)
     .build();
-  sheetAgenda.getRange("J2:J1000").setDataValidation(estadosRule);
+  sheetAgenda.getRange("K2:K1000").setDataValidation(estadosRule);
 
-  // 7. PROMOCIONES
+  // 7. PROMOCIONES (Motor de descuentos inteligente)
   let sheetPromociones = getOrCreateSheet(ss, "PROMOCIONES");
   sheetPromociones.clear();
-  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "ESTADO", "VENCE", "APLICA_DIA"]);
+  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "TIPO_PROMO", "VALOR_DESCUENTO", "APLICA_SERVICIO", "APLICA_DIA", "VENCE", "ESTADO"]);
+  sheetPromociones.appendRow(["Martes de Uñas", "2x1 en manicure y pedicure los martes", "2X1", 50, "Manicure,Pedicure", "Martes", "31/03/2026", "ACTIVO"]);
   formatHeaders(sheetPromociones);
 
   // 8. NOVEDADES

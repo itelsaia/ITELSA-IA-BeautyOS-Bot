@@ -86,6 +86,34 @@ const TOOLS = [
 ];
 
 // ============================================================
+// Filtro de promociones vigentes para el día actual
+// ============================================================
+function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName) {
+    return promotionsCatalog.filter(p => {
+        // Solo ACTIVAS
+        if (p.estado !== 'ACTIVO') return false;
+
+        // Verificar fecha de vencimiento (DD/MM/YYYY)
+        if (p.vence) {
+            const parts = p.vence.split('/');
+            if (parts.length === 3) {
+                const venceDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                venceDate.setHours(23, 59, 59); // Válida hasta fin del día
+                if (venceDate < nowColombia) return false;
+            }
+        }
+
+        // Verificar día aplicable (case-insensitive)
+        if (p.aplicaDia && p.aplicaDia.trim() !== '') {
+            const diasAplicables = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+            if (!diasAplicables.includes(todayDayName.toLowerCase())) return false;
+        }
+
+        return true;
+    });
+}
+
+// ============================================================
 // Función principal de respuesta de IA
 // ============================================================
 /**
@@ -97,6 +125,7 @@ const TOOLS = [
  * @param {Array} messageHistory Historial de conversación
  * @param {Object} userData Objeto con datos del usuario: { nombre, celular }
  * @param {Array} userPendingAppointments Citas PENDIENTES actuales del usuario
+ * @param {Array} promotionsCatalog Catálogo de promociones configuradas
  */
 async function generateAIResponse(
     incomingMessage,
@@ -105,7 +134,8 @@ async function generateAIResponse(
     knowledgeCatalog = [],
     messageHistory = [],
     userData = {},
-    userPendingAppointments = []
+    userPendingAppointments = [],
+    promotionsCatalog = []
 ) {
     if (!config.openApiKey || config.openApiKey === "sk-..." || config.openApiKey === "PEGAR_AQUI_API_KEY") {
         console.error("🔴 Bloqueo OpenAI: API Key no configurada.");
@@ -147,6 +177,19 @@ async function generateAIResponse(
         const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const todayDayName = weekDays[nowColombia.getDay()];
 
+        // 4b. Filtrar promociones activas para hoy
+        const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName);
+        let promotionsText = "No hay promociones activas para hoy.";
+        if (activePromotions.length > 0) {
+            promotionsText = activePromotions.map(p => {
+                let descuentoLabel = '';
+                if (p.tipoPromo === 'PORCENTAJE') descuentoLabel = `${p.valorDescuento}% de descuento`;
+                else if (p.tipoPromo === '2X1') descuentoLabel = '2x1 (segundo gratis)';
+                else if (p.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${p.valorDescuento.toLocaleString('es-CO')} de descuento`;
+                return `- PROMO: ${p.nombre} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia} | Valida hasta: ${p.vence}`;
+            }).join('\n');
+        }
+
         // 5. Prompt del sistema con todas las reglas
         const businessRules = `
 ---
@@ -166,12 +209,22 @@ async function generateAIResponse(
 8. AGENDAMIENTO: Para agendar usa TIPO_SERVICIO_OFICIAL del catálogo como nombre del servicio guardado.
 9. CONFIRMACIÓN ANTES DE GUARDAR: Antes de llamar a 'agendar_cita' o 'reagendar_cita', siempre presenta el resumen al cliente y espera su confirmación ("Sí", "Perfecto", "De acuerdo") para proceder.
 10. REAGENDAMIENTO: Si el usuario quiere cambiar su cita, usa 'reagendar_cita'. Pregúntale si quiere cambiar solo la fecha/hora o también los servicios.
+11. PROMOCIONES: Si hay promociones vigentes hoy, mencionalas brevemente en tu primer mensaje. Al agendar, aplica el descuento si corresponde y muestra el desglose (precio normal → descuento → precio final). Usa el precio CON descuento en precio_total al llamar a 'agendar_cita'.
 
 📅 ESTADO DE CITAS ACTUALES DEL CLIENTE:
 ${pendingAppointmentsText}
 
 🛍️ CATÁLOGO DE SERVICIOS DISPONIBLES:
 ${catalogText}
+
+🎉 PROMOCIONES VIGENTES HOY (${todayDayName}):
+${promotionsText}
+
+📌 REGLAS DE DESCUENTO:
+- PORCENTAJE: precio_original × (1 - valor/100). Ej: $25.000 con 20% = $20.000
+- 2X1: Si pide 2 servicios iguales, cobra solo 1 (el segundo es gratis). Si pide 1 solo, NO aplica.
+- VALOR_FIJO: precio_original - valor_descuento. Ej: $25.000 con $5.000 off = $20.000
+- Al presentar el resumen, muestra: ~precio original~ → precio con descuento.
 
 📚 BASE DE CONOCIMIENTO / MULTIMEDIA:
 ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado."}

@@ -17,6 +17,14 @@ Thumbs.db
 # Clasp local (archivos dinámicos si se requiere)
 .clasp.json
 
-# Bot Data
+# Bot Data (legacy whatsapp-web.js)
 agent-bot/baileys_auth_info/
 agent-bot/bot_sessions/
+agent-bot/qr.png
+
+# Evolution API (datos locales de Docker)
+evolution-api.env
+
+# Docker volumes (si se persisten localmente)
+postgres_data/
+redis_data/

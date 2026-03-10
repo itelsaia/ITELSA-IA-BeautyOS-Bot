@@ -1,11 +1,1146 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-    <title>ITELSA BeautyOS</title>
-  </head>
-  <body>
-    <h1>Bienvenido a BeautyOS</h1>
-    <p>Cargando CRM...</p>
-  </body>
+<html lang="es">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BeautyOS CRM</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #E91E63;
+      --brand-dark: #C2185B;
+      --brand-light: #FCE4EC;
+      --sidebar-bg: #1a1a2e;
+      --sidebar-hover: #16213e;
+      --sidebar-active: #0f3460;
+      --sidebar-w: 250px;
+      --topbar-h: 60px;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:'Inter',sans-serif; background:#f0f2f5; color:#333; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position:fixed; top:0; left:0; bottom:0; width:var(--sidebar-w);
+      background:var(--sidebar-bg); color:#a0a3b1; z-index:1000;
+      display:flex; flex-direction:column; transition:transform .3s ease;
+    }
+    .sidebar-brand {
+      padding:20px 18px; display:flex; align-items:center; gap:12px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .sidebar-brand .brand-icon {
+      width:40px; height:40px; border-radius:10px; display:flex; align-items:center;
+      justify-content:center; font-size:1.2rem; color:#fff; flex-shrink:0;
+      background:var(--brand);
+    }
+    .sidebar-brand img {
+      width:40px; height:40px; border-radius:10px; object-fit:cover; display:none;
+    }
+    .sidebar-brand .brand-text { overflow:hidden; }
+    .sidebar-brand .brand-text span { display:block; color:#fff; font-weight:700; font-size:.95rem; white-space:nowrap; }
+    .sidebar-brand .brand-text small { font-size:.7rem; opacity:.6; }
+
+    .sidebar-nav { flex:1; padding:12px 0; overflow-y:auto; }
+    .sidebar-nav .nav-section { padding:8px 18px 4px; font-size:.65rem; text-transform:uppercase; letter-spacing:1.5px; color:#555a6e; margin-top:8px; }
+    .sidebar-nav a {
+      display:flex; align-items:center; gap:12px; padding:10px 18px; margin:2px 8px;
+      border-radius:8px; color:#a0a3b1; text-decoration:none; font-size:.88rem;
+      font-weight:500; transition:all .2s;
+    }
+    .sidebar-nav a:hover { background:var(--sidebar-hover); color:#e0e0e0; }
+    .sidebar-nav a.active { background:var(--brand); color:#fff; }
+    .sidebar-nav a i { width:20px; text-align:center; font-size:.95rem; }
+    .sidebar-nav .nav-badge {
+      margin-left:auto; background:var(--brand); color:#fff; font-size:.65rem;
+      padding:2px 7px; border-radius:10px; font-weight:600;
+    }
+
+    .sidebar-footer { padding:14px 18px; border-top:1px solid rgba(255,255,255,.08); font-size:.7rem; color:#555a6e; text-align:center; }
+
+    .sidebar-overlay {
+      display:none; position:fixed; top:0; left:0; right:0; bottom:0;
+      background:rgba(0,0,0,.5); z-index:999;
+    }
+
+    /* ── Main ── */
+    .main-content { margin-left:var(--sidebar-w); min-height:100vh; transition:margin .3s ease; }
+    .topbar {
+      height:var(--topbar-h); background:#fff; border-bottom:1px solid #e5e7eb;
+      display:flex; align-items:center; padding:0 24px; gap:16px;
+      position:sticky; top:0; z-index:100;
+    }
+    .topbar .menu-toggle { display:none; background:none; border:none; font-size:1.3rem; color:#555; cursor:pointer; }
+    .topbar .page-title { font-size:1.1rem; font-weight:600; color:#1a1a2e; }
+    .topbar .topbar-right { margin-left:auto; display:flex; align-items:center; gap:12px; }
+    .topbar .topbar-right .status-dot { width:8px; height:8px; border-radius:50%; background:#22c55e; display:inline-block; }
+    .topbar .topbar-right small { color:#888; font-size:.8rem; }
+
+    .content-area { padding:24px; }
+
+    /* ── Cards ── */
+    .stat-card {
+      background:#fff; border-radius:12px; padding:20px; display:flex;
+      align-items:center; gap:16px; box-shadow:0 1px 3px rgba(0,0,0,.06);
+      transition:transform .2s, box-shadow .2s;
+    }
+    .stat-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.1); }
+    .stat-icon {
+      width:48px; height:48px; border-radius:12px; display:flex; align-items:center;
+      justify-content:center; font-size:1.2rem; flex-shrink:0;
+    }
+    .stat-info h3 { margin:0; font-size:1.5rem; font-weight:700; color:#1a1a2e; }
+    .stat-info small { color:#888; font-size:.8rem; }
+
+    .card-custom {
+      background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.06);
+      border:none; overflow:hidden;
+    }
+    .card-custom .card-header-custom {
+      padding:16px 20px; border-bottom:1px solid #f0f0f0;
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    .card-custom .card-header-custom h6 { margin:0; font-weight:600; color:#1a1a2e; }
+
+    /* ── Tables ── */
+    .table-clean { margin:0; }
+    .table-clean thead th {
+      background:#fafbfc; font-size:.75rem; text-transform:uppercase; letter-spacing:.5px;
+      color:#888; font-weight:600; border-bottom:1px solid #eee; padding:10px 16px;
+    }
+    .table-clean tbody td { padding:12px 16px; vertical-align:middle; font-size:.88rem; border-bottom:1px solid #f5f5f5; }
+    .table-clean tbody tr:hover { background:#fafbfc; }
+
+    /* ── Badges ── */
+    .badge-status { font-size:.72rem; padding:4px 10px; border-radius:20px; font-weight:600; }
+    .badge-pendiente { background:#FFF3CD; color:#856404; }
+    .badge-ejecutado { background:#D4EDDA; color:#155724; }
+    .badge-rechazado { background:#F8D7DA; color:#721C24; }
+    .badge-reagendado { background:#D1ECF1; color:#0C5460; }
+    .badge-activo { background:#D4EDDA; color:#155724; }
+    .badge-inactivo { background:#E2E3E5; color:#6C757D; }
+    .badge-nuevo { background:#CCE5FF; color:#004085; }
+    .badge-recurrente { background:#E2D5F1; color:#5A2D82; }
+
+    /* ── Buttons ── */
+    .btn-brand { background:var(--brand); color:#fff; border:none; font-weight:600; border-radius:8px; }
+    .btn-brand:hover { background:var(--brand-dark); color:#fff; }
+    .btn-sm-icon { width:32px; height:32px; padding:0; display:inline-flex; align-items:center; justify-content:center; border-radius:6px; }
+
+    /* ── Search ── */
+    .search-box {
+      position:relative; max-width:300px;
+    }
+    .search-box input { padding-left:36px; border-radius:8px; border:1px solid #e5e7eb; font-size:.88rem; }
+    .search-box i { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#aaa; font-size:.85rem; }
+
+    /* ── Modals ── */
+    .modal-header-brand { background:var(--brand); color:#fff; }
+    .modal-header-brand .btn-close { filter:brightness(0) invert(1); }
+
+    /* ── Config ── */
+    .config-card { background:#fff; border-radius:12px; padding:24px; box-shadow:0 1px 3px rgba(0,0,0,.06); margin-bottom:20px; }
+    .config-card h6 { font-weight:600; color:#1a1a2e; margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid #f0f0f0; }
+    .config-card .form-label { font-size:.82rem; font-weight:500; color:#555; }
+
+    /* ── Loading ── */
+    #loadingOverlay {
+      position:fixed; inset:0; background:rgba(255,255,255,.95); display:flex;
+      align-items:center; justify-content:center; flex-direction:column; z-index:9999;
+    }
+    #loadingOverlay .spinner-border { width:3rem; height:3rem; color:var(--brand); }
+
+    /* ── Toast ── */
+    .toast-container { position:fixed; top:20px; right:20px; z-index:10000; }
+
+    /* ── Empty State ── */
+    .empty-state { text-align:center; padding:60px 20px; color:#aaa; }
+    .empty-state i { font-size:3rem; margin-bottom:12px; display:block; color:#ddd; }
+
+    /* ── Responsive ── */
+    @media(max-width:991px) {
+      .sidebar { transform:translateX(-100%); }
+      .sidebar.open { transform:translateX(0); }
+      .sidebar-overlay.show { display:block; }
+      .main-content { margin-left:0; }
+      .topbar .menu-toggle { display:block; }
+    }
+    @media(max-width:576px) {
+      .content-area { padding:16px; }
+      .stat-card { padding:14px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loadingOverlay">
+  <div class="spinner-border" role="status"></div>
+  <p class="mt-3 text-muted" style="font-size:.9rem;">Cargando CRM...</p>
+</div>
+
+<!-- Toasts -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- App Wrapper -->
+<div class="app-wrapper">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon" id="brandIconFallback"><i class="fas fa-spa"></i></div>
+      <img id="brandLogo" src="" alt="" onload="this.style.display='block';document.getElementById('brandIconFallback').style.display='none';" onerror="this.style.display='none';">
+      <div class="brand-text">
+        <span id="brandName">BeautyOS</span>
+        <small>CRM</small>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section">Principal</div>
+      <a href="#" class="active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
+      <a href="#" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
+      <a href="#" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
+
+      <div class="nav-section">Negocio</div>
+      <a href="#" data-page="servicios"><i class="fas fa-concierge-bell"></i> Servicios</a>
+      <a href="#" data-page="promociones"><i class="fas fa-tags"></i> Promociones</a>
+
+      <div class="nav-section">Sistema</div>
+      <a href="#" data-page="config"><i class="fas fa-cog"></i> Configuracion</a>
+    </nav>
+
+    <div class="sidebar-footer">Powered by <strong>ITELSA BeautyOS</strong></div>
+  </aside>
+
+  <!-- Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <!-- Main -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <span class="page-title" id="pageTitle">Dashboard</span>
+      <div class="topbar-right">
+        <small id="topbarNegocio"></small>
+        <span class="status-dot" id="statusDot"></span>
+      </div>
+    </header>
+    <div class="content-area" id="contentArea"></div>
+  </main>
+
+</div>
+
+<!-- ============================================ -->
+<!-- MODAL: Servicio (Crear / Editar)             -->
+<!-- ============================================ -->
+<div class="modal fade" id="modalServicio" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header modal-header-brand">
+        <h5 class="modal-title" id="modalServicioTitulo"><i class="fas fa-plus-circle me-1"></i> Nuevo Servicio</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formServicio">
+          <input type="hidden" id="srvRowIndex" value="">
+          <input type="hidden" id="srvId" value="">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Nombre del Servicio *</label>
+              <input type="text" class="form-control" id="srvTipoServicio" placeholder="Ej: Manicure" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Categoria</label>
+              <input type="text" class="form-control" id="srvCategoria" placeholder="Ej: Manos y Pies">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Tiempo (min) *</label>
+              <input type="number" class="form-control" id="srvTiempo" placeholder="45" min="0" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Intencion IA</label>
+              <input type="text" class="form-control" id="srvIntencion" placeholder="Ej: precios_manicure">
+              <small class="text-muted">Palabra clave que usa el bot para reconocer este servicio</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Respuesta del Bot *</label>
+              <textarea class="form-control" id="srvRespuesta" rows="3" placeholder="Ej: El manicure tradicional cuesta $15.000" required></textarea>
+              <small class="text-muted">Incluye el precio para que el bot lo muestre al cliente</small>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-brand" onclick="guardarServicio()" id="btnGuardarSrv">
+          <i class="fas fa-save me-1"></i> Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- MODAL: Promocion (Crear / Editar)            -->
+<!-- ============================================ -->
+<div class="modal fade" id="modalPromocion" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header modal-header-brand">
+        <h5 class="modal-title" id="modalPromocionTitulo"><i class="fas fa-plus-circle me-1"></i> Nueva Promocion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="formPromocion">
+          <input type="hidden" id="promoRowIndex" value="">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Nombre *</label>
+              <input type="text" class="form-control" id="promoNombre" placeholder="Ej: Martes de Unas" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Tipo *</label>
+              <select class="form-select" id="promoTipo" required>
+                <option value="PORCENTAJE">% Porcentaje</option>
+                <option value="2X1">2x1</option>
+                <option value="VALOR_FIJO">$ Valor Fijo</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Valor *</label>
+              <input type="number" class="form-control" id="promoValor" placeholder="50" min="0" required>
+              <small class="text-muted" id="promoValorHint">% de descuento</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Descripcion</label>
+              <textarea class="form-control" id="promoDescripcion" rows="2" placeholder="Lo que vera el cliente por WhatsApp"></textarea>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Aplica a Servicio(s)</label>
+              <select class="form-select" id="promoServicio" multiple size="4">
+                <option value="TODOS" selected>TODOS</option>
+              </select>
+              <small class="text-muted">Ctrl+click para varios</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Dia(s)</label>
+              <div id="promoDiasCheck" class="d-flex flex-wrap gap-2 mt-1">
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Lunes" id="dL"><label class="form-check-label" for="dL">Lun</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Martes" id="dM"><label class="form-check-label" for="dM">Mar</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Miércoles" id="dX"><label class="form-check-label" for="dX">Mie</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Jueves" id="dJ"><label class="form-check-label" for="dJ">Jue</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Viernes" id="dV"><label class="form-check-label" for="dV">Vie</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Sábado" id="dS"><label class="form-check-label" for="dS">Sab</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Domingo" id="dD"><label class="form-check-label" for="dD">Dom</label></div>
+              </div>
+              <small class="text-muted">Sin marcar = todos los dias</small>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Valida Hasta</label>
+              <input type="date" class="form-control" id="promoVence">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Estado</label>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" id="promoEstadoSwitch" checked style="transform:scale(1.3);">
+                <label class="form-check-label ms-2" id="promoEstadoLabel">ACTIVO</label>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-brand" onclick="guardarPromocion()" id="btnGuardarPromo">
+          <i class="fas fa-save me-1"></i> Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Activar Promocion -->
+<div class="modal fade" id="modalActivar" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#22c55e;color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-check-circle me-1"></i> Activar</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="activarRowIndex">
+        <p class="mb-2">Promocion: <strong id="activarNombre"></strong></p>
+        <label class="form-label fw-semibold">Valida hasta: *</label>
+        <input type="date" class="form-control" id="activarFechaVence" required>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success btn-sm" onclick="confirmarActivar()"><i class="fas fa-check me-1"></i> Activar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Eliminar generico -->
+<div class="modal fade" id="modalEliminar" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#ef4444;color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-trash-alt me-1"></i> Eliminar</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="eliminarRowIndex">
+        <input type="hidden" id="eliminarTipo">
+        <p>¿Estas segura de eliminar <strong id="eliminarNombre"></strong>?</p>
+        <p class="text-muted small">Esta accion no se puede deshacer.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="confirmarEliminar()"><i class="fas fa-trash me-1"></i> Eliminar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// =============================================
+// Estado Global
+// =============================================
+var config = { flat: {}, detailed: [] };
+var clientes = [];
+var agenda = [];
+var servicios = [];
+var promociones = [];
+var serviciosNombres = [];
+var currentPage = 'dashboard';
+var pendingLoads = 0;
+
+// =============================================
+// Inicializacion
+// =============================================
+document.addEventListener('DOMContentLoaded', function() {
+  pendingLoads = 5;
+  google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
+  google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
+  google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
+  google.script.run.withSuccessHandler(onServiciosLoaded).withFailureHandler(onLoadErr).getServicios();
+  google.script.run.withSuccessHandler(onPromocionesLoaded).withFailureHandler(onLoadErr).getPromociones();
+
+  // Nav click
+  document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
+    a.addEventListener('click', function(e) {
+      e.preventDefault();
+      navigateTo(this.getAttribute('data-page'));
+      // Close sidebar on mobile
+      if (window.innerWidth < 992) toggleSidebar();
+    });
+  });
+
+  // Promo tipo hint
+  document.getElementById('promoTipo').addEventListener('change', function() {
+    var h = document.getElementById('promoValorHint');
+    if (this.value === 'PORCENTAJE') h.textContent = '% de descuento';
+    else if (this.value === '2X1') h.textContent = 'Ej: 50 = 2do al 50%';
+    else h.textContent = '$ COP de descuento';
+  });
+  document.getElementById('promoEstadoSwitch').addEventListener('change', function() {
+    document.getElementById('promoEstadoLabel').textContent = this.checked ? 'ACTIVO' : 'INACTIVO';
+  });
+});
+
+// =============================================
+// Callbacks de carga
+// =============================================
+function onConfigLoaded(data) {
+  config = data || { flat: {}, detailed: [] };
+  aplicarBranding();
+  checkLoaded();
+}
+function onClientesLoaded(data) { clientes = data || []; checkLoaded(); }
+function onAgendaLoaded(data) { agenda = data || []; updateBadgePendientes(); checkLoaded(); }
+function onServiciosLoaded(data) {
+  servicios = data || [];
+  serviciosNombres = servicios.map(function(s) { return s.tipoServicio; }).filter(function(n) { return n; });
+  checkLoaded();
+}
+function onPromocionesLoaded(data) { promociones = data || []; checkLoaded(); }
+function onLoadErr(err) { console.error('Error carga:', err); checkLoaded(); }
+
+function checkLoaded() {
+  pendingLoads--;
+  if (pendingLoads <= 0) {
+    navigateTo('dashboard');
+    document.getElementById('loadingOverlay').style.display = 'none';
+    iniciarAutoRefresh();
+  }
+}
+
+// =============================================
+// Auto-Refresh (polling cada 30 segundos)
+// =============================================
+function iniciarAutoRefresh() {
+  setInterval(function() {
+    var prevAgendaCount = agenda.length;
+    var prevClientesCount = clientes.length;
+
+    google.script.run.withSuccessHandler(function(data) {
+      agenda = data || [];
+      updateBadgePendientes();
+      if (data.length > prevAgendaCount) {
+        var nuevas = data.length - prevAgendaCount;
+        toast('Nueva(s) cita(s) agendada(s): +' + nuevas, 'info');
+        if (currentPage === 'dashboard' || currentPage === 'agenda') navigateTo(currentPage);
+      }
+    }).getAgenda();
+
+    google.script.run.withSuccessHandler(function(data) {
+      clientes = data || [];
+      if (data.length > prevClientesCount) {
+        var nuevos = data.length - prevClientesCount;
+        toast('Nuevo(s) cliente(s) registrado(s): +' + nuevos, 'info');
+        if (currentPage === 'dashboard' || currentPage === 'clientes') navigateTo(currentPage);
+      }
+    }).getClientes();
+  }, 30000);
+}
+
+// =============================================
+// Branding dinamico
+// =============================================
+function aplicarBranding() {
+  var f = config.flat;
+  if (f.NOMBRE_NEGOCIO) {
+    document.getElementById('brandName').textContent = f.NOMBRE_NEGOCIO;
+    document.getElementById('topbarNegocio').textContent = f.NOMBRE_NEGOCIO;
+    document.title = f.NOMBRE_NEGOCIO + ' - CRM';
+  }
+  if (f.ENLACE_LOGO) {
+    document.getElementById('brandLogo').src = convertDriveUrl(f.ENLACE_LOGO);
+  }
+  if (f.COLOR_MARCA) {
+    var c = f.COLOR_MARCA;
+    document.documentElement.style.setProperty('--brand', c);
+    document.documentElement.style.setProperty('--brand-dark', darkenColor(c, 20));
+    document.documentElement.style.setProperty('--brand-light', lightenColor(c, 85));
+    // Re-aplicar a todos los items activos del sidebar
+    document.querySelectorAll('.sidebar-nav a.active').forEach(function(a) { a.style.background = c; });
+    // Re-aplicar al icono de marca del sidebar
+    var brandIcon = document.getElementById('brandIconFallback');
+    if (brandIcon) brandIcon.style.background = c;
+  }
+  var estado = (f.ESTADO_SERVICIO || '').toUpperCase();
+  var dot = document.getElementById('statusDot');
+  dot.style.background = estado === 'ACTIVO' ? '#22c55e' : '#ef4444';
+  dot.title = 'Estado: ' + estado;
+}
+
+/**
+ * Convierte URLs de Google Drive a URLs directas de imagen.
+ * Input:  https://drive.google.com/file/d/ABC123/view?usp=sharing
+ * Output: https://lh3.googleusercontent.com/d/ABC123
+ */
+function convertDriveUrl(url) {
+  if (!url) return url;
+  // Formato: /file/d/FILE_ID/...
+  var match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return 'https://lh3.googleusercontent.com/d/' + match[1];
+  // Formato: ?id=FILE_ID
+  match = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match) return 'https://lh3.googleusercontent.com/d/' + match[1];
+  return url;
+}
+
+// =============================================
+// Navegacion
+// =============================================
+function navigateTo(page) {
+  currentPage = page;
+  // Update active nav
+  document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
+    a.classList.toggle('active', a.getAttribute('data-page') === page);
+  });
+  // Update title
+  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', servicios:'Servicios', promociones:'Promociones', config:'Configuracion' };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+  // Render
+  var area = document.getElementById('contentArea');
+  switch(page) {
+    case 'dashboard': area.innerHTML = renderDashboard(); break;
+    case 'agenda': area.innerHTML = renderAgenda(); break;
+    case 'clientes': area.innerHTML = renderClientes(); break;
+    case 'servicios': area.innerHTML = renderServicios(); break;
+    case 'promociones': area.innerHTML = renderPromociones(); break;
+    case 'config': area.innerHTML = renderConfig(); break;
+  }
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+// =============================================
+// RENDER: Dashboard
+// =============================================
+function renderDashboard() {
+  var totalClientes = clientes.length;
+  var pendientes = agenda.filter(function(a) { return a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO'; }).length;
+  var ejecutadas = agenda.filter(function(a) { return a.estado === 'EJECUTADO'; }).length;
+  var promosActivas = promociones.filter(function(p) { return (p.estado || '').toUpperCase() === 'ACTIVO'; }).length;
+
+  var html = '<div class="row g-3 mb-4">';
+  html += statCard('fa-users', totalClientes, 'Clientes', '#3b82f6', '#EBF5FF');
+  html += statCard('fa-calendar-check', pendientes, 'Citas Pendientes', '#f59e0b', '#FFF8E1');
+  html += statCard('fa-check-circle', ejecutadas, 'Citas Ejecutadas', '#22c55e', '#E8F5E9');
+  html += statCard('fa-tags', promosActivas, 'Promos Activas', '#e91e63', '#FCE4EC');
+  html += '</div>';
+
+  // Recent Agenda
+  html += '<div class="row g-3">';
+  html += '<div class="col-lg-7"><div class="card-custom">';
+  html += '<div class="card-header-custom"><h6><i class="fas fa-calendar-alt text-muted me-1"></i> Citas Recientes</h6></div>';
+  var recientes = agenda.slice(-5).reverse();
+  if (recientes.length === 0) {
+    html += '<div class="empty-state py-4"><i class="fas fa-calendar"></i><p>No hay citas registradas.</p></div>';
+  } else {
+    html += '<div class="table-responsive"><table class="table-clean table">';
+    html += '<thead><tr><th>Fecha</th><th>Cliente</th><th>Servicio</th><th>Estado</th></tr></thead><tbody>';
+    recientes.forEach(function(a) {
+      html += '<tr><td>' + esc(a.fecha) + ' ' + esc(a.inicio) + '</td><td>' + esc(a.cliente) + '</td><td>' + esc(a.servicio) + '</td><td>' + badgeEstadoCita(a.estado) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div></div>';
+
+  // Recent Clientes
+  html += '<div class="col-lg-5"><div class="card-custom">';
+  html += '<div class="card-header-custom"><h6><i class="fas fa-users text-muted me-1"></i> Clientes Recientes</h6></div>';
+  var recClientes = clientes.slice(-5).reverse();
+  if (recClientes.length === 0) {
+    html += '<div class="empty-state py-4"><i class="fas fa-user-plus"></i><p>No hay clientes registrados.</p></div>';
+  } else {
+    html += '<div class="table-responsive"><table class="table-clean table">';
+    html += '<thead><tr><th>Nombre</th><th>Celular</th><th>Tipo</th></tr></thead><tbody>';
+    recClientes.forEach(function(c) {
+      html += '<tr><td>' + esc(c.nombre) + '</td><td>' + esc(c.celular) + '</td><td>' + badgeTipoCliente(c.tipo) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+  html += '</div></div>';
+  html += '</div>';
+
+  return html;
+}
+
+function statCard(icon, value, label, color, bg) {
+  return '<div class="col-md-3 col-6"><div class="stat-card">' +
+    '<div class="stat-icon" style="background:' + bg + ';color:' + color + '"><i class="fas ' + icon + '"></i></div>' +
+    '<div class="stat-info"><h3>' + value + '</h3><small>' + label + '</small></div>' +
+    '</div></div>';
+}
+
+// =============================================
+// RENDER: Agenda
+// =============================================
+function renderAgenda() {
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">';
+  html += '<div class="search-box"><i class="fas fa-search"></i><input type="text" class="form-control" placeholder="Buscar cita..." oninput="filtrarAgenda(this.value)"></div>';
+  html += '<select class="form-select" style="width:auto;" onchange="filtrarAgendaEstado(this.value)" id="filtroEstadoAgenda">';
+  html += '<option value="">Todos los estados</option><option value="PENDIENTE">Pendiente</option><option value="EJECUTADO">Ejecutado</option><option value="RECHAZADO">Rechazado</option><option value="REAGENDADO">Reagendado</option>';
+  html += '</select></div>';
+
+  html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table" id="tablaAgenda">';
+  html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th></tr></thead>';
+  html += '<tbody id="tbodyAgenda">';
+  html += renderAgendaRows(agenda);
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function renderAgendaRows(data) {
+  if (data.length === 0) return '<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-calendar fa-2x d-block mb-2"></i>No hay citas.</td></tr>';
+  return data.map(function(a) {
+    return '<tr><td><small class="text-muted">' + esc(a.id) + '</small></td>' +
+      '<td>' + esc(a.fecha) + '</td><td>' + esc(a.tipoDia) + '</td>' +
+      '<td>' + esc(a.inicio) + ' - ' + esc(a.fin) + '</td>' +
+      '<td>' + esc(a.cliente) + '</td><td>' + esc(a.servicio) + '</td>' +
+      '<td>' + formatMoney(a.precio) + '</td><td>' + esc(a.profesional) + '</td>' +
+      '<td>' + badgeEstadoCita(a.estado) + '</td></tr>';
+  }).join('');
+}
+
+// =============================================
+// RENDER: Clientes
+// =============================================
+function renderClientes() {
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div class="search-box"><i class="fas fa-search"></i><input type="text" class="form-control" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)"></div>';
+  html += '<span class="text-muted" style="font-size:.85rem;">' + clientes.length + ' cliente(s)</span></div>';
+
+  html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
+  html += '<thead><tr><th>ID</th><th>Nombre</th><th>Celular</th><th>Correo</th><th class="d-none d-md-table-cell">Cumple</th><th class="d-none d-md-table-cell">Direccion</th><th>Tipo</th><th class="d-none d-md-table-cell">Registro</th></tr></thead>';
+  html += '<tbody id="tbodyClientes">';
+  html += renderClienteRows(clientes);
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+function renderClienteRows(data) {
+  if (data.length === 0) return '<tr><td colspan="8" class="text-center text-muted py-4"><i class="fas fa-users fa-2x d-block mb-2"></i>No hay clientes.</td></tr>';
+  return data.map(function(c) {
+    return '<tr><td><small class="text-muted">' + esc(c.id) + '</small></td>' +
+      '<td><strong>' + esc(c.nombre) + '</strong></td>' +
+      '<td>' + esc(c.celular) + '</td><td>' + esc(c.correo) + '</td>' +
+      '<td class="d-none d-md-table-cell">' + esc(c.cumple) + '</td>' +
+      '<td class="d-none d-md-table-cell">' + esc(c.direccion) + '</td>' +
+      '<td>' + badgeTipoCliente(c.tipo) + '</td>' +
+      '<td class="d-none d-md-table-cell"><small>' + esc(c.registro) + '</small></td></tr>';
+  }).join('');
+}
+
+// =============================================
+// RENDER: Servicios
+// =============================================
+function renderServicios() {
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div><small class="text-muted">' + servicios.length + ' servicio(s) configurados</small></div>';
+  html += '<button class="btn btn-brand btn-sm" onclick="abrirModalServicioCrear()"><i class="fas fa-plus me-1"></i> Nuevo Servicio</button></div>';
+
+  html += '<div class="row g-3">';
+  if (servicios.length === 0) {
+    html += '<div class="col-12"><div class="card-custom"><div class="empty-state"><i class="fas fa-concierge-bell"></i><p>No hay servicios configurados.</p><small>Agrega servicios para que el bot pueda informar a tus clientes.</small></div></div></div>';
+  } else {
+    servicios.forEach(function(s) {
+      html += '<div class="col-md-6 col-lg-4"><div class="card-custom p-3">';
+      html += '<div class="d-flex justify-content-between align-items-start mb-2">';
+      html += '<div><h6 class="mb-0">' + esc(s.tipoServicio) + '</h6><small class="text-muted">' + esc(s.categoria) + ' &bull; ' + s.tiempoServicio + ' min</small></div>';
+      html += '<div class="btn-group btn-group-sm">';
+      html += '<button class="btn btn-outline-primary btn-sm-icon" title="Editar" onclick="abrirModalServicioEditar(' + s.rowIndex + ')"><i class="fas fa-pencil-alt"></i></button>';
+      html += '<button class="btn btn-outline-danger btn-sm-icon" title="Eliminar" onclick="abrirEliminar(' + s.rowIndex + ',\'' + esc(s.tipoServicio) + '\',\'servicio\')"><i class="fas fa-trash"></i></button>';
+      html += '</div></div>';
+      html += '<p class="mb-1" style="font-size:.85rem;color:#555;">' + esc(s.respuestaBase) + '</p>';
+      html += '<small class="text-muted"><i class="fas fa-robot me-1"></i>Intencion: <code>' + esc(s.intencion) + '</code></small>';
+      html += '<br><small class="text-muted">ID: ' + esc(s.idServicio) + '</small>';
+      html += '</div></div>';
+    });
+  }
+  html += '</div>';
+  return html;
+}
+
+// =============================================
+// RENDER: Promociones
+// =============================================
+function renderPromociones() {
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div><small class="text-muted">' + promociones.length + ' promocion(es)</small></div>';
+  html += '<button class="btn btn-brand btn-sm" onclick="abrirModalPromoCrear()"><i class="fas fa-plus me-1"></i> Nueva Promocion</button></div>';
+
+  html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
+  html += '<thead><tr><th>Nombre</th><th>Tipo</th><th>Descuento</th><th class="d-none d-md-table-cell">Aplica a</th><th class="d-none d-md-table-cell">Dia(s)</th><th>Vence</th><th>Estado</th><th class="text-center">Acciones</th></tr></thead><tbody>';
+
+  if (promociones.length === 0) {
+    html += '<tr><td colspan="8" class="text-center text-muted py-4"><i class="fas fa-tags fa-2x d-block mb-2"></i>No hay promociones.</td></tr>';
+  } else {
+    promociones.forEach(function(p) {
+      var esActivo = (p.estado || '').toUpperCase() === 'ACTIVO';
+      var tipoLabel = p.tipoPromo === 'PORCENTAJE' ? '% Porcentaje' : p.tipoPromo === '2X1' ? '2x1' : p.tipoPromo === 'VALOR_FIJO' ? '$ Fijo' : p.tipoPromo;
+      var descLabel = p.tipoPromo === 'PORCENTAJE' ? p.valorDescuento + '%' : p.tipoPromo === 'VALOR_FIJO' ? formatMoney(p.valorDescuento) : p.valorDescuento + '%';
+
+      var toggleBtn = esActivo
+        ? '<button class="btn btn-outline-secondary btn-sm-icon" title="Desactivar" onclick="desactivarPromo(' + p.rowIndex + ')"><i class="fas fa-pause"></i></button>'
+        : '<button class="btn btn-outline-success btn-sm-icon" title="Activar" onclick="abrirModalActivar(' + p.rowIndex + ',\'' + esc(p.nombre) + '\')"><i class="fas fa-play"></i></button>';
+
+      html += '<tr><td><strong>' + esc(p.nombre) + '</strong><br><small class="text-muted">' + esc(p.descripcion || '') + '</small></td>';
+      html += '<td>' + tipoLabel + '</td><td>' + descLabel + '</td>';
+      html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaServicio || 'TODOS') + '</small></td>';
+      html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaDia || 'Todos') + '</small></td>';
+      html += '<td>' + esc(p.vence || '-') + '</td>';
+      html += '<td><span class="badge-status ' + (esActivo ? 'badge-activo' : 'badge-inactivo') + '">' + (esActivo ? 'ACTIVO' : 'INACTIVO') + '</span></td>';
+      html += '<td class="text-center"><div class="btn-group btn-group-sm">';
+      html += '<button class="btn btn-outline-primary btn-sm-icon" title="Editar" onclick="abrirModalPromoEditar(' + p.rowIndex + ')"><i class="fas fa-pencil-alt"></i></button>';
+      html += toggleBtn;
+      html += '<button class="btn btn-outline-danger btn-sm-icon" title="Eliminar" onclick="abrirEliminar(' + p.rowIndex + ',\'' + esc(p.nombre) + '\',\'promocion\')"><i class="fas fa-trash"></i></button>';
+      html += '</div></td></tr>';
+    });
+  }
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+// =============================================
+// RENDER: Configuracion
+// =============================================
+function renderConfig() {
+  var f = config.flat;
+  var html = '<div class="row g-3">';
+
+  // Info Negocio
+  html += '<div class="col-lg-8"><div class="config-card"><h6><i class="fas fa-store me-1"></i> Informacion del Negocio</h6>';
+  html += '<div class="row g-3">';
+  html += configField('NOMBRE_NEGOCIO', 'Nombre del Negocio', f.NOMBRE_NEGOCIO, 'text');
+  html += configField('NOMBRE_AGENTE', 'Nombre del Agente IA', f.NOMBRE_AGENTE, 'text');
+  html += '<div class="col-12"><label class="form-label">Saludo Base</label><textarea class="form-control config-input" data-key="SALUDO_BASE" rows="2">' + esc(f.SALUDO_BASE || '') + '</textarea></div>';
+  html += configField('ENLACE_LOGO', 'URL del Logo', f.ENLACE_LOGO, 'url');
+  html += '<div class="col-md-4"><label class="form-label">Color de Marca</label><div class="d-flex gap-2"><input type="color" class="form-control form-control-color" id="colorPicker" value="' + (f.COLOR_MARCA || '#E91E63') + '" oninput="document.getElementById(\'colorText\').value=this.value"><input type="text" class="form-control config-input" data-key="COLOR_MARCA" id="colorText" value="' + esc(f.COLOR_MARCA || '#E91E63') + '" style="font-family:monospace;" oninput="document.getElementById(\'colorPicker\').value=this.value"></div></div>';
+  html += '</div></div></div>';
+
+  // Contacto
+  html += '<div class="col-lg-4"><div class="config-card"><h6><i class="fas fa-address-card me-1"></i> Contacto</h6>';
+  html += '<div class="row g-3">';
+  html += '<div class="col-12">' + configFieldInner('CELULAR_DUEÑA', 'Celular', f['CELULAR_DUEÑA'] || f['CELULAR_DUEA'] || '', 'tel') + '</div>';
+  html += '<div class="col-12">' + configFieldInner('CORREO_DUEÑA', 'Correo', f['CORREO_DUEÑA'] || f['CORREO_DUEA'] || '', 'email') + '</div>';
+  html += '</div></div>';
+
+  // Sistema
+  html += '<div class="config-card"><h6><i class="fas fa-shield-alt me-1"></i> Sistema</h6>';
+  html += '<div class="row g-3">';
+  var estado = (f.ESTADO_SERVICIO || '').toUpperCase();
+  html += '<div class="col-12"><label class="form-label">Estado del Servicio</label>';
+  html += '<div class="d-flex align-items-center gap-2"><span class="badge-status ' + (estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo') + '">' + estado + '</span><small class="text-muted">Control SaaS (Kill Switch)</small></div></div>';
+  html += '<div class="col-12"><label class="form-label">API Key OpenAI</label>';
+  var apiKey = f.CLAVE_OPENAI || '';
+  var masked = apiKey.length > 8 ? apiKey.substring(0, 7) + '...' + apiKey.substring(apiKey.length - 4) : '***';
+  html += '<div class="d-flex gap-2"><input type="password" class="form-control config-input" data-key="CLAVE_OPENAI" value="' + esc(apiKey) + '" id="inputApiKey">';
+  html += '<button class="btn btn-outline-secondary btn-sm" onclick="toggleApiKey()" type="button"><i class="fas fa-eye"></i></button></div></div>';
+  html += '</div></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // Boton guardar
+  html += '<div class="mt-3"><button class="btn btn-brand" onclick="guardarConfiguracion()" id="btnGuardarConfig"><i class="fas fa-save me-1"></i> Guardar Cambios</button></div>';
+  return html;
+}
+
+function configField(key, label, value, type) {
+  return '<div class="col-md-6">' + configFieldInner(key, label, value, type) + '</div>';
+}
+function configFieldInner(key, label, value, type) {
+  return '<label class="form-label">' + label + '</label><input type="' + type + '" class="form-control config-input" data-key="' + key + '" value="' + esc(value || '') + '">';
+}
+
+// =============================================
+// SERVICIOS CRUD
+// =============================================
+function abrirModalServicioCrear() {
+  document.getElementById('modalServicioTitulo').innerHTML = '<i class="fas fa-plus-circle me-1"></i> Nuevo Servicio';
+  document.getElementById('srvRowIndex').value = '';
+  document.getElementById('srvId').value = '';
+  document.getElementById('formServicio').reset();
+  new bootstrap.Modal(document.getElementById('modalServicio')).show();
+}
+
+function abrirModalServicioEditar(rowIndex) {
+  var srv = servicios.find(function(s) { return s.rowIndex === rowIndex; });
+  if (!srv) return;
+  document.getElementById('modalServicioTitulo').innerHTML = '<i class="fas fa-pencil-alt me-1"></i> Editar Servicio';
+  document.getElementById('srvRowIndex').value = rowIndex;
+  document.getElementById('srvId').value = srv.idServicio;
+  document.getElementById('srvTipoServicio').value = srv.tipoServicio;
+  document.getElementById('srvCategoria').value = srv.categoria;
+  document.getElementById('srvTiempo').value = srv.tiempoServicio;
+  document.getElementById('srvIntencion').value = srv.intencion;
+  document.getElementById('srvRespuesta').value = srv.respuestaBase;
+  new bootstrap.Modal(document.getElementById('modalServicio')).show();
+}
+
+function guardarServicio() {
+  var nombre = document.getElementById('srvTipoServicio').value.trim();
+  if (!nombre) { toast('El nombre del servicio es obligatorio.', 'warning'); return; }
+
+  var data = {
+    tipoServicio: nombre,
+    categoria: document.getElementById('srvCategoria').value.trim(),
+    tiempoServicio: parseInt(document.getElementById('srvTiempo').value) || 0,
+    intencion: document.getElementById('srvIntencion').value.trim(),
+    respuestaBase: document.getElementById('srvRespuesta').value.trim()
+  };
+
+  var btn = document.getElementById('btnGuardarSrv');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+  var rowIndex = document.getElementById('srvRowIndex').value;
+
+  if (rowIndex) {
+    data.rowIndex = parseInt(rowIndex);
+    data.idServicio = document.getElementById('srvId').value;
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalServicio', 'Servicio actualizado.', 'success', 'servicios'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).updateServicio(data);
+  } else {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalServicio', 'Servicio creado.', 'success', 'servicios'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).saveServicio(data);
+  }
+}
+
+// =============================================
+// PROMOCIONES CRUD
+// =============================================
+function abrirModalPromoCrear() {
+  document.getElementById('modalPromocionTitulo').innerHTML = '<i class="fas fa-plus-circle me-1"></i> Nueva Promocion';
+  document.getElementById('promoRowIndex').value = '';
+  document.getElementById('formPromocion').reset();
+  document.getElementById('promoEstadoSwitch').checked = true;
+  document.getElementById('promoEstadoLabel').textContent = 'ACTIVO';
+  llenarSelectServicios();
+  var sel = document.getElementById('promoServicio');
+  for (var i = 0; i < sel.options.length; i++) sel.options[i].selected = (sel.options[i].value === 'TODOS');
+  document.querySelectorAll('#promoDiasCheck input').forEach(function(cb) { cb.checked = false; });
+  new bootstrap.Modal(document.getElementById('modalPromocion')).show();
+}
+
+function abrirModalPromoEditar(rowIndex) {
+  var p = promociones.find(function(x) { return x.rowIndex === rowIndex; });
+  if (!p) return;
+  document.getElementById('modalPromocionTitulo').innerHTML = '<i class="fas fa-pencil-alt me-1"></i> Editar Promocion';
+  document.getElementById('promoRowIndex').value = rowIndex;
+  document.getElementById('promoNombre').value = p.nombre;
+  document.getElementById('promoDescripcion').value = p.descripcion;
+  document.getElementById('promoTipo').value = p.tipoPromo || 'PORCENTAJE';
+  document.getElementById('promoValor').value = p.valorDescuento;
+  llenarSelectServicios();
+  var srvs = (p.aplicaServicio || 'TODOS').split(',').map(function(s) { return s.trim(); });
+  var sel = document.getElementById('promoServicio');
+  for (var i = 0; i < sel.options.length; i++) sel.options[i].selected = srvs.includes(sel.options[i].value);
+  var dias = (p.aplicaDia || '').split(',').map(function(d) { return d.trim(); });
+  document.querySelectorAll('#promoDiasCheck input').forEach(function(cb) { cb.checked = dias.includes(cb.value); });
+  if (p.vence && p.vence.includes('/')) {
+    var parts = p.vence.split('/');
+    if (parts.length === 3) document.getElementById('promoVence').value = parts[2] + '-' + parts[1].padStart(2,'0') + '-' + parts[0].padStart(2,'0');
+  } else { document.getElementById('promoVence').value = ''; }
+  var esActivo = (p.estado || '').toUpperCase() === 'ACTIVO';
+  document.getElementById('promoEstadoSwitch').checked = esActivo;
+  document.getElementById('promoEstadoLabel').textContent = esActivo ? 'ACTIVO' : 'INACTIVO';
+  document.getElementById('promoTipo').dispatchEvent(new Event('change'));
+  new bootstrap.Modal(document.getElementById('modalPromocion')).show();
+}
+
+function guardarPromocion() {
+  var nombre = document.getElementById('promoNombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio.', 'warning'); return; }
+  var sel = document.getElementById('promoServicio'); var srvArr = [];
+  for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].selected) srvArr.push(sel.options[i].value); }
+  var diasArr = [];
+  document.querySelectorAll('#promoDiasCheck input:checked').forEach(function(cb) { diasArr.push(cb.value); });
+  var fechaVence = '';
+  var fInput = document.getElementById('promoVence').value;
+  if (fInput) { var pp = fInput.split('-'); fechaVence = pp[2] + '/' + pp[1] + '/' + pp[0]; }
+
+  var data = {
+    nombre: nombre, descripcion: document.getElementById('promoDescripcion').value.trim(),
+    tipoPromo: document.getElementById('promoTipo').value,
+    valorDescuento: parseInt(document.getElementById('promoValor').value) || 0,
+    aplicaServicio: srvArr.join(','), aplicaDia: diasArr.join(','), vence: fechaVence,
+    estado: document.getElementById('promoEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO'
+  };
+  var btn = document.getElementById('btnGuardarPromo');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+  var rowIndex = document.getElementById('promoRowIndex').value;
+  if (rowIndex) {
+    data.rowIndex = parseInt(rowIndex);
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalPromocion', 'Promocion actualizada.', 'success', 'promociones'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).updatePromocion(data);
+  } else {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalPromocion', 'Promocion creada.', 'success', 'promociones'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).savePromocion(data);
+  }
+}
+
+function abrirModalActivar(rowIndex, nombre) {
+  document.getElementById('activarRowIndex').value = rowIndex;
+  document.getElementById('activarNombre').textContent = nombre;
+  document.getElementById('activarFechaVence').value = '';
+  new bootstrap.Modal(document.getElementById('modalActivar')).show();
+}
+function confirmarActivar() {
+  var rowIndex = parseInt(document.getElementById('activarRowIndex').value);
+  var fInput = document.getElementById('activarFechaVence').value;
+  if (!fInput) { toast('Selecciona una fecha.', 'warning'); return; }
+  var pp = fInput.split('-'); var fechaVence = pp[2] + '/' + pp[1] + '/' + pp[0];
+  google.script.run.withSuccessHandler(function() { closeAndReload('modalActivar', 'Promocion ACTIVADA hasta ' + fechaVence, 'success', 'promociones'); })
+    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).togglePromocionEstado(rowIndex, 'ACTIVO', fechaVence);
+}
+function desactivarPromo(rowIndex) {
+  google.script.run.withSuccessHandler(function() { toast('Promocion DESACTIVADA.', 'secondary'); reloadData('promociones'); })
+    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).togglePromocionEstado(rowIndex, 'INACTIVO', null);
+}
+
+function llenarSelectServicios() {
+  var sel = document.getElementById('promoServicio');
+  sel.innerHTML = '<option value="TODOS">TODOS</option>';
+  serviciosNombres.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+}
+
+// =============================================
+// ELIMINAR GENERICO
+// =============================================
+function abrirEliminar(rowIndex, nombre, tipo) {
+  document.getElementById('eliminarRowIndex').value = rowIndex;
+  document.getElementById('eliminarTipo').value = tipo;
+  document.getElementById('eliminarNombre').textContent = nombre;
+  new bootstrap.Modal(document.getElementById('modalEliminar')).show();
+}
+function confirmarEliminar() {
+  var rowIndex = parseInt(document.getElementById('eliminarRowIndex').value);
+  var tipo = document.getElementById('eliminarTipo').value;
+  if (tipo === 'servicio') {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalEliminar', 'Servicio eliminado.', 'danger', 'servicios'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteServicio(rowIndex);
+  } else {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalEliminar', 'Promocion eliminada.', 'danger', 'promociones'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deletePromocion(rowIndex);
+  }
+}
+
+// =============================================
+// CONFIGURACION SAVE
+// =============================================
+function guardarConfiguracion() {
+  var updates = {};
+  document.querySelectorAll('.config-input').forEach(function(input) {
+    var key = input.getAttribute('data-key');
+    if (key) updates[key] = input.value;
+  });
+  var btn = document.getElementById('btnGuardarConfig');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+  google.script.run
+    .withSuccessHandler(function() {
+      // Actualizar config local y re-aplicar branding en vivo
+      for (var key in updates) { config.flat[key] = updates[key]; }
+      aplicarBranding();
+      toast('Configuracion guardada y aplicada.', 'success');
+      resetBtn(btn, 'Guardar Cambios');
+    })
+    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar Cambios'); })
+    .updateConfiguracion(updates);
+}
+function toggleApiKey() {
+  var input = document.getElementById('inputApiKey');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// =============================================
+// FILTROS
+// =============================================
+function filtrarAgenda(query) {
+  query = query.toLowerCase();
+  var filtered = agenda.filter(function(a) {
+    return (a.cliente + a.servicio + a.id + a.fecha).toLowerCase().includes(query);
+  });
+  var estado = document.getElementById('filtroEstadoAgenda').value;
+  if (estado) filtered = filtered.filter(function(a) { return a.estado === estado; });
+  document.getElementById('tbodyAgenda').innerHTML = renderAgendaRows(filtered);
+}
+function filtrarAgendaEstado(estado) {
+  var query = '';
+  var searchInput = document.querySelector('#contentArea .search-box input');
+  if (searchInput) query = searchInput.value.toLowerCase();
+  var filtered = agenda;
+  if (query) filtered = filtered.filter(function(a) { return (a.cliente + a.servicio + a.id + a.fecha).toLowerCase().includes(query); });
+  if (estado) filtered = filtered.filter(function(a) { return a.estado === estado; });
+  document.getElementById('tbodyAgenda').innerHTML = renderAgendaRows(filtered);
+}
+function filtrarClientes(query) {
+  query = query.toLowerCase();
+  var filtered = clientes.filter(function(c) {
+    return (c.nombre + c.celular + c.correo + c.id).toLowerCase().includes(query);
+  });
+  document.getElementById('tbodyClientes').innerHTML = renderClienteRows(filtered);
+}
+
+// =============================================
+// UTILIDADES
+// =============================================
+function reloadData(modulo) {
+  if (modulo === 'servicios') {
+    google.script.run.withSuccessHandler(function(d) { servicios = d || []; serviciosNombres = servicios.map(function(s){return s.tipoServicio;}).filter(Boolean); navigateTo('servicios'); }).getServicios();
+  } else if (modulo === 'promociones') {
+    google.script.run.withSuccessHandler(function(d) { promociones = d || []; navigateTo('promociones'); }).getPromociones();
+  } else if (modulo === 'clientes') {
+    google.script.run.withSuccessHandler(function(d) { clientes = d || []; navigateTo('clientes'); }).getClientes();
+  } else if (modulo === 'agenda') {
+    google.script.run.withSuccessHandler(function(d) { agenda = d || []; updateBadgePendientes(); navigateTo('agenda'); }).getAgenda();
+  }
+}
+
+function closeAndReload(modalId, msg, tipo, modulo) {
+  var el = document.getElementById(modalId);
+  var modal = bootstrap.Modal.getInstance(el);
+  if (modal) modal.hide();
+  toast(msg, tipo);
+  reloadData(modulo);
+}
+
+function resetBtn(btn, label) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-1"></i> ' + label; }
+
+function updateBadgePendientes() {
+  var count = agenda.filter(function(a) { return a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO'; }).length;
+  document.getElementById('badgePendientes').textContent = count;
+}
+
+function badgeEstadoCita(estado) {
+  var cls = 'badge-inactivo';
+  var e = (estado || '').toUpperCase();
+  if (e === 'PENDIENTE') cls = 'badge-pendiente';
+  else if (e === 'EJECUTADO') cls = 'badge-ejecutado';
+  else if (e === 'RECHAZADO') cls = 'badge-rechazado';
+  else if (e === 'REAGENDADO') cls = 'badge-reagendado';
+  return '<span class="badge-status ' + cls + '">' + esc(estado) + '</span>';
+}
+
+function badgeTipoCliente(tipo) {
+  var t = (tipo || '').toLowerCase();
+  if (t === 'nuevo') return '<span class="badge-status badge-nuevo">Nuevo</span>';
+  if (t === 'recurrente') return '<span class="badge-status badge-recurrente">Recurrente</span>';
+  return '<span class="badge-status badge-inactivo">' + esc(tipo || '-') + '</span>';
+}
+
+function formatMoney(val) {
+  var n = parseFloat(val) || 0;
+  return '$' + n.toLocaleString('es-CO');
+}
+
+function toast(msg, tipo) {
+  tipo = tipo || 'info';
+  var icons = { success:'fa-check-circle', danger:'fa-exclamation-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle', secondary:'fa-pause-circle' };
+  var html = '<div class="toast align-items-center text-bg-' + tipo + ' border-0 show" role="alert"><div class="d-flex">' +
+    '<div class="toast-body"><i class="fas ' + (icons[tipo]||'fa-info-circle') + ' me-1"></i> ' + msg + '</div>' +
+    '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+  var c = document.getElementById('toastContainer');
+  c.insertAdjacentHTML('beforeend', html);
+  setTimeout(function() { var t = c.querySelector('.toast'); if (t) t.remove(); }, 4000);
+}
+
+function esc(str) {
+  if (!str) return '';
+  return str.toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function darkenColor(hex, percent) {
+  hex = hex.replace('#', '');
+  var r = parseInt(hex.substring(0,2), 16);
+  var g = parseInt(hex.substring(2,4), 16);
+  var b = parseInt(hex.substring(4,6), 16);
+  r = Math.max(0, Math.floor(r * (1 - percent/100)));
+  g = Math.max(0, Math.floor(g * (1 - percent/100)));
+  b = Math.max(0, Math.floor(b * (1 - percent/100)));
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function lightenColor(hex, percent) {
+  hex = hex.replace('#', '');
+  var r = parseInt(hex.substring(0,2), 16);
+  var g = parseInt(hex.substring(2,4), 16);
+  var b = parseInt(hex.substring(4,6), 16);
+  r = Math.min(255, Math.floor(r + (255-r) * percent/100));
+  g = Math.min(255, Math.floor(g + (255-g) * percent/100));
+  b = Math.min(255, Math.floor(b + (255-b) * percent/100));
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+</script>
+</body>
 </html>

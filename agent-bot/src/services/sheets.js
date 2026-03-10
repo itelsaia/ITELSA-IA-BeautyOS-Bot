@@ -204,11 +204,24 @@ async function loadPendingAppointments(sheetId) {
         const rows = await sheet.getRows();
         const pendingAppointments = {};
 
+        // Fecha de hoy en zona horaria Colombia (para filtrar citas pasadas)
+        const hoyStr = new Date().toLocaleString('en-CA', { timeZone: 'America/Bogota' }).split(',')[0]; // "YYYY-MM-DD"
+        const hoy = new Date(hoyStr + 'T00:00:00');
+
         rows.forEach(row => {
-            const data = row.toObject(); // Use toObject() to get data as in other functions
+            const data = row.toObject();
             const estado = (data['ESTADO'] || '').toUpperCase().trim();
-            // Ambos estados (PENDIENTE y REAGENDADO) significan que la cita aún no ha sucedido y puede ser modificada/cancelada
             if (estado === 'PENDIENTE' || estado === 'REAGENDADO') {
+                // Filtrar citas con fecha pasada (formato esperado: DD/MM/YYYY)
+                const fechaStr = (data['FECHA'] || '').trim();
+                if (fechaStr) {
+                    const parts = fechaStr.split('/');
+                    if (parts.length === 3) {
+                        const fechaCita = new Date(parts[2], parts[1] - 1, parts[0]); // YYYY, MM(0-based), DD
+                        if (fechaCita < hoy) return; // Saltar citas pasadas
+                    }
+                }
+
                 const celular = (data['CELULAR_CLIENTE'] || '').toString().trim();
                 if (celular) {
                     if (!pendingAppointments[celular]) {
@@ -234,4 +247,48 @@ async function loadPendingAppointments(sheetId) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments };
+/**
+ * Carga las promociones vigentes desde la hoja PROMOCIONES.
+ * @param {string} sheetId
+ * @returns {Promise<Array>} Arreglo de promociones con sus detalles
+ */
+async function loadPromotions(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['PROMOCIONES'];
+        if (!sheet) {
+            console.warn("⚠️ La pestaña PROMOCIONES no existe.");
+            return [];
+        }
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        return rows.map(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+
+            return {
+                nombre: cleanData['NOMBRE'] || '',
+                descripcion: cleanData['DESCRIPCION'] || '',
+                tipoPromo: (cleanData['TIPO_PROMO'] || '').toUpperCase().trim(),
+                valorDescuento: parseInt(cleanData['VALOR_DESCUENTO'], 10) || 0,
+                aplicaServicio: cleanData['APLICA_SERVICIO'] || 'TODOS',
+                aplicaDia: cleanData['APLICA_DIA'] || '',
+                vence: cleanData['VENCE'] || '',
+                estado: (cleanData['ESTADO'] || '').toUpperCase().trim()
+            };
+        }).filter(item => item.nombre !== '');
+
+    } catch (e) {
+        console.error("❌ Error cargando PROMOCIONES:", e.message);
+        return [];
+    }
+}
+
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments, loadPromotions };
