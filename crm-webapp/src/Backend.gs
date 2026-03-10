@@ -405,10 +405,21 @@ function updateConfiguracion(updates) {
   if (!sheet) throw new Error("La hoja CONFIGURACION no existe.");
 
   const data = sheet.getDataRange().getValues();
+  const existingKeys = [];
+
+  // Actualizar claves existentes
   for (let i = 1; i < data.length; i++) {
     const key = (data[i][0] || '').toString().trim();
+    existingKeys.push(key);
     if (key && updates.hasOwnProperty(key)) {
       sheet.getRange(i + 1, 2).setValue(updates[key]);
+    }
+  }
+
+  // Crear claves nuevas que no existen en la hoja
+  for (const key in updates) {
+    if (updates.hasOwnProperty(key) && !existingKeys.includes(key)) {
+      sheet.appendRow([key, updates[key], '']);
     }
   }
 
