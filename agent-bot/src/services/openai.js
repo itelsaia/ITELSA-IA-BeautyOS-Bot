@@ -220,6 +220,67 @@ function computeFreeSlots(fecha, dayName, profName, profId, disponibilidadCatalo
 }
 
 /**
+ * Selecciona slots óptimos distribuidos en mañana y tarde, priorizando cercanía a citas existentes.
+ * Evita mostrar slots solapados (ej: 09:00, 09:15, 09:30 para un servicio de 30min).
+ * @param {Array} allSlots - Todos los slots disponibles
+ * @param {number} serviceDuration - Duración del servicio en minutos
+ * @param {Array} appointments - Citas existentes del día
+ * @param {string} fecha - Fecha en formato DD/MM/YYYY
+ * @param {number} maxSlots - Máximo de slots a retornar
+ */
+function selectOptimalSlots(allSlots, serviceDuration, appointments, fecha, maxSlots) {
+    if (allSlots.length <= maxSlots) return allSlots;
+
+    const sorted = [...allSlots].sort((a, b) => a.minutos - b.minutos);
+
+    // Paso 1: Espaciar — solo mantener slots no solapados (>= duración servicio entre sí)
+    const spaced = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+        if (sorted[i].minutos >= spaced[spaced.length - 1].minutos + serviceDuration) {
+            spaced.push(sorted[i]);
+        }
+    }
+    if (spaced.length <= maxSlots) return spaced;
+
+    // Paso 2: Puntuar por cercanía a citas existentes (llenar huecos = mayor productividad)
+    const scores = new Map();
+    spaced.forEach(slot => {
+        let score = 0;
+        const profAppts = appointments.filter(a =>
+            a.fecha === fecha && (a.profesional || '').toLowerCase() === slot.profesional.toLowerCase()
+        );
+        profAppts.forEach(a => {
+            const gapAfterAppt = Math.abs(slot.minutos - toMin(a.fin));
+            const gapBeforeAppt = Math.abs(toMin(a.inicio) - toMin(slot.hora_fin));
+            const gap = Math.min(gapAfterAppt, gapBeforeAppt);
+            if (gap <= 30) score += 10;      // adyacente → máxima prioridad
+            else if (gap <= 60) score += 5;  // cercano → prioridad media
+        });
+        scores.set(slot, score);
+    });
+
+    // Paso 3: Distribuir entre mañana (<12:00) y tarde (>=12:00)
+    const am = spaced.filter(s => s.minutos < 720);
+    const pm = spaced.filter(s => s.minutos >= 720);
+    const selected = [];
+
+    if (am.length > 0 && pm.length > 0) {
+        const amCount = Math.ceil(maxSlots / 2);
+        const pmCount = maxSlots - amCount;
+        am.sort((a, b) => (scores.get(b) || 0) - (scores.get(a) || 0));
+        pm.sort((a, b) => (scores.get(b) || 0) - (scores.get(a) || 0));
+        selected.push(...am.slice(0, amCount));
+        selected.push(...pm.slice(0, pmCount));
+    } else {
+        const src = am.length > 0 ? am : pm;
+        src.sort((a, b) => (scores.get(b) || 0) - (scores.get(a) || 0));
+        selected.push(...src.slice(0, maxSlots));
+    }
+
+    return selected.sort((a, b) => a.minutos - b.minutos);
+}
+
+/**
  * Procesa la función verificar_disponibilidad.
  * Retorna texto descriptivo para que la IA le responda al cliente.
  */
@@ -295,6 +356,42 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
         ? allAvailableSlots.filter(s => s.minutos > nowMin)
         : allAvailableSlots;
 
+    // Si pidió profesional específico y NO tiene disponibilidad, buscar alternativas con otros profesionales
+    if (profesional_preferido && futureSlots.length === 0) {
+        const otherCandidates = colaboradoresCatalog.filter(c => {
+            if (c.nombre.toLowerCase().trim() === profesional_preferido.toLowerCase().trim()) return false;
+            if (!c.competencias || c.competencias.trim() === '' || normDay(c.competencias) === normDay('Todos los servicios')) return true;
+            return c.competencias.split(',').some(comp => normDay(comp.trim()) === normDay(servicio));
+        });
+
+        const altSlots = [];
+        otherCandidates.forEach(prof => {
+            const freeRanges = computeFreeSlots(fecha, dayName, prof.nombre, prof.id, disponibilidadCatalog, allPendingAppointments, bufferMin, excludeAgendaId);
+            if (!freeRanges || freeRanges.length === 0) return;
+            freeRanges.forEach(([s, e]) => {
+                const alignedStart = Math.ceil(s / slotInterval) * slotInterval;
+                for (let m = alignedStart; m + serviceDuration <= e; m += slotInterval) {
+                    altSlots.push({ profesional: prof.nombre, hora_inicio: fromMin(m), hora_fin: fromMin(m + serviceDuration), minutos: m });
+                }
+            });
+        });
+        const altFutureSlots = isToday ? altSlots.filter(s => s.minutos > nowMin) : altSlots;
+
+        if (altFutureSlots.length > 0) {
+            const optimalAlt = selectOptimalSlots(altFutureSlots, serviceDuration, allPendingAppointments, fecha, 6);
+            const altText = optimalAlt.map(s =>
+                `• ${s.hora_inicio} a ${s.hora_fin} con ${s.profesional}`
+            ).join('\n');
+            console.log(`⚠️ ${profesional_preferido} sin disponibilidad. Alternativas con otros profesionales: ${optimalAlt.map(s => `${s.profesional} ${s.hora_inicio}`).join(', ')}`);
+            return `❌ ${profesional_preferido} NO tiene disponibilidad para ${serviceName} el ${fecha}.\n` +
+                `Sin embargo, otros profesionales también realizan ${serviceName}:\n${altText}\n` +
+                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}\n` +
+                `→ Infórmale al cliente que ${profesional_preferido} no está disponible ese día pero que tiene excelentes opciones con otros profesionales. Ofrécele estas alternativas de forma amable.`;
+        } else {
+            return `❌ NO HAY DISPONIBILIDAD para ${serviceName} el ${fecha} con ningún profesional del equipo. Sugiere otro día al cliente.`;
+        }
+    }
+
     // Si pidió hora específica
     if (hora_deseada) {
         const requestedMin = toMin(hora_deseada);
@@ -323,8 +420,8 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
             };
         } else {
             // ❌ HORA NO DISPONIBLE — ofrecer alternativas
-            const alternatives = futureSlots.slice(0, 6);
-            console.log(`❌ NO DISPONIBLE: ${hora_deseada} el ${fecha}. Alternativas: ${alternatives.map(s => s.hora_inicio).join(', ')}`);
+            const alternatives = selectOptimalSlots(futureSlots, serviceDuration, allPendingAppointments, fecha, 6);
+            console.log(`❌ NO DISPONIBLE: ${hora_deseada} el ${fecha}. Alternativas óptimas: ${alternatives.map(s => s.hora_inicio).join(', ')}`);
 
             if (alternatives.length === 0) {
                 return `❌ NO HAY DISPONIBILIDAD para ${serviceName} el ${fecha}. Sugiere otro día al cliente.`;
@@ -344,10 +441,11 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
             return `❌ NO HAY DISPONIBILIDAD para ${serviceName} el ${fecha}. Sugiere otro día al cliente.`;
         }
 
-        const slotsText = futureSlots.slice(0, 8).map(s =>
+        const optimalSlots = selectOptimalSlots(futureSlots, serviceDuration, allPendingAppointments, fecha, 8);
+        const slotsText = optimalSlots.map(s =>
             `• ${s.hora_inicio} a ${s.hora_fin} con ${s.profesional}`
         ).join('\n');
-        console.log(`📋 Slots disponibles para ${serviceName} ${fecha}: ${futureSlots.slice(0, 8).map(s => s.hora_inicio).join(', ')}`);
+        console.log(`📋 Slots óptimos para ${serviceName} ${fecha}: ${optimalSlots.map(s => s.hora_inicio).join(', ')}`);
         return `📋 Horarios disponibles para ${serviceName} el ${fecha}:\n${slotsText}\n` +
             `Precio: $${Number(servicePrice).toLocaleString('es-CO')}\n` +
             `→ Ofrécele estas opciones al cliente y pregúntale cuál prefiere.`;
@@ -478,6 +576,7 @@ async function generateAIResponse(
    c) Cuando confirme, llama a 'cancelar_cita' con el ID de la cita.
    d) NUNCA canceles una cita sin confirmación explícita del usuario.
    e) Tras cancelar, infórmale que el horario queda libre y pregúntale si desea agendar una nueva cita.
+13. RETENCIÓN DE CONTEXTO: Cuando el cliente cambia el servicio, profesional o cualquier dato pero NO menciona una nueva fecha u hora, MANTÉN la fecha y hora originalmente solicitada en la conversación. Ejemplo: si pidió "pestañas para el sábado a las 10am" y luego cambia a "entonces cejas", la fecha sigue siendo el sábado a las 10am. Solo cambia lo que el cliente pidió cambiar explícitamente.
 
 📅 ESTADO DE CITAS ACTUALES DEL CLIENTE:
 ${pendingAppointmentsText}
@@ -524,7 +623,7 @@ ${colaboradoresCatalog.length > 0 ? colaboradoresCatalog.map(c => `  - ${c.nombr
 - Cuando rechaces una hora, di: "Para esa hora no tenemos disponibilidad" o "Ese horario ya está ocupado".
 - SIEMPRE sugiere horarios alternativos cercanos.
 - Si un día está cerrado, di: "Ese día no estamos atendiendo" en vez de explicar jornadas.
-- Si un colaborador no está disponible, di: "En este momento [nombre] no se encuentra disponible, pero te puedo agendar con otro profesional." NUNCA reveles el motivo interno.
+- Si un colaborador no está disponible y la función ofrece alternativas con OTROS profesionales, di: "En este momento [nombre] no se encuentra disponible, pero [otro nombre] también realiza [servicio] y tiene disponibilidad." Presenta los horarios alternativos. NUNCA reveles el motivo interno (vacaciones, bloqueo, etc.).
 
 📚 BASE DE CONOCIMIENTO / MULTIMEDIA:
 ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado."}
@@ -553,16 +652,35 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
         console.log('=== FIN DEBUG ===\n');
 
         // 5. Primera llamada a OpenAI
-        const completion = await openai.chat.completions.create({
+        let completion = await openai.chat.completions.create({
             model: config.aiModel || "gpt-4o-mini",
             messages: messages,
             tools: TOOLS,
             tool_choice: "auto",
             temperature: 0.5,
-            max_tokens: 500
+            max_tokens: 1000
         });
 
-        const responseMessage = completion.choices[0].message;
+        let responseMessage = completion.choices[0].message;
+
+        // Safety net: Si la IA habla de "verificar" pero NO llamó herramienta (truncamiento por tokens),
+        // reintentar forzando el uso de herramienta
+        const aiText = (responseMessage.content || '').toLowerCase();
+        const noToolCalled = !responseMessage.tool_calls || responseMessage.tool_calls.length === 0;
+        const shouldHaveCalledTool = /verificar|verificando|disponibilidad|voy a (consultar|revisar|checar|buscar)/i.test(aiText);
+
+        if (noToolCalled && shouldHaveCalledTool) {
+            console.log('⚠️ IA mencionó verificar pero NO llamó herramienta. Reintentando con tool_choice: required');
+            completion = await openai.chat.completions.create({
+                model: config.aiModel || "gpt-4o-mini",
+                messages: messages,
+                tools: TOOLS,
+                tool_choice: "required",
+                temperature: 0.3,
+                max_tokens: 1000
+            });
+            responseMessage = completion.choices[0].message;
+        }
 
         // 6. ¿La IA quiere ejecutar una herramienta?
         if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
@@ -594,16 +712,20 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
                 if (typeof verifyResult === 'object' && verifyResult.confirmationData) {
                     toolResultText = verifyResult.text;
                     if (session) {
-                        if (session.isReagendando) {
-                            // Reagendamiento: guardar en pendingReagendamiento (NO como nueva cita)
+                        if (session.isReagendando && session.reagendandoCitaId) {
+                            // Reagendamiento: SOLO si ya se identificó cuál cita reagendar
                             session.pendingReagendamiento = verifyResult.confirmationData;
                             session.pendingConfirmation = null;
-                            console.log('📌 Datos de REAGENDAMIENTO guardados en session:', JSON.stringify(verifyResult.confirmationData));
+                            console.log('📌 Datos de REAGENDAMIENTO guardados (cita: ' + session.reagendandoCitaId + '):', JSON.stringify(verifyResult.confirmationData));
                         } else {
-                            // Nueva cita: guardar en pendingConfirmation
+                            // Nueva cita (o reagendamiento sin cita identificada → tratar como nueva)
                             session.pendingConfirmation = verifyResult.confirmationData;
                             session.pendingReagendamiento = null;
-                            console.log('📌 Datos de confirmación guardados en session:', JSON.stringify(verifyResult.confirmationData));
+                            if (session.isReagendando && !session.reagendandoCitaId) {
+                                console.log('⚠️ isReagendando=true pero sin citaId → tratando como NUEVA CITA');
+                                session.isReagendando = false;
+                            }
+                            console.log('📌 Datos de confirmación (nueva cita) guardados:', JSON.stringify(verifyResult.confirmationData));
                         }
                     }
                 } else {
@@ -687,7 +809,7 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
                 model: config.aiModel || "gpt-4o-mini",
                 messages: finalMessages,
                 temperature: 0.5,
-                max_tokens: 400
+                max_tokens: 800
             });
 
             return finalCompletion.choices[0].message.content;

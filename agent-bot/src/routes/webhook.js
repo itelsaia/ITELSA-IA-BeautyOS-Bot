@@ -180,8 +180,9 @@ router.post('/evolution', async (req, res) => {
         // Detectar intención de REAGENDAMIENTO — EXHAUSTIVO
         // Cubre: todas las formas verbales, typos, coloquialismos colombianos y combinaciones posibles
         const REAGENDAR_KEYWORDS = /reagend|regend|re.?agend|reprogramar|aplazar|postergar|posponer|recorrer|adelantar|atrasar/i;
-        const REAGENDAR_COMBOS = /(cambiar|mover|correr|pasar|modificar|actualizar|editar|ajustar|arreglar|acomodar|reorganizar|reacomodar|recuadrar|reubicar).*(cita|hora|fecha|turno|reserva|appointment)/i;
-        const REAGENDAR_COMBOS_REV = /(cita|hora|fecha|turno|reserva|appointment).*(cambiar|mover|correr|pasar|modificar|actualizar|editar|ajustar|arreglar|acomodar|reorganizar|reacomodar|recuadrar|reubicar|cambio|muevo|paso|mueva|pase|corra|cambie)/i;
+        // NOTA: "arreglar" removido — en contexto de peluquería es servicio ("arreglo de cejas"), no intención de reagendar
+        const REAGENDAR_COMBOS = /(cambiar|mover|correr|pasar|modificar|actualizar|editar|ajustar|acomodar|reorganizar|reacomodar|recuadrar|reubicar).*(cita|hora|fecha|turno|reserva|appointment)/i;
+        const REAGENDAR_COMBOS_REV = /(cita|hora|fecha|turno|reserva|appointment).*(cambiar|mover|correr|pasar|modificar|actualizar|editar|ajustar|acomodar|reorganizar|reacomodar|recuadrar|reubicar|cambio|muevo|paso|mueva|pase|corra|cambie)/i;
         const REAGENDAR_FRASES = /otra hora|otro dia|otro horario|diferente hora|diferente dia|distinta hora|distinto dia|no me sirve.*(hora|dia|fecha)|no puedo a esa hora|puedo a otra|puede ser.*(mas temprano|mas tarde|otro dia|otra hora)|necesito cambiar|quiero cambiar|quisiera cambiar|me toca cambiar|toca cambiar|hay que cambiar|debo cambiar|podemos cambiar|se puede cambiar|sera que.*(cambiar|mover|otra hora)|como hago para (cambiar|mover)|cambiarla|cambiarle|moverla|moverle|correrla|pasarla|adelantarla|atrasarla|aplazarla|posponerla|reprogramarla|modificarla/i;
 
         if (REAGENDAR_KEYWORDS.test(messageText) || REAGENDAR_COMBOS.test(messageText) || REAGENDAR_COMBOS_REV.test(messageText) || REAGENDAR_FRASES.test(messageText)) {
@@ -213,14 +214,9 @@ router.post('/evolution', async (req, res) => {
             console.log(`[${instanceName}] 🎯 Cita objetivo: ${session.reagendandoCitaId}`);
         }
 
-        // Auto-asignar ID si solo tiene 1 cita pendiente y está en modo reagendamiento
-        if (session.isReagendando && !session.reagendandoCitaId) {
-            const userAppts = tenant.pendingAppointments[phoneNumber] || [];
-            if (userAppts.length === 1) {
-                session.reagendandoCitaId = userAppts[0].id;
-                console.log(`[${instanceName}] 🎯 Auto-asignado cita única: ${session.reagendandoCitaId}`);
-            }
-        }
+        // NO auto-asignar ID aquí. El usuario debe especificar cuál cita quiere reagendar.
+        // El ID se captura cuando: (1) el usuario menciona AG-XXX, (2) la IA lo identifica en su respuesta,
+        // o (3) como fallback al momento de CONFIRMAR si solo tiene 1 cita pendiente.
 
         // ── CONFIRMACIÓN DIRECTA: El código guarda/reagenda sin pasar por IA ──
         const CONFIRM_REGEX = /^(si+p?|ok[i]?|okey|okay|dale|de una|de una vez|confirmo|confirmado|confirmar|perfecto|de acuerdo|claro|listo|vale|aprobado|bueno|esta bien|por supuesto|obvio|sep|sepi|sipi|hagale|hagamosle|hagalo|vamos|sale|hecho|ya|venga|adelante|correcto|exacto|asi es|procede|agendame|agendeme|reservame|genial|super|excelente|me parece bien|me parece|va|eso|todo bien|agende|por fa|porfa|por favor|simon|aja|ajap|oki doki|okis|dale dale|dale pues|dale si|va pues|pues si|pues dale|listo pues|listo si|listo dale|eso es|eso si|claro si|claro que si|bueno si|bueno dale|venga pues|venga dale|ya dale|perfecto dale|si claro|si dale|si por favor|si porfa|si por fa|si gracias|si senora|si senor|ok dale|ok si|ok perfecto|ok listo|dale gracias|va va|dale va|ta bien|ta bueno|joya|bien|sisas|metale|mandele|reserva|agenda|haga|parce si|of course|yes|yep|yeah|sure)$/;

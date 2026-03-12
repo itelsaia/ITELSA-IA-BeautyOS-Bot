@@ -29,7 +29,7 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["COLOR_MARCA", "#E91E63", "UI Theme"]);
   sheetConfig.appendRow(["INTERVALO_SLOTS_MIN", "15", "Intervalo en minutos entre opciones de horario (15, 20 o 30)"]);
   sheetConfig.appendRow(["TIEMPO_ENTRE_CITAS_MIN", "15", "Minutos de preparacion/limpieza entre citas"]);
-  sheetConfig.appendRow(["HORAS_VENCIMIENTO_CITA", "12", "Horas despues de vencida una cita para cambiar estado a RECHAZADO automaticamente"]);
+  sheetConfig.appendRow(["MINUTOS_VENCIMIENTO_CITA", "30", "Minutos despues de vencida una cita para cambiar estado a RECHAZADO automaticamente y liberar agenda del profesional"]);
   formatHeaders(sheetConfig);
 
   // 2. CLIENTES (CRM)

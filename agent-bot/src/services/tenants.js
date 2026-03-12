@@ -130,8 +130,8 @@ async function syncTenantData(tenantId) {
 
         // ── Auto-expire: Marcar citas vencidas como RECHAZADO ──
         try {
-            const expirationHours = (tenant.config && tenant.config.expirationHours) || 12;
-            const expiredAppointments = await loadExpiredAppointments(sheetId, expirationHours);
+            const expirationMinutes = (tenant.config && tenant.config.expirationMinutes) || 30;
+            const expiredAppointments = await loadExpiredAppointments(sheetId, expirationMinutes);
 
             if (expiredAppointments.length > 0) {
                 console.log(`[${tenantId}] 🕐 ${expiredAppointments.length} cita(s) vencida(s) encontrada(s). Auto-expire a RECHAZADO...`);

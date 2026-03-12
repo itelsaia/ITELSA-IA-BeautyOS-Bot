@@ -47,7 +47,7 @@ async function loadClientConfig(sheetId) {
             systemPrompt: `Eres ${configRaw['NOMBRE_AGENTE'] || 'un asistente virtual amable y conciso'}, y trabajas para el negocio de estética y belleza llamado ${configRaw['NOMBRE_NEGOCIO'] || 'la tienda'}.`,
             slotInterval: parseInt(configRaw['INTERVALO_SLOTS_MIN']) || 15,
             bufferTime: parseInt(configRaw['TIEMPO_ENTRE_CITAS_MIN']) || 15,
-            expirationHours: parseInt(configRaw['HORAS_VENCIMIENTO_CITA']) || 12
+            expirationMinutes: parseInt(configRaw['MINUTOS_VENCIMIENTO_CITA']) || 30
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -381,13 +381,13 @@ async function loadColaboradores(sheetId) {
 }
 
 /**
- * Carga citas vencidas (PENDIENTE o REAGENDADO) que ya pasaron su hora de fin + umbral de horas.
+ * Carga citas vencidas (PENDIENTE o REAGENDADO) que ya pasaron su hora de fin + umbral de minutos.
  * Estas citas deben pasar automáticamente a estado RECHAZADO.
  * @param {string} sheetId
- * @param {number} hoursThreshold Horas de gracia después de la hora fin (default 12)
+ * @param {number} minutesThreshold Minutos de gracia después de la hora fin (default 30)
  * @returns {Promise<Array>} Array de { id, fecha, fin, celular, servicio, cliente }
  */
-async function loadExpiredAppointments(sheetId, hoursThreshold = 12) {
+async function loadExpiredAppointments(sheetId, minutesThreshold = 30) {
     try {
         const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
         await doc.loadInfo();
@@ -425,11 +425,11 @@ async function loadExpiredAppointments(sheetId, hoursThreshold = 12) {
                 parseInt(timeParts[0]), parseInt(timeParts[1] || '0')
             );
 
-            // Calcular diferencia en horas
+            // Calcular diferencia en minutos
             const diffMs = nowColombia.getTime() - citaEnd.getTime();
-            const diffHours = diffMs / (1000 * 60 * 60);
+            const diffMinutes = diffMs / (1000 * 60);
 
-            if (diffHours >= hoursThreshold) {
+            if (diffMinutes >= minutesThreshold) {
                 expired.push({
                     id: (data['ID'] || '').trim(),
                     fecha: fechaStr,
