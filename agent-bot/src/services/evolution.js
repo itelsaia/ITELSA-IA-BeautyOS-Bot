@@ -69,6 +69,11 @@ class EvolutionClient {
             const response = await this.http.get(`/instance/connectionState/${instanceName}`);
             return response.data;
         } catch (error) {
+            // Si la instancia no existe (404), re-lanzar para que app.js la cree
+            if (error.response?.status === 404) {
+                console.log(`[Evolution] Instancia "${instanceName}" no existe (404).`);
+                throw error;
+            }
             console.error(`[Evolution] Error consultando estado de "${instanceName}":`, error.response?.data || error.message);
             return { state: 'unknown' };
         }
