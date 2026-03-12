@@ -71,23 +71,34 @@ class ApiService {
      * @param {string} nuevoEstado Estado a aplicar (ej. EJECUTADO)
      */
     async updateAgendaStatus(agendaId, nuevoEstado) {
-        if (!this.webhookUrl) return false;
+        if (!this.webhookUrl) {
+            console.error("❌ webhookUrl no definido para updateAgendaStatus");
+            return false;
+        }
 
         try {
             const response = await axios.post(this.webhookUrl, {
                 action: 'updateAgendaStatus',
                 payload: { id: agendaId, nuevoEstado: nuevoEstado }
-            });
+            }, { timeout: 15000 });
 
-            if (response.data.code === 200) {
+            const data = response.data;
+
+            // GAS puede retornar texto HTML en vez de JSON si el deployment no esta actualizado
+            if (typeof data === 'string') {
+                console.error(`⚠️ GAS retornó texto en vez de JSON para ${agendaId}:`, data.substring(0, 200));
+                return false;
+            }
+
+            if (data && data.code === 200) {
                 console.log(`✅ Estado de cita ${agendaId} actualizado a ${nuevoEstado}.`);
                 return true;
             } else {
-                console.error("⚠️ Error lógico en GAS:", response.data.message);
+                console.error(`⚠️ Error lógico en GAS (${agendaId} → ${nuevoEstado}):`, data?.message || JSON.stringify(data).substring(0, 200));
                 return false;
             }
         } catch (error) {
-            console.error("❌ Error HTTP contactando GAS:", error.message);
+            console.error(`❌ Error HTTP contactando GAS (${agendaId} → ${nuevoEstado}):`, error.message);
             return false;
         }
     }
@@ -96,23 +107,60 @@ class ApiService {
      * Reagenda una cita existente actualizando sus campos in-place y cambiando su estado a REAGENDADO
      */
     async rescheduleAgenda(payload) {
-        if (!this.webhookUrl) return false;
+        if (!this.webhookUrl) {
+            console.error("❌ webhookUrl no definido para rescheduleAgenda");
+            return false;
+        }
+
+        console.log(`📤 rescheduleAgenda → ${payload.id}:`, JSON.stringify(payload));
 
         try {
             const response = await axios.post(this.webhookUrl, {
                 action: 'rescheduleAgenda',
                 payload: payload
-            });
+            }, { timeout: 15000 });
 
-            if (response.data.code === 200) {
+            const data = response.data;
+
+            if (typeof data === 'string') {
+                console.error(`⚠️ GAS retornó texto en vez de JSON para reschedule ${payload.id}:`, data.substring(0, 200));
+                return false;
+            }
+
+            if (data && data.code === 200) {
                 console.log(`✅ Cita ${payload.id} reagendada in-place exitosamente.`);
                 return true;
             } else {
-                console.error("⚠️ Error lógico en GAS:", response.data.message);
+                console.error(`⚠️ Error lógico en GAS (reschedule ${payload.id}):`, data?.message || JSON.stringify(data).substring(0, 200));
                 return false;
             }
         } catch (error) {
-            console.error("❌ Error HTTP contactando GAS:", error.message);
+            console.error(`❌ Error HTTP rescheduleAgenda (${payload.id}):`, error.message);
+            return false;
+        }
+    }
+    /**
+     * Cancela una cita existente cambiando su estado a CANCELADA
+     * @param {string} agendaId ID de la cita (ej. AG-CS-001)
+     */
+    async cancelAgenda(agendaId) {
+        if (!this.webhookUrl) return false;
+
+        try {
+            const response = await axios.post(this.webhookUrl, {
+                action: 'updateAgendaStatus',
+                payload: { id: agendaId, nuevoEstado: 'CANCELADA' }
+            });
+
+            if (response.data.code === 200) {
+                console.log(`✅ Cita ${agendaId} cancelada exitosamente.`);
+                return true;
+            } else {
+                console.error("⚠️ Error cancelando cita:", response.data.message);
+                return false;
+            }
+        } catch (error) {
+            console.error("❌ Error HTTP cancelando cita:", error.message);
             return false;
         }
     }

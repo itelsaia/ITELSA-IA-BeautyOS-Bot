@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig,
-        loadRegisteredClients, loadPendingAppointments, loadPromotions } = require('./sheets');
+        loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments } = require('./sheets');
+const api = require('./api');
 const { isValidLicense } = require('../utils/license');
 
 const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
@@ -45,13 +46,15 @@ async function initTenant(tenantId, tenantDef) {
     }
 
     // Cargar todos los datos en paralelo para acelerar el arranque
-    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog] =
+    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog] =
         await Promise.all([
             loadServicesConfig(sheetId),
             loadKnowledgeConfig(sheetId),
             loadRegisteredClients(sheetId),
             loadPendingAppointments(sheetId),
-            loadPromotions(sheetId)
+            loadPromotions(sheetId),
+            loadDisponibilidad(sheetId),
+            loadColaboradores(sheetId)
         ]);
 
     const tenant = {
@@ -62,6 +65,8 @@ async function initTenant(tenantId, tenantDef) {
         registeredClients,
         pendingAppointments,
         promotionsCatalog,
+        disponibilidadCatalog,
+        colaboradoresCatalog,
         userSessions: {},
         syncInterval: null,
         lastSync: new Date().toISOString()
@@ -75,7 +80,16 @@ async function initTenant(tenantId, tenantDef) {
     tenantStore[tenantId] = tenant;
 
     const promosActivas = promotionsCatalog.filter(p => p.estado === 'ACTIVO').length;
-    console.log(`[${tenantId}] Listo. Licencia: ACTIVA | Negocio: ${config.businessName} | CRM: ${Object.keys(registeredClients).length} clientes | Citas pendientes: ${Object.keys(pendingAppointments).length} cliente(s) | Promos activas: ${promosActivas}`);
+    const jornadasConfig = disponibilidadCatalog.filter(d => d.tipo === 'Jornada').length;
+    const bloqueosConfig = disponibilidadCatalog.filter(d => d.tipo === 'Bloqueo').length;
+    console.log(`[${tenantId}] Listo. Licencia: ACTIVA | Negocio: ${config.businessName} | CRM: ${Object.keys(registeredClients).length} clientes | Citas pendientes: ${Object.keys(pendingAppointments).length} cliente(s) | Promos activas: ${promosActivas} | Jornadas: ${jornadasConfig} dias | Bloqueos: ${bloqueosConfig} | Colaboradores: ${colaboradoresCatalog.length}`);
+    console.log(`[${tenantId}] ⏱️ Tiempos: Slots cada ${config.slotInterval || 15}min | Buffer entre citas: ${config.bufferTime || 15}min`);
+    // Debug: mostrar competencias cargadas por colaborador
+    if (colaboradoresCatalog.length > 0) {
+        colaboradoresCatalog.forEach(c => {
+            console.log(`[${tenantId}]   👤 ${c.nombre} (${c.rol}) → Competencias: ${c.competencias || '(sin definir)'}`);
+        });
+    }
     return tenant;
 }
 
@@ -90,14 +104,16 @@ async function syncTenantData(tenantId) {
         console.log(`[${tenantId}] Sincronizando datos desde Google Sheets...`);
         const { sheetId } = tenant;
 
-        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog] =
+        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog] =
             await Promise.all([
                 loadClientConfig(sheetId),
                 loadServicesConfig(sheetId),
                 loadKnowledgeConfig(sheetId),
                 loadRegisteredClients(sheetId),
                 loadPendingAppointments(sheetId),
-                loadPromotions(sheetId)
+                loadPromotions(sheetId),
+                loadDisponibilidad(sheetId),
+                loadColaboradores(sheetId)
             ]);
 
         tenant.config = config || tenant.config;
@@ -106,9 +122,42 @@ async function syncTenantData(tenantId) {
         tenant.registeredClients = registeredClients;
         tenant.pendingAppointments = pendingAppointments;
         tenant.promotionsCatalog = promotionsCatalog;
+        tenant.disponibilidadCatalog = disponibilidadCatalog;
+        tenant.colaboradoresCatalog = colaboradoresCatalog;
         tenant.lastSync = new Date().toISOString();
 
         console.log(`[${tenantId}] Sincronizacion completa.`);
+
+        // ── Auto-expire: Marcar citas vencidas como RECHAZADO ──
+        try {
+            const expirationHours = (tenant.config && tenant.config.expirationHours) || 12;
+            const expiredAppointments = await loadExpiredAppointments(sheetId, expirationHours);
+
+            if (expiredAppointments.length > 0) {
+                console.log(`[${tenantId}] 🕐 ${expiredAppointments.length} cita(s) vencida(s) encontrada(s). Auto-expire a RECHAZADO...`);
+
+                // Override webhookUrl del singleton api para este tenant
+                api.webhookUrl = tenant.webhookGasUrl;
+
+                for (const cita of expiredAppointments) {
+                    try {
+                        const result = await api.updateAgendaStatus(cita.id, 'RECHAZADO');
+                        if (result) {
+                            console.log(`[${tenantId}]   ✅ ${cita.id} → RECHAZADO (${cita.fecha} ${cita.fin} - ${cita.servicio})`);
+                        } else {
+                            console.error(`[${tenantId}]   ❌ Error actualizando ${cita.id}`);
+                        }
+                    } catch (expErr) {
+                        console.error(`[${tenantId}]   ❌ Error en auto-expire ${cita.id}:`, expErr.message);
+                    }
+                }
+
+                // Refrescar pendingAppointments despues de auto-expire
+                tenant.pendingAppointments = await loadPendingAppointments(sheetId);
+            }
+        } catch (expError) {
+            console.error(`[${tenantId}] Error en auto-expire:`, expError.message);
+        }
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
     }

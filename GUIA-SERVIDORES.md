@@ -144,3 +144,65 @@ taskkill /PID NUMERO_PID /F
 
 ### Error de credenciales Google Sheets
 Verificar que `credenciales-google.json` existe en la raiz del proyecto y tiene los permisos correctos.
+
+### GAS retorna HTML en vez de JSON (Error critico)
+Si en los logs del bot aparece:
+```
+⚠️ GAS retornó texto en vez de JSON: <!DOCTYPE html>...<title>Error</title>
+```
+Significa que el deployment del CRM Web App esta desactualizado. `clasp push` sube el codigo pero **NO actualiza el deployment**.
+
+**Solucion:** Ejecutar este comando despues de cada `clasp push`:
+```
+cd "C:\Users\Critian\Documents\ITELSA IA\PROYECTOS_MICRO_SAS\APP_WEB_PELUQUERIAS_SPA\crm-webapp"
+npx clasp deploy -i AKfycbxTfm6MBwaqYOU27QQ2RaO5uy_JzRjywMZN-q9ZnfdotaJCqNSjYN57mB28zImVmZHT -d "descripcion del cambio"
+```
+Esto actualiza el deployment existente (misma URL) con la version mas reciente del codigo.
+
+---
+
+## Despliegue de Google Apps Script (CRM Web App)
+
+### Concepto clave
+Google Apps Script tiene DOS pasos separados:
+1. **`clasp push`** = Sube el codigo fuente al proyecto GAS (como un `git push`)
+2. **`clasp deploy`** = Publica una nueva version del Web App (como hacer un "release")
+
+**Si solo haces `clasp push` sin `clasp deploy`, el Web App sigue ejecutando la version vieja.**
+
+### Comandos de despliegue
+
+**Subir codigo + actualizar deployment (hacer SIEMPRE los dos juntos):**
+```bash
+cd "C:\Users\Critian\Documents\ITELSA IA\PROYECTOS_MICRO_SAS\APP_WEB_PELUQUERIAS_SPA\crm-webapp"
+npx clasp push --force
+npx clasp deploy -i AKfycbxTfm6MBwaqYOU27QQ2RaO5uy_JzRjywMZN-q9ZnfdotaJCqNSjYN57mB28zImVmZHT -d "descripcion"
+```
+
+**Ver deployments actuales:**
+```bash
+npx clasp deployments
+```
+
+**Ver versiones:**
+```bash
+npx clasp versions
+```
+
+### Datos del deployment actual
+| Campo | Valor |
+|-------|-------|
+| Deployment ID | `AKfycbxTfm6MBwaqYOU27QQ2RaO5uy_JzRjywMZN-q9ZnfdotaJCqNSjYN57mB28zImVmZHT` |
+| URL Web App | `https://script.google.com/macros/s/AKfycbxTfm6MBwaqYOU27QQ2RaO5uy_JzRjywMZN-q9ZnfdotaJCqNSjYN57mB28zImVmZHT/exec` |
+| Script ID | `1WDoHDnl0j7VwjrjtqjrZGiQxdo0fI36B9yNLCrA4o2yIKYyUOXo9a7ak` |
+| Configurada en | `tenants.json` campo `webhookGasUrl` |
+
+### Alternativa manual (desde el navegador)
+1. Abrir https://script.google.com
+2. Abrir el proyecto CRM
+3. Ir a **Implementar > Administrar implementaciones**
+4. Click en el **lapiz** (editar) de la implementacion activa
+5. En "Version" seleccionar **Nueva version**
+6. Click **Implementar**
+
+**IMPORTANTE:** NO crear una implementacion nueva (genera URL diferente). Siempre EDITAR la existente.

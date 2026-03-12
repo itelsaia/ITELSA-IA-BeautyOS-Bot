@@ -27,6 +27,9 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["CORREO_DUEÑA", "admin@spa.com", "Reportes Email"]);
   sheetConfig.appendRow(["ENLACE_LOGO", "https://...", "Branding Automático"]);
   sheetConfig.appendRow(["COLOR_MARCA", "#E91E63", "UI Theme"]);
+  sheetConfig.appendRow(["INTERVALO_SLOTS_MIN", "15", "Intervalo en minutos entre opciones de horario (15, 20 o 30)"]);
+  sheetConfig.appendRow(["TIEMPO_ENTRE_CITAS_MIN", "15", "Minutos de preparacion/limpieza entre citas"]);
+  sheetConfig.appendRow(["HORAS_VENCIMIENTO_CITA", "12", "Horas despues de vencida una cita para cambiar estado a RECHAZADO automaticamente"]);
   formatHeaders(sheetConfig);
 
   // 2. CLIENTES (CRM)
@@ -44,15 +47,15 @@ function inicializarEntorno() {
   // 4. COLABORADORES
   let sheetColaboradores = getOrCreateSheet(ss, "COLABORADORES");
   sheetColaboradores.clear();
-  sheetColaboradores.appendRow(["ID_COLABORADOR", "NOMBRE", "CELULAR", "ROL", "PIN", "ESTADO"]);
-  sheetColaboradores.appendRow(["ADMIN-001", "Andrea", "573001112233", "ADMIN", "1010", "ACTIVO"]);
-  sheetColaboradores.appendRow(["COL-001", "Camila", "573004445566", "STAFF", "2020", "ACTIVO"]);
+  sheetColaboradores.appendRow(["ID_COLABORADOR", "NOMBRE", "CELULAR", "ROL", "PIN", "ESTADO", "COMPETENCIAS"]);
+  sheetColaboradores.appendRow(["ADMIN-001", "Andrea", "573001112233", "ADMIN", "1010", "ACTIVO", "Corte de cabello para dama,Diseño de cejas,Tinte"]);
+  sheetColaboradores.appendRow(["COL-001", "Camila", "573004445566", "STAFF", "2020", "ACTIVO", "Manicure,Pedicure,Diseño de cejas"]);
   formatHeaders(sheetColaboradores);
 
   // 5. DISPONIBILIDAD
   let sheetDisponibilidad = getOrCreateSheet(ss, "DISPONIBILIDAD");
   sheetDisponibilidad.clear();
-  sheetDisponibilidad.appendRow(["TIPO", "FECHA_DIA", "HORA_INI", "HORA_FIN", "MOTIVO", "APLICA_A", "HORARIO"]);
+  sheetDisponibilidad.appendRow(["TIPO", "FECHA_DIA", "HORA_INI", "HORA_FIN", "MOTIVO", "APLICA_A", "HORARIO", "CATEGORIA"]);
   sheetDisponibilidad.appendRow(["Jornada", "Lunes", "09:00", "18:00", "Horario Base", "TODOS", "DIARIO"]);
   formatHeaders(sheetDisponibilidad);
 
@@ -70,9 +73,10 @@ function inicializarEntorno() {
   sheetEstados.appendRow(["EJECUTADO", "Cliente asistió y el servicio fue prestado", "Admin/Colaborador cierra la cita en el CRM"]);
   sheetEstados.appendRow(["RECHAZADO", "Cliente no asistió a la cita programada", "Admin/Colaborador marca inasistencia"]);
   sheetEstados.appendRow(["REAGENDADO", "Cliente solicitó cambio de fecha/hora/servicio", "Bot IA al reprogramar una cita existente"]);
+  sheetEstados.appendRow(["CANCELADA", "Cliente canceló la cita proactivamente vía bot", "Bot IA cuando el cliente solicita cancelar"]);
   formatHeaders(sheetEstados);
   // Aplicar validación de datos a la columna ESTADO de AGENDA (columna K, por la nueva columna TIPO_DIA)
-  const estadosRange = sheetEstados.getRange("A2:A5");
+  const estadosRange = sheetEstados.getRange("A2:A6");
   const estadosRule = SpreadsheetApp.newDataValidation()
     .requireValueInRange(estadosRange, true)
     .setAllowInvalid(false)

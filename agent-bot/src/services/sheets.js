@@ -44,7 +44,10 @@ async function loadClientConfig(sheetId) {
             welcomeMsg: configRaw['SALUDO_BASE'],
             ownerPhone: configRaw['CELULAR_DUEÑA'],
             ownerEmail: configRaw['CORREO_DUEÑA'],
-            systemPrompt: `Eres ${configRaw['NOMBRE_AGENTE'] || 'un asistente virtual amable y conciso'}, y trabajas para el negocio de estética y belleza llamado ${configRaw['NOMBRE_NEGOCIO'] || 'la tienda'}.`
+            systemPrompt: `Eres ${configRaw['NOMBRE_AGENTE'] || 'un asistente virtual amable y conciso'}, y trabajas para el negocio de estética y belleza llamado ${configRaw['NOMBRE_NEGOCIO'] || 'la tienda'}.`,
+            slotInterval: parseInt(configRaw['INTERVALO_SLOTS_MIN']) || 15,
+            bufferTime: parseInt(configRaw['TIEMPO_ENTRE_CITAS_MIN']) || 15,
+            expirationHours: parseInt(configRaw['HORAS_VENCIMIENTO_CITA']) || 12
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -234,7 +237,8 @@ async function loadPendingAppointments(sheetId) {
                         fin: data['FIN'] || 'N/A',
                         servicio: data['SERVICIO'] || 'N/A',
                         precio: data['PRECIO'] || 'N/A',
-                        estado: estado
+                        estado: estado,
+                        profesional: data['PROFESIONAL'] || 'Por asignar'
                     });
                 }
             }
@@ -291,4 +295,157 @@ async function loadPromotions(sheetId) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments, loadPromotions };
+/**
+ * Carga la disponibilidad (jornadas y bloqueos) desde la hoja DISPONIBILIDAD.
+ * @param {string} sheetId
+ * @returns {Promise<Array>} Arreglo de registros de disponibilidad
+ */
+async function loadDisponibilidad(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['DISPONIBILIDAD'];
+        if (!sheet) {
+            console.warn("⚠️ La pestaña DISPONIBILIDAD no existe.");
+            return [];
+        }
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        return rows.map(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+
+            return {
+                tipo: (cleanData['TIPO'] || '').trim(),
+                fechaDia: (cleanData['FECHA_DIA'] || '').trim(),
+                horaIni: (cleanData['HORA_INI'] || '').trim(),
+                horaFin: (cleanData['HORA_FIN'] || '').trim(),
+                motivo: (cleanData['MOTIVO'] || '').trim(),
+                aplicaA: (cleanData['APLICA_A'] || '').trim(),
+                horario: (cleanData['HORARIO'] || '').trim(),
+                categoria: (cleanData['CATEGORIA'] || '').trim()
+            };
+        }).filter(item => item.tipo !== '');
+
+    } catch (e) {
+        console.error("❌ Error cargando DISPONIBILIDAD:", e.message);
+        return [];
+    }
+}
+
+/**
+ * Carga los colaboradores activos desde la hoja COLABORADORES.
+ * @param {string} sheetId
+ * @returns {Promise<Array>} Arreglo de colaboradores
+ */
+async function loadColaboradores(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['COLABORADORES'];
+        if (!sheet) {
+            console.warn("⚠️ La pestaña COLABORADORES no existe.");
+            return [];
+        }
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        return rows.map(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+
+            return {
+                id: (cleanData['ID_COLABORADOR'] || '').trim(),
+                nombre: (cleanData['NOMBRE'] || '').trim(),
+                rol: (cleanData['ROL'] || '').trim(),
+                estado: (cleanData['ESTADO'] || '').trim(),
+                competencias: (cleanData['COMPETENCIAS'] || '').trim()
+            };
+        }).filter(item => item.id !== '' && item.estado === 'ACTIVO');
+
+    } catch (e) {
+        console.error("❌ Error cargando COLABORADORES:", e.message);
+        return [];
+    }
+}
+
+/**
+ * Carga citas vencidas (PENDIENTE o REAGENDADO) que ya pasaron su hora de fin + umbral de horas.
+ * Estas citas deben pasar automáticamente a estado RECHAZADO.
+ * @param {string} sheetId
+ * @param {number} hoursThreshold Horas de gracia después de la hora fin (default 12)
+ * @returns {Promise<Array>} Array de { id, fecha, fin, celular, servicio, cliente }
+ */
+async function loadExpiredAppointments(sheetId, hoursThreshold = 12) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['AGENDA'];
+        if (!sheet) return [];
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        // Hora actual en Colombia
+        const nowColombia = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+        const expired = [];
+
+        rows.forEach(row => {
+            const data = row.toObject();
+            const estado = (data['ESTADO'] || '').toUpperCase().trim();
+            if (estado !== 'PENDIENTE' && estado !== 'REAGENDADO') return;
+
+            const fechaStr = (data['FECHA'] || '').trim();
+            const finStr = (data['FIN'] || '').trim();
+            if (!fechaStr || !finStr) return;
+
+            // Parsear fecha DD/MM/YYYY
+            const parts = fechaStr.split('/');
+            if (parts.length !== 3) return;
+
+            // Parsear hora fin HH:MM
+            const timeParts = finStr.split(':');
+            if (timeParts.length < 2) return;
+
+            // Construir fecha+hora de fin de la cita
+            const citaEnd = new Date(
+                parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]),
+                parseInt(timeParts[0]), parseInt(timeParts[1] || '0')
+            );
+
+            // Calcular diferencia en horas
+            const diffMs = nowColombia.getTime() - citaEnd.getTime();
+            const diffHours = diffMs / (1000 * 60 * 60);
+
+            if (diffHours >= hoursThreshold) {
+                expired.push({
+                    id: (data['ID'] || '').trim(),
+                    fecha: fechaStr,
+                    fin: finStr,
+                    celular: (data['CELULAR_CLIENTE'] || '').toString().trim(),
+                    servicio: (data['SERVICIO'] || '').trim(),
+                    cliente: (data['CLIENTE'] || '').trim()
+                });
+            }
+        });
+
+        return expired;
+    } catch (error) {
+        console.error("❌ Error cargando citas vencidas:", error.message);
+        return [];
+    }
+}
+
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments };

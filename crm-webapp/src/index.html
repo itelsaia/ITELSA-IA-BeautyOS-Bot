@@ -120,10 +120,34 @@
     .badge-ejecutado { background:#D4EDDA; color:#155724; }
     .badge-rechazado { background:#F8D7DA; color:#721C24; }
     .badge-reagendado { background:#D1ECF1; color:#0C5460; }
+    .badge-cancelada { background:#E2E3E5; color:#495057; text-decoration:line-through; }
+
+    /* ── Tarjetas Resumen Agenda ── */
+    .agenda-summary { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; margin-bottom:16px; }
+    .summary-card { background:#fff; border-radius:12px; padding:14px 16px; text-align:center; border-left:4px solid #ddd; box-shadow:0 1px 4px rgba(0,0,0,.06); transition:transform .15s, box-shadow .15s; cursor:pointer; }
+    .summary-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.1); }
+    .summary-card.active { box-shadow:0 0 0 2px var(--brand), 0 4px 12px rgba(0,0,0,.1); }
+    .summary-card .sc-count { font-size:1.6rem; font-weight:700; line-height:1; }
+    .summary-card .sc-label { font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:#6c757d; margin-top:4px; }
+    .sc-total { border-left-color:var(--brand); }
+    .sc-total .sc-count { color:var(--brand); }
+    .sc-pendiente { border-left-color:#856404; }
+    .sc-pendiente .sc-count { color:#856404; }
+    .sc-ejecutado { border-left-color:#155724; }
+    .sc-ejecutado .sc-count { color:#155724; }
+    .sc-rechazado { border-left-color:#721C24; }
+    .sc-rechazado .sc-count { color:#721C24; }
+    .sc-reagendado { border-left-color:#0C5460; }
+    .sc-reagendado .sc-count { color:#0C5460; }
+    .sc-cancelada { border-left-color:#495057; }
+    .sc-cancelada .sc-count { color:#495057; }
     .badge-activo { background:#D4EDDA; color:#155724; }
     .badge-inactivo { background:#E2E3E5; color:#6C757D; }
     .badge-nuevo { background:#CCE5FF; color:#004085; }
     .badge-recurrente { background:#E2D5F1; color:#5A2D82; }
+    .badge-permanente { background:#D4EDDA; color:#155724; }
+    .badge-temporal { background:#FFF3CD; color:#856404; }
+    .badge-vencido { background:#F8D7DA; color:#721C24; }
 
     /* ── Buttons ── */
     .btn-brand { background:var(--brand); color:#fff; border:none; font-weight:600; border-radius:8px; }
@@ -204,10 +228,12 @@
       <a href="#" class="active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
       <a href="#" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
       <a href="#" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
+      <a href="#" data-page="equipo"><i class="fas fa-user-friends"></i> Equipo</a>
 
       <div class="nav-section">Negocio</div>
       <a href="#" data-page="servicios"><i class="fas fa-concierge-bell"></i> Servicios</a>
       <a href="#" data-page="promociones"><i class="fas fa-tags"></i> Promociones</a>
+      <a href="#" data-page="horarios"><i class="fas fa-clock"></i> Horarios</a>
 
       <div class="nav-section">Sistema</div>
       <a href="#" data-page="config"><i class="fas fa-cog"></i> Configuracion</a>
@@ -417,6 +443,8 @@ var clientes = [];
 var agenda = [];
 var servicios = [];
 var promociones = [];
+var disponibilidad = [];
+var colaboradores = [];
 var serviciosNombres = [];
 var currentPage = 'dashboard';
 var pendingLoads = 0;
@@ -425,12 +453,14 @@ var pendingLoads = 0;
 // Inicializacion
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
-  pendingLoads = 5;
+  pendingLoads = 7;
   google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
   google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
   google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
   google.script.run.withSuccessHandler(onServiciosLoaded).withFailureHandler(onLoadErr).getServicios();
   google.script.run.withSuccessHandler(onPromocionesLoaded).withFailureHandler(onLoadErr).getPromociones();
+  google.script.run.withSuccessHandler(onDisponibilidadLoaded).withFailureHandler(onLoadErr).getDisponibilidad();
+  google.script.run.withSuccessHandler(onColaboradoresLoaded).withFailureHandler(onLoadErr).getColaboradores();
 
   // Nav click
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
@@ -470,6 +500,8 @@ function onServiciosLoaded(data) {
   checkLoaded();
 }
 function onPromocionesLoaded(data) { promociones = data || []; checkLoaded(); }
+function onDisponibilidadLoaded(data) { disponibilidad = data || []; checkBloqueosVencidos(); checkLoaded(); }
+function onColaboradoresLoaded(data) { colaboradores = data || []; checkLoaded(); }
 function onLoadErr(err) { console.error('Error carga:', err); checkLoaded(); }
 
 function checkLoaded() {
@@ -482,20 +514,35 @@ function checkLoaded() {
 }
 
 // =============================================
-// Auto-Refresh (polling cada 30 segundos)
+// Auto-Refresh (polling cada 20 segundos — detecta CUALQUIER cambio)
 // =============================================
+function agendaFingerprint(data) {
+  return data.map(function(a) { return a.id + '|' + a.estado + '|' + a.fecha + '|' + a.inicio; }).sort().join(',');
+}
+
 function iniciarAutoRefresh() {
   setInterval(function() {
-    var prevAgendaCount = agenda.length;
+    var prevAgendaFP = agendaFingerprint(agenda);
     var prevClientesCount = clientes.length;
 
     google.script.run.withSuccessHandler(function(data) {
-      agenda = data || [];
+      data = data || [];
+      var newFP = agendaFingerprint(data);
+      var changed = newFP !== prevAgendaFP;
+      var nuevas = data.length - agenda.length;
+      agenda = data;
       updateBadgePendientes();
-      if (data.length > prevAgendaCount) {
-        var nuevas = data.length - prevAgendaCount;
-        toast('Nueva(s) cita(s) agendada(s): +' + nuevas, 'info');
-        if (currentPage === 'dashboard' || currentPage === 'agenda') navigateTo(currentPage);
+
+      if (changed) {
+        if (nuevas > 0) toast('Nueva(s) cita(s): +' + nuevas, 'info');
+        else toast('Agenda actualizada', 'info');
+
+        // Actualizar vista actual sin recargar toda la pagina
+        if (currentPage === 'agenda') {
+          updateAgendaView();
+        } else if (currentPage === 'dashboard') {
+          navigateTo('dashboard');
+        }
       }
     }).getAgenda();
 
@@ -503,11 +550,11 @@ function iniciarAutoRefresh() {
       clientes = data || [];
       if (data.length > prevClientesCount) {
         var nuevos = data.length - prevClientesCount;
-        toast('Nuevo(s) cliente(s) registrado(s): +' + nuevos, 'info');
+        toast('Nuevo(s) cliente(s): +' + nuevos, 'info');
         if (currentPage === 'dashboard' || currentPage === 'clientes') navigateTo(currentPage);
       }
     }).getClientes();
-  }, 30000);
+  }, 20000);
 }
 
 // =============================================
@@ -566,7 +613,7 @@ function navigateTo(page) {
     a.classList.toggle('active', a.getAttribute('data-page') === page);
   });
   // Update title
-  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', servicios:'Servicios', promociones:'Promociones', config:'Configuracion' };
+  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', equipo:'Equipo', servicios:'Servicios', promociones:'Promociones', horarios:'Horarios', config:'Configuracion' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   // Render
   var area = document.getElementById('contentArea');
@@ -574,8 +621,10 @@ function navigateTo(page) {
     case 'dashboard': area.innerHTML = renderDashboard(); break;
     case 'agenda': area.innerHTML = renderAgenda(); break;
     case 'clientes': area.innerHTML = renderClientes(); break;
+    case 'equipo': area.innerHTML = renderEquipo(); break;
     case 'servicios': area.innerHTML = renderServicios(); break;
     case 'promociones': area.innerHTML = renderPromociones(); break;
+    case 'horarios': area.innerHTML = renderHorarios(); break;
     case 'config': area.innerHTML = renderConfig(); break;
   }
 }
@@ -648,12 +697,48 @@ function statCard(icon, value, label, color, bg) {
 // =============================================
 // RENDER: Agenda
 // =============================================
+function calcAgendaStats(data) {
+  var stats = { total:0, PENDIENTE:0, EJECUTADO:0, RECHAZADO:0, REAGENDADO:0, CANCELADA:0 };
+  data.forEach(function(a) { stats.total++; var e = (a.estado || '').toUpperCase(); if (stats.hasOwnProperty(e)) stats[e]++; });
+  return stats;
+}
+
+function renderAgendaSummary(stats, activeFilter) {
+  var cards = [
+    { key:'', label:'Total', count:stats.total, cls:'sc-total' },
+    { key:'PENDIENTE', label:'Pendientes', count:stats.PENDIENTE, cls:'sc-pendiente' },
+    { key:'EJECUTADO', label:'Ejecutadas', count:stats.EJECUTADO, cls:'sc-ejecutado' },
+    { key:'REAGENDADO', label:'Reagendadas', count:stats.REAGENDADO, cls:'sc-reagendado' },
+    { key:'CANCELADA', label:'Canceladas', count:stats.CANCELADA, cls:'sc-cancelada' },
+    { key:'RECHAZADO', label:'Rechazadas', count:stats.RECHAZADO, cls:'sc-rechazado' }
+  ];
+  return '<div class="agenda-summary" id="agendaSummary">' + cards.map(function(c) {
+    var isActive = activeFilter === c.key ? ' active' : '';
+    return '<div class="summary-card ' + c.cls + isActive + '" onclick="filtrarDesdeCard(\'' + c.key + '\')">' +
+      '<div class="sc-count">' + c.count + '</div><div class="sc-label">' + c.label + '</div></div>';
+  }).join('') + '</div>';
+}
+
+function filtrarDesdeCard(estado) {
+  var sel = document.getElementById('filtroEstadoAgenda');
+  if (sel) sel.value = estado;
+  updateAgendaView();
+}
+
 function renderAgenda() {
-  var html = '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">';
+  var stats = calcAgendaStats(agenda);
+  var html = renderAgendaSummary(stats, '');
+
+  html += '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">';
   html += '<div class="search-box"><i class="fas fa-search"></i><input type="text" class="form-control" placeholder="Buscar cita..." oninput="filtrarAgenda(this.value)"></div>';
-  html += '<select class="form-select" style="width:auto;" onchange="filtrarAgendaEstado(this.value)" id="filtroEstadoAgenda">';
-  html += '<option value="">Todos los estados</option><option value="PENDIENTE">Pendiente</option><option value="EJECUTADO">Ejecutado</option><option value="RECHAZADO">Rechazado</option><option value="REAGENDADO">Reagendado</option>';
-  html += '</select></div>';
+  html += '<select class="form-select" style="width:auto;" onchange="filtrarAgendaProfesional(this.value)" id="filtroProfAgenda">';
+  html += '<option value="">Todos los estilistas</option>';
+  var profs = [];
+  colaboradores.forEach(function(c) { if (c.estado === 'ACTIVO' && profs.indexOf(c.nombre) === -1) profs.push(c.nombre); });
+  profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
+  html += '</select>';
+  html += '<select class="form-select" style="width:auto;display:none;" id="filtroEstadoAgenda"></select>';
+  html += '</div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table" id="tablaAgenda">';
   html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th></tr></thead>';
@@ -702,6 +787,94 @@ function renderClienteRows(data) {
       '<td>' + badgeTipoCliente(c.tipo) + '</td>' +
       '<td class="d-none d-md-table-cell"><small>' + esc(c.registro) + '</small></td></tr>';
   }).join('');
+}
+
+// =============================================
+// RENDER: Equipo (Colaboradores)
+// =============================================
+function renderEquipo() {
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div><small class="text-muted">' + colaboradores.length + ' colaborador(es) registrados</small></div>';
+  html += '<button class="btn btn-brand btn-sm" onclick="abrirModalColaboradorCrear()"><i class="fas fa-plus me-1"></i> Nuevo Colaborador</button></div>';
+
+  html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
+  html += '<thead><tr><th>Nombre</th><th>Rol</th><th>Celular</th><th>Estado</th><th>Competencias</th><th class="text-center">Acciones</th></tr></thead><tbody>';
+
+  if (colaboradores.length === 0) {
+    html += '<tr><td colspan="6" class="text-center text-muted py-4"><i class="fas fa-user-friends fa-2x d-block mb-2"></i>No hay colaboradores registrados.</td></tr>';
+  } else {
+    colaboradores.forEach(function(c) {
+      var esActivo = (c.estado || '').toUpperCase() === 'ACTIVO';
+      var rolBadge = c.rol === 'ADMIN' ? '<span class="badge bg-primary">ADMIN</span>' : '<span class="badge bg-info text-dark">STAFF</span>';
+      var estadoBadge = esActivo ? '<span class="badge-status badge-activo">ACTIVO</span>' : '<span class="badge-status badge-inactivo">INACTIVO</span>';
+
+      // Competencias como badges
+      var compHtml = '';
+      if (c.competencias && c.competencias.trim() !== '') {
+        c.competencias.split(',').forEach(function(comp) {
+          comp = comp.trim();
+          if (comp) compHtml += '<span class="badge bg-light text-dark border me-1 mb-1" style="font-size:.75rem;">' + esc(comp) + '</span>';
+        });
+      } else {
+        compHtml = '<span class="text-muted small">Todos los servicios</span>';
+      }
+
+      html += '<tr>';
+      html += '<td><strong>' + esc(c.nombre) + '</strong><br><small class="text-muted">' + esc(c.id) + '</small></td>';
+      html += '<td>' + rolBadge + '</td>';
+      html += '<td>' + esc(c.celular) + '</td>';
+      html += '<td>' + estadoBadge + '</td>';
+      html += '<td style="max-width:250px;">' + compHtml + '</td>';
+      html += '<td class="text-center"><div class="btn-group btn-group-sm">';
+      html += '<button class="btn btn-outline-primary btn-sm-icon" title="Editar" onclick="abrirModalColaboradorEditar(' + c.rowIndex + ')"><i class="fas fa-pencil-alt"></i></button>';
+      html += '<button class="btn btn-outline-danger btn-sm-icon" title="Eliminar" onclick="abrirEliminar(' + c.rowIndex + ',\'' + esc(c.nombre) + '\',\'colaborador\')"><i class="fas fa-trash"></i></button>';
+      html += '</div></td>';
+      html += '</tr>';
+    });
+  }
+
+  html += '</tbody></table></div></div>';
+
+  // ── Modal Colaborador (crear / editar) ──
+  html += '<div class="modal fade" id="modalColaborador" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">';
+  html += '<div class="modal-header" style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;"><h5 class="modal-title" id="modalColaboradorTitulo"><i class="fas fa-user-plus me-2"></i>Nuevo Colaborador</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<form id="formColaborador">';
+  html += '<input type="hidden" id="colRowIndex" value="">';
+  html += '<input type="hidden" id="colId" value="">';
+  html += '<div class="row g-3">';
+  html += '<div class="col-md-6"><label class="form-label fw-semibold">Nombre *</label><input type="text" class="form-control" id="colNombre" placeholder="Ej: Andrea" required></div>';
+  html += '<div class="col-md-6"><label class="form-label fw-semibold">Celular</label><input type="tel" class="form-control" id="colCelular" placeholder="Ej: 573001112233"></div>';
+  html += '<div class="col-md-4"><label class="form-label fw-semibold">Rol</label><select class="form-select" id="colRol"><option value="STAFF">STAFF</option><option value="ADMIN">ADMIN</option></select></div>';
+  html += '<div class="col-md-4"><label class="form-label fw-semibold">PIN (4 digitos)</label><input type="text" class="form-control" id="colPin" placeholder="1234" maxlength="4"></div>';
+  html += '<div class="col-md-4"><label class="form-label fw-semibold">Estado</label>';
+  html += '<div class="form-check form-switch mt-2"><input class="form-check-input" type="checkbox" id="colEstadoSwitch" checked onchange="document.getElementById(\'colEstadoLabel\').textContent=this.checked?\'ACTIVO\':\'INACTIVO\'">';
+  html += '<label class="form-check-label" id="colEstadoLabel">ACTIVO</label></div></div>';
+
+  // Competencias: checkboxes dinamicos desde serviciosNombres
+  html += '<div class="col-12"><label class="form-label fw-semibold"><i class="fas fa-tools me-1"></i>Competencias (servicios que domina)</label>';
+  html += '<div class="border rounded p-3" id="colCompetenciasContainer" style="max-height:220px;overflow-y:auto;">';
+  if (serviciosNombres && serviciosNombres.length > 0) {
+    html += '<div class="form-check mb-2 border-bottom pb-2"><input class="form-check-input" type="checkbox" id="colCompTodas" onchange="toggleTodasCompetencias(this.checked)">';
+    html += '<label class="form-check-label fw-bold" for="colCompTodas"><i class="fas fa-check-double me-1"></i>TODAS (domina todos los servicios)</label></div>';
+    serviciosNombres.forEach(function(srvNombre, idx) {
+      html += '<div class="form-check"><input class="form-check-input col-comp-check" type="checkbox" value="' + esc(srvNombre) + '" id="colComp_' + idx + '" onchange="syncTodasCheckbox()">';
+      html += '<label class="form-check-label" for="colComp_' + idx + '">' + esc(srvNombre) + '</label></div>';
+    });
+  } else {
+    html += '<p class="text-muted small mb-0">No hay servicios configurados. Agrega servicios primero en la seccion Servicios.</p>';
+  }
+  html += '</div>';
+  html += '<small class="text-muted">Selecciona "TODAS" si este profesional atiende todos los servicios del negocio.</small>';
+  html += '</div>';
+
+  html += '</div></form></div>';
+  html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-brand" onclick="guardarColaborador()" id="btnGuardarCol"><i class="fas fa-save me-1"></i> Guardar</button></div>';
+  html += '</div></div></div>';
+
+  return html;
 }
 
 // =============================================
@@ -775,6 +948,257 @@ function renderPromociones() {
 }
 
 // =============================================
+// RENDER: Horarios
+// =============================================
+function renderHorarios() {
+  var diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+  var jornadas = disponibilidad.filter(function(d) { return d.tipo === 'Jornada'; });
+  var bloqueos = disponibilidad.filter(function(d) { return d.tipo === 'Bloqueo'; });
+
+  // Mapear jornadas por dia
+  var jornadaMap = {};
+  jornadas.forEach(function(j) {
+    var diaKey = j.fechaDia.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    jornadaMap[diaKey] = j;
+  });
+
+  var html = '';
+
+  // ── Seccion 1: Jornada Semanal ──
+  html += '<div class="card border-0 shadow-sm mb-4">';
+  html += '<div class="card-header bg-white border-0 pb-0"><h6 class="mb-0"><i class="fas fa-calendar-week me-2 text-primary"></i>Jornada Semanal</h6>';
+  html += '<p class="text-muted small mb-0 mt-1">Configura los dias y horarios de atencion de tu negocio</p></div>';
+  html += '<div class="card-body">';
+  html += '<div class="row g-3">';
+
+  diasSemana.forEach(function(dia) {
+    var diaKey = dia.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    var jornada = jornadaMap[diaKey] || null;
+    var activo = jornada !== null;
+    var horaIni = jornada ? jornada.horaIni : '09:00';
+    var horaFin = jornada ? jornada.horaFin : '18:00';
+    var checkedStr = activo ? 'checked' : '';
+    var disabledStr = activo ? '' : 'disabled';
+    var bgClass = activo ? 'border-success' : 'border-secondary opacity-50';
+
+    html += '<div class="col-lg-6 col-xl-4">';
+    html += '<div class="card h-100 ' + bgClass + '" id="cardDia-' + dia + '" style="border-width:2px;">';
+    html += '<div class="card-body p-3">';
+    html += '<div class="d-flex justify-content-between align-items-center mb-2">';
+    html += '<h6 class="mb-0"><i class="fas fa-' + (activo ? 'door-open text-success' : 'door-closed text-secondary') + ' me-2" id="iconDia-' + dia + '"></i>' + dia + '</h6>';
+    html += '<div class="form-check form-switch">';
+    html += '<input class="form-check-input" type="checkbox" id="toggleDia-' + dia + '" ' + checkedStr + ' onchange="toggleDia(\'' + dia + '\')">';
+    html += '<label class="form-check-label small" id="labelDia-' + dia + '">' + (activo ? 'Abierto' : 'Cerrado') + '</label>';
+    html += '</div></div>';
+    html += '<div class="row g-2" id="horasDia-' + dia + '" style="' + (activo ? '' : 'opacity:0.4;pointer-events:none;') + '">';
+    html += '<div class="col-6"><label class="form-label small mb-1">Apertura</label>';
+    html += '<input type="time" class="form-control form-control-sm" id="horaIni-' + dia + '" value="' + horaIni + '"></div>';
+    html += '<div class="col-6"><label class="form-label small mb-1">Cierre</label>';
+    html += '<input type="time" class="form-control form-control-sm" id="horaFin-' + dia + '" value="' + horaFin + '"></div>';
+    html += '</div>';
+    html += '</div></div></div>';
+  });
+
+  html += '</div>'; // row
+  html += '<div class="text-end mt-3">';
+  html += '<button class="btn btn-primary" onclick="guardarHorarios()" id="btnGuardarHorarios"><i class="fas fa-save me-1"></i> Guardar Horarios</button>';
+  html += '</div>';
+  html += '</div></div>'; // card-body, card
+
+  // ── Seccion 2: Disponibilidad del Equipo ──
+  html += '<div class="card border-0 shadow-sm mb-4">';
+  html += '<div class="card-header bg-white border-0 pb-0"><h6 class="mb-0"><i class="fas fa-users me-2 text-info"></i>Disponibilidad del Equipo</h6>';
+  html += '<p class="text-muted small mb-0 mt-1">Estado actual de cada colaborador y sus bloqueos activos</p></div>';
+  html += '<div class="card-body">';
+
+  if (colaboradores.length === 0) {
+    html += '<p class="text-muted small">No hay colaboradores registrados en la hoja COLABORADORES.</p>';
+  } else {
+    html += '<div class="row g-3">';
+    colaboradores.forEach(function(col) {
+      var bloqueosCol = bloqueos.filter(function(b) { return b.aplicaA === col.id; });
+      var isActivo = col.estado === 'ACTIVO';
+      var cardBorder = isActivo ? (bloqueosCol.length > 0 ? 'border-warning' : 'border-success') : 'border-secondary';
+      var statusBadge = isActivo ? (bloqueosCol.length > 0 ? '<span class="badge bg-warning text-dark">Con restricciones</span>' : '<span class="badge bg-success">Disponible</span>') : '<span class="badge bg-secondary">Inactivo</span>';
+
+      html += '<div class="col-md-6 col-lg-4">';
+      html += '<div class="card h-100 ' + cardBorder + '" style="border-width:2px;">';
+      html += '<div class="card-body p-3">';
+      html += '<div class="d-flex justify-content-between align-items-center mb-2">';
+      html += '<div><strong><i class="fas fa-user-circle me-1"></i>' + col.nombre + '</strong>';
+      html += '<span class="badge bg-light text-dark ms-2">' + col.rol + '</span></div>';
+      html += statusBadge;
+      html += '</div>';
+
+      if (bloqueosCol.length > 0) {
+        html += '<div class="mt-2">';
+        bloqueosCol.forEach(function(b) {
+          var rangoInfo = '';
+          if (b.horario.indexOf('RANGO:') === 0) {
+            rangoInfo = ' hasta ' + b.horario.replace('RANGO:', '');
+          }
+          var isTodoDia = b.horaIni === '00:00' && b.horaFin === '23:59';
+          var horaLabel = isTodoDia ? 'Todo el dia' : b.horaIni + ' - ' + b.horaFin;
+          html += '<div class="small text-danger mb-1"><i class="fas fa-ban me-1"></i>' + b.motivo + ' | ' + b.fechaDia + rangoInfo + ' | ' + horaLabel + '</div>';
+        });
+        html += '</div>';
+      }
+
+      html += '</div></div></div>';
+    });
+
+    // Bloqueos generales (TODOS)
+    var bloqueosGenerales = bloqueos.filter(function(b) { return b.aplicaA === 'TODOS'; });
+    if (bloqueosGenerales.length > 0) {
+      html += '<div class="col-12"><div class="card border-danger" style="border-width:2px;">';
+      html += '<div class="card-body p-3"><strong><i class="fas fa-store-slash me-1 text-danger"></i>Bloqueos Generales (todo el negocio)</strong>';
+      html += '<div class="mt-2">';
+      bloqueosGenerales.forEach(function(b) {
+        var rangoInfo = '';
+        if (b.horario.indexOf('RANGO:') === 0) rangoInfo = ' hasta ' + b.horario.replace('RANGO:', '');
+        var isTodoDia = b.horaIni === '00:00' && b.horaFin === '23:59';
+        var horaLabel = isTodoDia ? 'Todo el dia' : b.horaIni + ' - ' + b.horaFin;
+        var tipoLabel = b.horario === 'DIARIO' ? '(Recurrente)' : (b.horario.indexOf('RANGO:') === 0 ? '(Rango)' : '(Unico)');
+        html += '<div class="small text-danger mb-1"><i class="fas fa-ban me-1"></i>' + b.motivo + ' | ' + b.fechaDia + rangoInfo + ' | ' + horaLabel + ' ' + tipoLabel + '</div>';
+      });
+      html += '</div></div></div></div>';
+    }
+
+    html += '</div>';
+  }
+  html += '</div></div>';
+
+  // ── Seccion 3: Bloqueos de Horario ──
+  html += '<div class="card border-0 shadow-sm">';
+  html += '<div class="card-header bg-white border-0 pb-0 d-flex justify-content-between align-items-start">';
+  html += '<div><h6 class="mb-0"><i class="fas fa-ban me-2 text-danger"></i>Gestionar Bloqueos</h6>';
+  html += '<p class="text-muted small mb-0 mt-1">Crea bloqueos para almuerzo, permisos, incapacidades, vacaciones o mantenimiento</p></div>';
+  html += '<button class="btn btn-danger btn-sm" onclick="abrirModalBloqueo()"><i class="fas fa-plus me-1"></i> Nuevo Bloqueo</button>';
+  html += '</div>';
+  // Barra de filtros
+  html += '<div class="card-body border-bottom py-2">';
+  html += '<div class="d-flex align-items-center gap-2 flex-wrap">';
+  html += '<i class="fas fa-filter text-muted"></i>';
+  html += '<select class="form-select form-select-sm" style="width:auto;" onchange="filtrarBloqueos()" id="filtroBloqueoColaborador">';
+  html += '<option value="">Todos los colaboradores</option>';
+  html += '<option value="TODOS">Todo el negocio</option>';
+  colaboradores.forEach(function(c) { if (c.estado === 'ACTIVO') html += '<option value="' + c.id + '">' + c.nombre + '</option>'; });
+  html += '</select>';
+  html += '<select class="form-select form-select-sm" style="width:auto;" onchange="filtrarBloqueos()" id="filtroBloqueoCategoria">';
+  html += '<option value="">Todas las categorias</option>';
+  html += '<option value="almuerzo">Almuerzo</option><option value="permiso">Permiso</option>';
+  html += '<option value="incapacidad">Incapacidad</option><option value="vacaciones">Vacaciones</option>';
+  html += '<option value="mantenimiento">Mantenimiento</option><option value="otro">Otro</option>';
+  html += '</select>';
+  html += '<select class="form-select form-select-sm" style="width:auto;" onchange="filtrarBloqueos()" id="filtroBloqueoEstado">';
+  html += '<option value="">Todos los estados</option>';
+  html += '<option value="activo">Activo</option><option value="permanente">Permanente</option><option value="vencido">Vencido</option>';
+  html += '</select>';
+  html += '</div></div>';
+
+  html += '<div class="card-body p-0">';
+  html += '<div class="table-responsive"><table class="table table-hover mb-0">';
+  html += '<thead><tr><th>Dia/Fecha</th><th>Horario</th><th>Categoria</th><th>Motivo</th><th>Aplica a</th><th>Tipo</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead>';
+  html += '<tbody id="tbodyBloqueos">' + renderBloqueoRows(bloqueos) + '</tbody>';
+  html += '</table></div>';
+  html += '</div></div>'; // card-body, card
+
+  // ── Modal Bloqueo (crear / editar) ──
+  html += '<div class="modal fade" id="modalBloqueo" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">';
+  html += '<div class="modal-header bg-danger text-white"><h5 class="modal-title" id="modalBloqueoTitulo"><i class="fas fa-ban me-2"></i>Nuevo Bloqueo de Horario</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<input type="hidden" id="bloqueoEditRow" value="">';
+
+  // Categoria de bloqueo
+  html += '<div class="mb-3"><label class="form-label fw-bold">Categoria del Bloqueo</label>';
+  html += '<select class="form-select" id="bloqueoCategoria" onchange="cambiarCategoriaBloqueo()">';
+  html += '<option value="almuerzo">Hora de Almuerzo</option>';
+  html += '<option value="permiso">Permiso Personal</option>';
+  html += '<option value="incapacidad">Incapacidad Medica</option>';
+  html += '<option value="vacaciones">Vacaciones</option>';
+  html += '<option value="mantenimiento">Mantenimiento / Cierre temporal</option>';
+  html += '<option value="otro">Otro</option>';
+  html += '</select></div>';
+
+  // Aplica a (colaborador)
+  html += '<div class="mb-3"><label class="form-label fw-bold">Aplica a</label>';
+  html += '<select class="form-select" id="bloqueoAplicaA">';
+  html += '<option value="TODOS">Todo el negocio (cierra para todos)</option>';
+  colaboradores.forEach(function(c) {
+    if (c.estado === 'ACTIVO') html += '<option value="' + c.id + '">' + c.nombre + ' (' + c.rol + ')</option>';
+  });
+  html += '</select>';
+  html += '<div class="form-text" id="bloqueoAplicaHint">Si bloqueas a un colaborador, el agente IA reasignara clientes a otro disponible.</div>';
+  html += '</div>';
+
+  html += '<hr>';
+
+  // Frecuencia
+  html += '<div class="mb-3"><label class="form-label fw-bold">Frecuencia</label>';
+  html += '<select class="form-select" id="bloqueoTipo" onchange="toggleBloqueoTipo()">';
+  html += '<option value="recurrente">Dias de la semana (permanente / recurrente)</option>';
+  html += '<option value="fecha">Fecha especifica (temporal / una sola vez)</option>';
+  html += '<option value="rango">Rango de fechas (temporal / varios dias)</option>';
+  html += '</select></div>';
+
+  // Multi-day checkboxes (visible cuando es recurrente)
+  html += '<div class="mb-3" id="bloqueoDiasGroup">';
+  html += '<label class="form-label">Selecciona los dias que aplica</label>';
+  html += '<div class="d-flex gap-2 mb-2">';
+  html += '<button type="button" class="btn btn-outline-primary btn-sm" onclick="seleccionarDiasBloqueo(\'laboral\')"><i class="fas fa-briefcase me-1"></i>Lun-Vie</button>';
+  html += '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="seleccionarDiasBloqueo(\'todos\')">Todos</button>';
+  html += '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="seleccionarDiasBloqueo(\'ninguno\')">Ninguno</button>';
+  html += '</div>';
+  html += '<div class="d-flex flex-wrap gap-2">';
+  diasSemana.forEach(function(d) {
+    html += '<div class="form-check"><input class="form-check-input" type="checkbox" value="' + d + '" id="blqDia-' + d + '">';
+    html += '<label class="form-check-label" for="blqDia-' + d + '">' + d + '</label></div>';
+  });
+  html += '</div></div>';
+
+  // Fecha especifica
+  html += '<div class="mb-3" id="bloqueoFechaGroup" style="display:none"><label class="form-label">Fecha</label>';
+  html += '<input type="date" class="form-control" id="bloqueoFecha"></div>';
+
+  // Rango de fechas
+  html += '<div id="bloqueoRangoGroup" style="display:none">';
+  html += '<div class="row g-3 mb-3">';
+  html += '<div class="col-6"><label class="form-label">Fecha inicio</label>';
+  html += '<input type="date" class="form-control" id="bloqueoFechaInicio"></div>';
+  html += '<div class="col-6"><label class="form-label">Fecha fin</label>';
+  html += '<input type="date" class="form-control" id="bloqueoFechaFin"></div>';
+  html += '</div></div>';
+
+  // Todo el dia toggle
+  html += '<div class="mb-3"><div class="form-check form-switch">';
+  html += '<input class="form-check-input" type="checkbox" id="bloqueoTodoDia" onchange="toggleTodoDia()">';
+  html += '<label class="form-check-label" for="bloqueoTodoDia">Todo el dia (no se prestan servicios)</label>';
+  html += '</div></div>';
+
+  // Horas
+  html += '<div class="row g-3 mb-3" id="bloqueoHorasGroup">';
+  html += '<div class="col-6"><label class="form-label">Hora Inicio</label>';
+  html += '<input type="time" class="form-control" id="bloqueoHoraIni" value="12:00"></div>';
+  html += '<div class="col-6"><label class="form-label">Hora Fin</label>';
+  html += '<input type="time" class="form-control" id="bloqueoHoraFin" value="14:00"></div>';
+  html += '</div>';
+
+  // Motivo personalizado
+  html += '<div class="mb-3" id="bloqueoMotivoGroup"><label class="form-label">Detalle / Motivo</label>';
+  html += '<input type="text" class="form-control" id="bloqueoMotivo" placeholder="Ej: Cita medica, Diligencia personal..."></div>';
+
+  html += '</div>'; // modal-body
+  html += '<div class="modal-footer">';
+  html += '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-danger" onclick="guardarBloqueo()" id="btnGuardarBloqueo"><i class="fas fa-ban me-1"></i> Crear Bloqueo</button>';
+  html += '</div>';
+  html += '</div></div></div>'; // modal
+
+  return html;
+}
+
+// =============================================
 // RENDER: Configuracion
 // =============================================
 function renderConfig() {
@@ -813,6 +1237,27 @@ function renderConfig() {
   html += '</div>';
 
   html += '</div>';
+
+  // ── Gestion de Tiempos ──
+  var slotVal = f.INTERVALO_SLOTS_MIN || '15';
+  var bufferVal = f.TIEMPO_ENTRE_CITAS_MIN || '15';
+  html += '<div class="row g-3 mt-1"><div class="col-12"><div class="config-card">';
+  html += '<h6><i class="fas fa-clock me-1" style="color:#0dcaf0;"></i> Gestion de Tiempos</h6>';
+  html += '<p class="text-muted small mb-3">Configura como se gestionan los tiempos en la agenda de tu negocio para una mejor logistica.</p>';
+  html += '<div class="row g-3">';
+  // Intervalo de Slots
+  html += '<div class="col-md-6"><label class="form-label fw-semibold">Intervalo de horarios (minutos)</label>';
+  html += '<select class="form-select config-input" data-key="INTERVALO_SLOTS_MIN">';
+  html += '<option value="15"' + (slotVal === '15' ? ' selected' : '') + '>Cada 15 minutos (mas opciones)</option>';
+  html += '<option value="20"' + (slotVal === '20' ? ' selected' : '') + '>Cada 20 minutos</option>';
+  html += '<option value="30"' + (slotVal === '30' ? ' selected' : '') + '>Cada 30 minutos (menos opciones)</option>';
+  html += '</select>';
+  html += '<div class="form-text">Cada cuanto se ofrecen opciones de horario al cliente por WhatsApp.</div></div>';
+  // Tiempo entre citas
+  html += '<div class="col-md-6"><label class="form-label fw-semibold">Tiempo entre citas (minutos)</label>';
+  html += '<input type="number" class="form-control config-input" data-key="TIEMPO_ENTRE_CITAS_MIN" value="' + esc(bufferVal) + '" min="0" max="60" step="5">';
+  html += '<div class="form-text">Minutos de descanso entre citas para limpieza y preparacion. Ej: si una cita termina a las 10:40 y el buffer es 15 min, la siguiente puede empezar desde las 10:55.</div></div>';
+  html += '</div></div></div></div>';
 
   // ── QR + Redes Sociales + Panel WhatsApp ──
   var celular = limpiarTelefono(f['CELULAR_DUEÑA'] || f['CELULAR_DUEA'] || '');
@@ -883,6 +1328,89 @@ function configField(key, label, value, type) {
 }
 function configFieldInner(key, label, value, type) {
   return '<label class="form-label">' + label + '</label><input type="' + type + '" class="form-control config-input" data-key="' + key + '" value="' + esc(value || '') + '">';
+}
+
+// =============================================
+// EQUIPO (COLABORADORES) CRUD
+// =============================================
+function abrirModalColaboradorCrear() {
+  document.getElementById('modalColaboradorTitulo').innerHTML = '<i class="fas fa-user-plus me-2"></i>Nuevo Colaborador';
+  document.getElementById('colRowIndex').value = '';
+  document.getElementById('colId').value = '';
+  document.getElementById('formColaborador').reset();
+  document.getElementById('colEstadoSwitch').checked = true;
+  document.getElementById('colEstadoLabel').textContent = 'ACTIVO';
+  document.querySelectorAll('.col-comp-check').forEach(function(cb) { cb.checked = false; });
+  var todasCb = document.getElementById('colCompTodas');
+  if (todasCb) todasCb.checked = false;
+  new bootstrap.Modal(document.getElementById('modalColaborador')).show();
+}
+
+function abrirModalColaboradorEditar(rowIndex) {
+  var col = colaboradores.find(function(c) { return c.rowIndex === rowIndex; });
+  if (!col) return;
+  document.getElementById('modalColaboradorTitulo').innerHTML = '<i class="fas fa-pencil-alt me-2"></i>Editar Colaborador';
+  document.getElementById('colRowIndex').value = rowIndex;
+  document.getElementById('colId').value = col.id;
+  document.getElementById('colNombre').value = col.nombre;
+  document.getElementById('colCelular').value = col.celular;
+  document.getElementById('colRol').value = col.rol || 'STAFF';
+  document.getElementById('colPin').value = ''; // No mostramos PIN por seguridad
+  var esActivo = (col.estado || '').toUpperCase() === 'ACTIVO';
+  document.getElementById('colEstadoSwitch').checked = esActivo;
+  document.getElementById('colEstadoLabel').textContent = esActivo ? 'ACTIVO' : 'INACTIVO';
+
+  // Pre-seleccionar competencias
+  var compArr = (col.competencias || '').split(',').map(function(s) { return s.trim().toLowerCase(); });
+  document.querySelectorAll('.col-comp-check').forEach(function(cb) {
+    cb.checked = compArr.indexOf(cb.value.trim().toLowerCase()) >= 0;
+  });
+  syncTodasCheckbox(); // Sincronizar el checkbox "TODAS"
+
+  new bootstrap.Modal(document.getElementById('modalColaborador')).show();
+}
+
+function guardarColaborador() {
+  var nombre = document.getElementById('colNombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio.', 'warning'); return; }
+
+  // Recolectar competencias seleccionadas
+  var comps = [];
+  document.querySelectorAll('.col-comp-check:checked').forEach(function(cb) { comps.push(cb.value); });
+
+  var data = {
+    nombre: nombre,
+    celular: document.getElementById('colCelular').value.trim(),
+    rol: document.getElementById('colRol').value,
+    pin: document.getElementById('colPin').value.trim(),
+    estado: document.getElementById('colEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO',
+    competencias: comps.join(',')
+  };
+
+  var btn = document.getElementById('btnGuardarCol');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+  var rowIndex = document.getElementById('colRowIndex').value;
+
+  if (rowIndex) {
+    data.rowIndex = parseInt(rowIndex);
+    data.id = document.getElementById('colId').value;
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalColaborador', 'Colaborador actualizado.', 'success', 'equipo'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).updateColaborador(data);
+  } else {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalColaborador', 'Colaborador creado.', 'success', 'equipo'); resetBtn(btn, 'Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Guardar'); }).saveColaborador(data);
+  }
+}
+
+function toggleTodasCompetencias(checked) {
+  document.querySelectorAll('.col-comp-check').forEach(function(cb) { cb.checked = checked; });
+}
+
+function syncTodasCheckbox() {
+  var todas = document.querySelectorAll('.col-comp-check');
+  var marcadas = document.querySelectorAll('.col-comp-check:checked');
+  var todasCb = document.getElementById('colCompTodas');
+  if (todasCb) todasCb.checked = (todas.length > 0 && todas.length === marcadas.length);
 }
 
 // =============================================
@@ -1050,6 +1578,9 @@ function confirmarEliminar() {
   if (tipo === 'servicio') {
     google.script.run.withSuccessHandler(function() { closeAndReload('modalEliminar', 'Servicio eliminado.', 'danger', 'servicios'); })
       .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteServicio(rowIndex);
+  } else if (tipo === 'colaborador') {
+    google.script.run.withSuccessHandler(function() { closeAndReload('modalEliminar', 'Colaborador eliminado.', 'danger', 'equipo'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteColaborador(rowIndex);
   } else {
     google.script.run.withSuccessHandler(function() { closeAndReload('modalEliminar', 'Promocion eliminada.', 'danger', 'promociones'); })
       .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deletePromocion(rowIndex);
@@ -1141,25 +1672,451 @@ function vincularWhatsApp() {
 }
 
 // =============================================
+// ACCIONES: Horarios
+// =============================================
+function toggleDia(dia) {
+  var toggle = document.getElementById('toggleDia-' + dia);
+  var horas = document.getElementById('horasDia-' + dia);
+  var icon = document.getElementById('iconDia-' + dia);
+  var label = document.getElementById('labelDia-' + dia);
+  var card = document.getElementById('cardDia-' + dia);
+
+  if (toggle.checked) {
+    horas.style.opacity = '1';
+    horas.style.pointerEvents = 'auto';
+    icon.className = 'fas fa-door-open text-success me-2';
+    label.textContent = 'Abierto';
+    card.className = card.className.replace('border-secondary opacity-50', 'border-success');
+  } else {
+    horas.style.opacity = '0.4';
+    horas.style.pointerEvents = 'none';
+    icon.className = 'fas fa-door-closed text-secondary me-2';
+    label.textContent = 'Cerrado';
+    card.className = card.className.replace('border-success', 'border-secondary opacity-50');
+  }
+}
+
+function guardarHorarios() {
+  var diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+  var btn = document.getElementById('btnGuardarHorarios');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+  var pending = diasSemana.length;
+  var errores = [];
+
+  diasSemana.forEach(function(dia) {
+    var activo = document.getElementById('toggleDia-' + dia).checked;
+    var horaIni = document.getElementById('horaIni-' + dia).value;
+    var horaFin = document.getElementById('horaFin-' + dia).value;
+
+    if (activo && horaIni >= horaFin) {
+      errores.push(dia + ': la hora de apertura debe ser menor a la de cierre');
+      pending--;
+      if (pending <= 0) finalizarGuardarHorarios(btn, errores);
+      return;
+    }
+
+    google.script.run
+      .withSuccessHandler(function() {
+        pending--;
+        if (pending <= 0) finalizarGuardarHorarios(btn, errores);
+      })
+      .withFailureHandler(function(err) {
+        errores.push(dia + ': ' + err.message);
+        pending--;
+        if (pending <= 0) finalizarGuardarHorarios(btn, errores);
+      })
+      .saveHorarioBase({ dia: dia, horaIni: horaIni, horaFin: horaFin, activo: activo });
+  });
+}
+
+function finalizarGuardarHorarios(btn, errores) {
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-save me-1"></i> Guardar Horarios';
+
+  if (errores.length > 0) {
+    toast('Errores: ' + errores.join('; '), 'danger');
+  } else {
+    toast('Horarios guardados exitosamente', 'success');
+  }
+  // Recargar disponibilidad
+  google.script.run.withSuccessHandler(function(d) {
+    disponibilidad = d || [];
+    navigateTo('horarios');
+  }).getDisponibilidad();
+}
+
+function toggleBloqueoTipo() {
+  var tipo = document.getElementById('bloqueoTipo').value;
+  document.getElementById('bloqueoDiasGroup').style.display = tipo === 'recurrente' ? 'block' : 'none';
+  document.getElementById('bloqueoFechaGroup').style.display = tipo === 'fecha' ? 'block' : 'none';
+  document.getElementById('bloqueoRangoGroup').style.display = tipo === 'rango' ? 'block' : 'none';
+}
+
+function seleccionarDiasBloqueo(modo) {
+  var diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+  var laborales = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes'];
+  diasSemana.forEach(function(d) {
+    var cb = document.getElementById('blqDia-' + d);
+    if (!cb) return;
+    if (modo === 'laboral') cb.checked = laborales.indexOf(d) >= 0;
+    else if (modo === 'todos') cb.checked = true;
+    else cb.checked = false;
+  });
+}
+
+function esBloqueoVencido(b) {
+  if (b.horario === 'DIARIO') return false;
+  if ((b.categoria || '').toLowerCase() === 'incapacidad') return false;
+  var hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  if (b.horario === 'UNICO') {
+    var parts = b.fechaDia.split('/');
+    if (parts.length === 3) {
+      var fecha = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      return fecha < hoy;
+    }
+  }
+  if (b.horario.indexOf('RANGO:') === 0) {
+    var fechaFinStr = b.horario.replace('RANGO:', '');
+    var parts2 = fechaFinStr.split('/');
+    if (parts2.length === 3) {
+      var fechaFin = new Date(parseInt(parts2[2]), parseInt(parts2[1]) - 1, parseInt(parts2[0]));
+      return fechaFin < hoy;
+    }
+  }
+  return false;
+}
+
+function toggleTodoDia() {
+  var todoDia = document.getElementById('bloqueoTodoDia').checked;
+  var horasGroup = document.getElementById('bloqueoHorasGroup');
+  horasGroup.style.display = todoDia ? 'none' : 'flex';
+}
+
+function cambiarCategoriaBloqueo() {
+  var cat = document.getElementById('bloqueoCategoria').value;
+  var tipoSelect = document.getElementById('bloqueoTipo');
+  var todoDiaCheck = document.getElementById('bloqueoTodoDia');
+  var motivoInput = document.getElementById('bloqueoMotivo');
+  var horaIni = document.getElementById('bloqueoHoraIni');
+  var horaFin = document.getElementById('bloqueoHoraFin');
+
+  // Preconfigurar segun categoria
+  if (cat === 'almuerzo') {
+    tipoSelect.value = 'recurrente';
+    motivoInput.value = 'Hora de almuerzo';
+    horaIni.value = '12:00';
+    horaFin.value = '14:00';
+    todoDiaCheck.checked = false;
+    toggleTodoDia();
+    seleccionarDiasBloqueo('laboral');
+  } else if (cat === 'permiso') {
+    tipoSelect.value = 'fecha';
+    motivoInput.value = 'Permiso personal';
+    todoDiaCheck.checked = false;
+    toggleTodoDia();
+  } else if (cat === 'incapacidad') {
+    tipoSelect.value = 'rango';
+    motivoInput.value = 'Incapacidad medica';
+    todoDiaCheck.checked = true;
+    toggleTodoDia();
+  } else if (cat === 'vacaciones') {
+    tipoSelect.value = 'rango';
+    motivoInput.value = 'Vacaciones';
+    todoDiaCheck.checked = true;
+    toggleTodoDia();
+  } else if (cat === 'mantenimiento') {
+    tipoSelect.value = 'fecha';
+    motivoInput.value = 'Mantenimiento / Cierre temporal';
+    todoDiaCheck.checked = true;
+    toggleTodoDia();
+  } else {
+    motivoInput.value = '';
+    todoDiaCheck.checked = false;
+    toggleTodoDia();
+  }
+  toggleBloqueoTipo();
+}
+
+function abrirModalBloqueo() {
+  // Reset para modo creacion
+  document.getElementById('bloqueoEditRow').value = '';
+  document.getElementById('modalBloqueoTitulo').innerHTML = '<i class="fas fa-ban me-2"></i>Nuevo Bloqueo de Horario';
+  document.getElementById('btnGuardarBloqueo').innerHTML = '<i class="fas fa-ban me-1"></i> Crear Bloqueo';
+  document.getElementById('bloqueoCategoria').value = 'almuerzo';
+  document.getElementById('bloqueoAplicaA').value = 'TODOS';
+  seleccionarDiasBloqueo('ninguno');
+  cambiarCategoriaBloqueo();
+  new bootstrap.Modal(document.getElementById('modalBloqueo')).show();
+}
+
+function editarBloqueo(rowIndex) {
+  var b = disponibilidad.find(function(d) { return d.rowIndex === rowIndex && d.tipo === 'Bloqueo'; });
+  if (!b) { toast('Bloqueo no encontrado', 'warning'); return; }
+
+  // Configurar modo edicion
+  document.getElementById('bloqueoEditRow').value = rowIndex;
+  document.getElementById('modalBloqueoTitulo').innerHTML = '<i class="fas fa-pencil-alt me-2"></i>Editar Bloqueo';
+  document.getElementById('btnGuardarBloqueo').innerHTML = '<i class="fas fa-save me-1"></i> Guardar Cambios';
+
+  // Leer categoria guardada o inferir del motivo (datos antiguos sin columna CATEGORIA)
+  var cat = (b.categoria || '').toLowerCase();
+  if (!cat) {
+    var motivoLower = (b.motivo || '').toLowerCase();
+    cat = 'otro';
+    if (motivoLower.indexOf('almuerzo') >= 0) cat = 'almuerzo';
+    else if (motivoLower.indexOf('permiso') >= 0) cat = 'permiso';
+    else if (motivoLower.indexOf('incapacidad') >= 0) cat = 'incapacidad';
+    else if (motivoLower.indexOf('vacacion') >= 0) cat = 'vacaciones';
+    else if (motivoLower.indexOf('mantenimiento') >= 0 || motivoLower.indexOf('cierre') >= 0) cat = 'mantenimiento';
+  }
+  document.getElementById('bloqueoCategoria').value = cat;
+
+  // Aplica a
+  document.getElementById('bloqueoAplicaA').value = b.aplicaA || 'TODOS';
+
+  // Frecuencia y datos
+  var tipoSelect = document.getElementById('bloqueoTipo');
+  seleccionarDiasBloqueo('ninguno');
+
+  if (b.horario === 'DIARIO') {
+    tipoSelect.value = 'recurrente';
+    // Marcar el dia correspondiente
+    var cb = document.getElementById('blqDia-' + b.fechaDia);
+    if (cb) cb.checked = true;
+  } else if (b.horario.indexOf('RANGO:') === 0) {
+    tipoSelect.value = 'rango';
+    var fechaFinStr = b.horario.replace('RANGO:', '');
+    // Convertir DD/MM/YYYY a YYYY-MM-DD para input date
+    var pIni = b.fechaDia.split('/');
+    var pFin = fechaFinStr.split('/');
+    if (pIni.length === 3) document.getElementById('bloqueoFechaInicio').value = pIni[2] + '-' + pIni[1] + '-' + pIni[0];
+    if (pFin.length === 3) document.getElementById('bloqueoFechaFin').value = pFin[2] + '-' + pFin[1] + '-' + pFin[0];
+  } else {
+    tipoSelect.value = 'fecha';
+    var pFecha = b.fechaDia.split('/');
+    if (pFecha.length === 3) {
+      document.getElementById('bloqueoFecha').value = pFecha[2] + '-' + pFecha[1] + '-' + pFecha[0];
+    }
+  }
+  toggleBloqueoTipo();
+
+  // Horas
+  var isTodoDia = b.horaIni === '00:00' && b.horaFin === '23:59';
+  document.getElementById('bloqueoTodoDia').checked = isTodoDia;
+  toggleTodoDia();
+  if (!isTodoDia) {
+    document.getElementById('bloqueoHoraIni').value = b.horaIni || '09:00';
+    document.getElementById('bloqueoHoraFin').value = b.horaFin || '18:00';
+  }
+
+  // Motivo
+  document.getElementById('bloqueoMotivo').value = b.motivo || '';
+
+  new bootstrap.Modal(document.getElementById('modalBloqueo')).show();
+}
+
+function formatearFechaInput(fechaInput) {
+  var parts = fechaInput.split('-');
+  return parts[2] + '/' + parts[1] + '/' + parts[0];
+}
+
+function guardarBloqueo() {
+  var tipo = document.getElementById('bloqueoTipo').value;
+  var todoDia = document.getElementById('bloqueoTodoDia').checked;
+  var horaIni = todoDia ? '00:00' : document.getElementById('bloqueoHoraIni').value;
+  var horaFin = todoDia ? '23:59' : document.getElementById('bloqueoHoraFin').value;
+  var motivo = document.getElementById('bloqueoMotivo').value.trim();
+  var aplicaA = document.getElementById('bloqueoAplicaA').value;
+  var categoria = document.getElementById('bloqueoCategoria').value;
+  var editRow = document.getElementById('bloqueoEditRow').value;
+  var esEdicion = editRow !== '';
+
+  if (!todoDia && (!horaIni || !horaFin)) { toast('Selecciona hora inicio y fin', 'warning'); return; }
+  if (!todoDia && horaIni >= horaFin) { toast('La hora de inicio debe ser menor a la de fin', 'warning'); return; }
+  if (!motivo) { toast('Escribe un motivo para el bloqueo', 'warning'); return; }
+
+  var btn = document.getElementById('btnGuardarBloqueo');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Guardando...';
+
+  var resetBtn = function() {
+    btn.disabled = false;
+    btn.innerHTML = esEdicion ? '<i class="fas fa-save me-1"></i> Guardar Cambios' : '<i class="fas fa-ban me-1"></i> Crear Bloqueo';
+  };
+
+  // ── MODO EDICION: actualizar una sola fila ──
+  if (esEdicion) {
+    var data = { rowIndex: parseInt(editRow), horaIni: horaIni, horaFin: horaFin, motivo: motivo, aplicaA: aplicaA, categoria: categoria };
+    if (tipo === 'recurrente') {
+      // Tomar el primer dia seleccionado (edicion es de una sola fila)
+      var diasChecked = [];
+      ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'].forEach(function(d) {
+        var cb = document.getElementById('blqDia-' + d);
+        if (cb && cb.checked) diasChecked.push(d);
+      });
+      data.fechaDia = diasChecked.length > 0 ? diasChecked[0] : 'Lunes';
+      data.esRecurrente = true;
+    } else if (tipo === 'fecha') {
+      var fechaInput = document.getElementById('bloqueoFecha').value;
+      if (!fechaInput) { toast('Selecciona una fecha', 'warning'); resetBtn(); return; }
+      data.fechaDia = formatearFechaInput(fechaInput);
+      data.esRecurrente = false;
+    } else if (tipo === 'rango') {
+      var fechaIni = document.getElementById('bloqueoFechaInicio').value;
+      var fechaFin = document.getElementById('bloqueoFechaFin').value;
+      if (!fechaIni || !fechaFin) { toast('Selecciona fecha inicio y fin', 'warning'); resetBtn(); return; }
+      if (fechaIni > fechaFin) { toast('La fecha inicio debe ser anterior a la fin', 'warning'); resetBtn(); return; }
+      data.fechaDia = formatearFechaInput(fechaIni);
+      data.fechaFinRango = formatearFechaInput(fechaFin);
+      data.esRecurrente = false;
+    }
+    google.script.run
+      .withSuccessHandler(function() { finalizarBloqueo(btn, true); })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); resetBtn(); })
+      .updateBloqueo(data);
+    return;
+  }
+
+  // ── MODO CREACION ──
+  if (tipo === 'recurrente') {
+    // Crear un bloqueo por cada dia seleccionado en checkboxes
+    var diasSeleccionados = [];
+    ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'].forEach(function(d) {
+      var cb = document.getElementById('blqDia-' + d);
+      if (cb && cb.checked) diasSeleccionados.push(d);
+    });
+    if (diasSeleccionados.length === 0) { toast('Selecciona al menos un dia de la semana', 'warning'); resetBtn(); return; }
+    var pending = diasSeleccionados.length;
+    diasSeleccionados.forEach(function(dia) {
+      google.script.run
+        .withSuccessHandler(function() { pending--; if (pending <= 0) finalizarBloqueo(btn, false); })
+        .withFailureHandler(function(err) { pending--; toast('Error en ' + dia + ': ' + err.message, 'danger'); if (pending <= 0) finalizarBloqueo(btn, false); })
+        .saveBloqueo({ fechaDia: dia, horaIni: horaIni, horaFin: horaFin, motivo: motivo, aplicaA: aplicaA, esRecurrente: true, categoria: categoria });
+    });
+  } else if (tipo === 'fecha') {
+    var fechaInput = document.getElementById('bloqueoFecha').value;
+    if (!fechaInput) { toast('Selecciona una fecha', 'warning'); resetBtn(); return; }
+    var fechaDia = formatearFechaInput(fechaInput);
+    google.script.run
+      .withSuccessHandler(function() { finalizarBloqueo(btn, false); })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); resetBtn(); })
+      .saveBloqueo({ fechaDia: fechaDia, horaIni: horaIni, horaFin: horaFin, motivo: motivo, aplicaA: aplicaA, esRecurrente: false, categoria: categoria });
+  } else if (tipo === 'rango') {
+    var fechaIni = document.getElementById('bloqueoFechaInicio').value;
+    var fechaFin = document.getElementById('bloqueoFechaFin').value;
+    if (!fechaIni || !fechaFin) { toast('Selecciona fecha inicio y fin del rango', 'warning'); resetBtn(); return; }
+    if (fechaIni > fechaFin) { toast('La fecha de inicio debe ser anterior a la de fin', 'warning'); resetBtn(); return; }
+    var fechaDiaStr = formatearFechaInput(fechaIni);
+    var fechaFinStr = formatearFechaInput(fechaFin);
+    google.script.run
+      .withSuccessHandler(function() { finalizarBloqueo(btn, false); })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); resetBtn(); })
+      .saveBloqueo({ fechaDia: fechaDiaStr, horaIni: horaIni, horaFin: horaFin, motivo: motivo, aplicaA: aplicaA, esRecurrente: false, fechaFinRango: fechaFinStr, categoria: categoria });
+  }
+}
+
+function finalizarBloqueo(btn, esEdicion) {
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-ban me-1"></i> Crear Bloqueo';
+  toast(esEdicion ? 'Bloqueo actualizado exitosamente' : 'Bloqueo creado exitosamente', 'success');
+  bootstrap.Modal.getInstance(document.getElementById('modalBloqueo')).hide();
+  google.script.run.withSuccessHandler(function(d) {
+    disponibilidad = d || [];
+    navigateTo('horarios');
+  }).getDisponibilidad();
+}
+
+function eliminarBloqueo(rowIndex) {
+  if (!confirm('Eliminar este bloqueo de horario?')) return;
+  google.script.run
+    .withSuccessHandler(function() {
+      toast('Bloqueo eliminado', 'success');
+      google.script.run.withSuccessHandler(function(d) {
+        disponibilidad = d || [];
+        navigateTo('horarios');
+      }).getDisponibilidad();
+    })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+    .deleteBloqueo(rowIndex);
+}
+
+function checkBloqueosVencidos() {
+  var vencidos = disponibilidad.filter(function(d) {
+    return d.tipo === 'Bloqueo' && esBloqueoVencido(d);
+  });
+  if (vencidos.length === 0) return;
+  var resumen = vencidos.length + ' bloqueo(s) vencido(s): ';
+  resumen += vencidos.slice(0, 3).map(function(b) { return b.motivo + ' (' + b.fechaDia + ')'; }).join(', ');
+  if (vencidos.length > 3) resumen += '...';
+  var prev = document.getElementById('toastVencidos');
+  if (prev) prev.remove();
+  var html = '<div class="toast align-items-center text-bg-warning border-0 show" role="alert" id="toastVencidos">';
+  html += '<div class="d-flex"><div class="toast-body">';
+  html += '<i class="fas fa-exclamation-triangle me-1"></i> ' + resumen;
+  html += ' <button class="btn btn-sm btn-dark ms-2" onclick="limpiarBloqueosVencidos()">';
+  html += '<i class="fas fa-broom me-1"></i>Limpiar vencidos</button>';
+  html += '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+  document.getElementById('toastContainer').insertAdjacentHTML('beforeend', html);
+}
+
+function limpiarBloqueosVencidos() {
+  if (!confirm('Eliminar todos los bloqueos vencidos? Esta accion no se puede deshacer.')) return;
+  google.script.run
+    .withSuccessHandler(function(result) {
+      var t = document.getElementById('toastVencidos');
+      if (t) t.remove();
+      toast('Se eliminaron ' + result.count + ' bloqueo(s) vencido(s)', 'success');
+      google.script.run.withSuccessHandler(function(d) {
+        disponibilidad = d || [];
+        if (currentPage === 'horarios') navigateTo('horarios');
+      }).getDisponibilidad();
+    })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+    .limpiarBloqueosVencidos();
+}
+
+// =============================================
 // FILTROS
 // =============================================
-function filtrarAgenda(query) {
-  query = query.toLowerCase();
-  var filtered = agenda.filter(function(a) {
-    return (a.cliente + a.servicio + a.id + a.fecha).toLowerCase().includes(query);
-  });
-  var estado = document.getElementById('filtroEstadoAgenda').value;
-  if (estado) filtered = filtered.filter(function(a) { return a.estado === estado; });
-  document.getElementById('tbodyAgenda').innerHTML = renderAgendaRows(filtered);
-}
-function filtrarAgendaEstado(estado) {
+function getFilteredAgenda() {
   var query = '';
   var searchInput = document.querySelector('#contentArea .search-box input');
   if (searchInput) query = searchInput.value.toLowerCase();
+  var estado = document.getElementById('filtroEstadoAgenda') ? document.getElementById('filtroEstadoAgenda').value : '';
+  var prof = document.getElementById('filtroProfAgenda') ? document.getElementById('filtroProfAgenda').value : '';
   var filtered = agenda;
   if (query) filtered = filtered.filter(function(a) { return (a.cliente + a.servicio + a.id + a.fecha).toLowerCase().includes(query); });
   if (estado) filtered = filtered.filter(function(a) { return a.estado === estado; });
-  document.getElementById('tbodyAgenda').innerHTML = renderAgendaRows(filtered);
+  if (prof) filtered = filtered.filter(function(a) { return a.profesional === prof; });
+  return { data: filtered, estado: estado, prof: prof };
+}
+
+function updateAgendaView() {
+  var result = getFilteredAgenda();
+  document.getElementById('tbodyAgenda').innerHTML = renderAgendaRows(result.data);
+  // Las tarjetas muestran stats del dataset filtrado por profesional (si hay) para que reflejen al estilista seleccionado
+  var baseData = result.prof ? agenda.filter(function(a) { return a.profesional === result.prof; }) : agenda;
+  updateAgendaSummaryCards(calcAgendaStats(baseData), result.estado);
+}
+
+function updateAgendaSummaryCards(stats, activeFilter) {
+  var el = document.getElementById('agendaSummary');
+  if (el) el.outerHTML = renderAgendaSummary(stats, activeFilter);
+}
+
+function filtrarAgenda(query) {
+  updateAgendaView();
+}
+
+function filtrarAgendaEstado(estado) {
+  updateAgendaView();
+}
+
+function filtrarAgendaProfesional(prof) {
+  updateAgendaView();
 }
 function filtrarClientes(query) {
   query = query.toLowerCase();
@@ -1170,6 +2127,91 @@ function filtrarClientes(query) {
 }
 
 // =============================================
+// FILTROS BLOQUEOS
+// =============================================
+function renderBloqueoRows(data) {
+  if (!data || data.length === 0) {
+    return '<tr><td colspan="8" class="text-center py-4 text-muted"><i class="fas fa-check-circle fa-2x mb-2 text-success d-block"></i>No se encontraron bloqueos con los filtros seleccionados.</td></tr>';
+  }
+  var html = '';
+  data.forEach(function(b) {
+    var vencido = esBloqueoVencido(b);
+    var esPermanente = b.horario === 'DIARIO';
+    var aplicaLabel = b.aplicaA || 'TODOS';
+    if (aplicaLabel !== 'TODOS') {
+      var col = colaboradores.find(function(c) { return c.id === aplicaLabel; });
+      if (col) aplicaLabel = '<i class="fas fa-user me-1"></i>' + col.nombre;
+    } else {
+      aplicaLabel = '<i class="fas fa-store me-1"></i>Todo el negocio';
+    }
+    var isTodoDia = b.horaIni === '00:00' && b.horaFin === '23:59';
+    var horaLabel = isTodoDia ? '<span class="badge bg-dark">Todo el dia</span>' : b.horaIni + ' - ' + b.horaFin;
+    var fechaLabel = b.fechaDia;
+    var esRango = b.horario.indexOf('RANGO:') === 0;
+    if (esRango) {
+      var fechaFinRango = b.horario.replace('RANGO:', '');
+      var catLower = (b.categoria || '').toLowerCase();
+      if (catLower === 'vacaciones') {
+        fechaLabel = '<i class="fas fa-plane-departure me-1 text-success"></i><strong>Desde:</strong> ' + b.fechaDia + '<br><i class="fas fa-plane-arrival me-1 text-success"></i><strong>Hasta:</strong> ' + fechaFinRango;
+      } else if (catLower === 'incapacidad') {
+        fechaLabel = '<i class="fas fa-medkit me-1 text-danger"></i><strong>Desde:</strong> ' + b.fechaDia + '<br><i class="fas fa-calendar-check me-1 text-danger"></i><strong>Hasta:</strong> ' + fechaFinRango;
+      } else {
+        fechaLabel += ' al ' + fechaFinRango;
+      }
+    }
+    var motivoIcon = 'fa-ban';
+    var motivoLower = b.motivo.toLowerCase();
+    if (motivoLower.indexOf('almuerzo') >= 0) motivoIcon = 'fa-utensils';
+    else if (motivoLower.indexOf('incapacidad') >= 0) motivoIcon = 'fa-medkit';
+    else if (motivoLower.indexOf('vacacion') >= 0) motivoIcon = 'fa-umbrella-beach';
+    else if (motivoLower.indexOf('permiso') >= 0) motivoIcon = 'fa-user-clock';
+    else if (motivoLower.indexOf('mantenimiento') >= 0) motivoIcon = 'fa-tools';
+    var tipoLabel = esPermanente
+      ? '<span class="badge-status badge-permanente"><i class="fas fa-sync-alt me-1"></i>Permanente</span>'
+      : '<span class="badge-status badge-temporal"><i class="fas fa-clock me-1"></i>Temporal</span>';
+    var estadoLabel = vencido
+      ? '<span class="badge-status badge-vencido"><i class="fas fa-times-circle me-1"></i>Vencido</span>'
+      : '<span class="badge-status badge-activo"><i class="fas fa-check-circle me-1"></i>Activo</span>';
+    var rowOpacity = vencido ? ' style="opacity:0.5;"' : '';
+    var catVal = (b.categoria || '').toLowerCase();
+    var catIcon = 'fa-ban'; var catColor = 'text-secondary';
+    if (catVal === 'almuerzo') { catIcon = 'fa-utensils'; catColor = 'text-warning'; }
+    else if (catVal === 'permiso') { catIcon = 'fa-user-clock'; catColor = 'text-primary'; }
+    else if (catVal === 'incapacidad') { catIcon = 'fa-medkit'; catColor = 'text-danger'; }
+    else if (catVal === 'vacaciones') { catIcon = 'fa-umbrella-beach'; catColor = 'text-success'; }
+    else if (catVal === 'mantenimiento') { catIcon = 'fa-tools'; catColor = 'text-dark'; }
+    var catDisplay = catVal ? catVal.charAt(0).toUpperCase() + catVal.slice(1) : '-';
+    html += '<tr' + rowOpacity + '>';
+    html += '<td><strong>' + fechaLabel + '</strong></td>';
+    html += '<td>' + horaLabel + '</td>';
+    html += '<td><i class="fas ' + catIcon + ' me-1 ' + catColor + '"></i>' + catDisplay + '</td>';
+    html += '<td><i class="fas ' + motivoIcon + ' me-1 text-muted"></i>' + b.motivo + '</td>';
+    html += '<td>' + aplicaLabel + '</td>';
+    html += '<td>' + tipoLabel + '</td>';
+    html += '<td>' + estadoLabel + '</td>';
+    html += '<td class="text-end"><div class="btn-group btn-group-sm">';
+    html += '<button class="btn btn-outline-primary btn-sm-icon" onclick="editarBloqueo(' + b.rowIndex + ')" title="Editar"><i class="fas fa-pencil-alt"></i></button>';
+    html += '<button class="btn btn-outline-danger btn-sm-icon" onclick="eliminarBloqueo(' + b.rowIndex + ')" title="Eliminar"><i class="fas fa-trash"></i></button>';
+    html += '</div></td>';
+    html += '</tr>';
+  });
+  return html;
+}
+
+function filtrarBloqueos() {
+  var colFilter = document.getElementById('filtroBloqueoColaborador').value;
+  var catFilter = document.getElementById('filtroBloqueoCategoria').value;
+  var estFilter = document.getElementById('filtroBloqueoEstado').value;
+  var bloqueos = disponibilidad.filter(function(d) { return d.tipo === 'Bloqueo'; });
+  if (colFilter) bloqueos = bloqueos.filter(function(b) { return b.aplicaA === colFilter; });
+  if (catFilter) bloqueos = bloqueos.filter(function(b) { return (b.categoria || '').toLowerCase() === catFilter; });
+  if (estFilter === 'vencido') bloqueos = bloqueos.filter(function(b) { return esBloqueoVencido(b); });
+  else if (estFilter === 'activo') bloqueos = bloqueos.filter(function(b) { return !esBloqueoVencido(b) && b.horario !== 'DIARIO'; });
+  else if (estFilter === 'permanente') bloqueos = bloqueos.filter(function(b) { return b.horario === 'DIARIO'; });
+  document.getElementById('tbodyBloqueos').innerHTML = renderBloqueoRows(bloqueos);
+}
+
+// =============================================
 // UTILIDADES
 // =============================================
 function reloadData(modulo) {
@@ -1177,6 +2219,8 @@ function reloadData(modulo) {
     google.script.run.withSuccessHandler(function(d) { servicios = d || []; serviciosNombres = servicios.map(function(s){return s.tipoServicio;}).filter(Boolean); navigateTo('servicios'); }).getServicios();
   } else if (modulo === 'promociones') {
     google.script.run.withSuccessHandler(function(d) { promociones = d || []; navigateTo('promociones'); }).getPromociones();
+  } else if (modulo === 'equipo') {
+    google.script.run.withSuccessHandler(function(d) { colaboradores = d || []; navigateTo('equipo'); }).getColaboradores();
   } else if (modulo === 'clientes') {
     google.script.run.withSuccessHandler(function(d) { clientes = d || []; navigateTo('clientes'); }).getClientes();
   } else if (modulo === 'agenda') {
@@ -1206,6 +2250,7 @@ function badgeEstadoCita(estado) {
   else if (e === 'EJECUTADO') cls = 'badge-ejecutado';
   else if (e === 'RECHAZADO') cls = 'badge-rechazado';
   else if (e === 'REAGENDADO') cls = 'badge-reagendado';
+  else if (e === 'CANCELADA') cls = 'badge-cancelada';
   return '<span class="badge-status ' + cls + '">' + esc(estado) + '</span>';
 }
 
