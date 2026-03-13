@@ -226,6 +226,7 @@ router.post('/evolution', async (req, res) => {
         if (REAGENDAR_KEYWORDS.test(messageText) || REAGENDAR_COMBOS.test(messageText) || REAGENDAR_COMBOS_REV.test(messageText) || REAGENDAR_FRASES.test(messageText)) {
             session.isReagendando = true;
             session.isCancelando = false;
+            session.pendingCancelacionMasiva = null;
             console.log(`[${instanceName}] 🔄 Modo reagendamiento ACTIVADO por: "${messageText.substring(0, 80)}"`);
         }
 
@@ -252,9 +253,186 @@ router.post('/evolution', async (req, res) => {
             console.log(`[${instanceName}] 🎯 Cita objetivo: ${session.reagendandoCitaId}`);
         }
 
-        // NO auto-asignar ID aquí. El usuario debe especificar cuál cita quiere reagendar.
-        // El ID se captura cuando: (1) el usuario menciona AG-XXX, (2) la IA lo identifica en su respuesta,
-        // o (3) como fallback al momento de CONFIRMAR si solo tiene 1 cita pendiente.
+        // ── RESOLUCIÓN INTELIGENTE DE CITA: por posición, fecha, hora, servicio, día ──
+        if ((session.isCancelando || session.isReagendando) && !session.reagendandoCitaId) {
+            const userAppts = tenant.pendingAppointments[phoneNumber] || [];
+            const TODAS_REGEX = /\b(ambas?|las dos|las tres|tod[ao]s?|todas las citas|los dos|los tres)\b/i;
+            const POSICION_REGEX = /\b(la )?(primer[ao]?|segund[ao]?|tercer[ao]?|1|2|3)\b/i;
+
+            // Cancelación masiva: "ambas", "las dos", "todas"
+            if (session.isCancelando && TODAS_REGEX.test(messageText) && userAppts.length > 0 && !session.pendingCancelacionMasiva) {
+                session.pendingCancelacionMasiva = userAppts.map(c => c.id);
+                const citasTexto = userAppts.map((c, i) =>
+                    `${i + 1}. *${c.id}* — ${c.fecha} a las ${c.inicio} — ${c.servicio}`
+                ).join('\n');
+                const confirmMsg = `⚠️ ¿Estás segur@ de que deseas cancelar *TODAS* tus citas pendientes?\n\n${citasTexto}\n\nResponde *sí* para confirmar o *no* para cancelar.`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: confirmMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, confirmMsg);
+                return;
+            }
+
+            if (userAppts.length > 1) {
+                let resolved = null;
+
+                // 1. Resolver por posición: "la primera", "la segunda", "la 1"
+                const posMatch = messageText.match(POSICION_REGEX);
+                if (posMatch) {
+                    const posText = posMatch[2].toLowerCase();
+                    let idx = -1;
+                    if (/^(primer[ao]?|1)$/.test(posText)) idx = 0;
+                    else if (/^(segund[ao]?|2)$/.test(posText)) idx = 1;
+                    else if (/^(tercer[ao]?|3)$/.test(posText)) idx = 2;
+                    if (idx >= 0 && idx < userAppts.length) resolved = { appt: userAppts[idx], method: 'posición (' + posText + ')' };
+                }
+
+                // 2. Resolver por hora mencionada: "la de las 11", "la de las 3pm"
+                if (!resolved) {
+                    const horaMatch = messageText.match(/(?:la\s+de\s+(?:las?\s+)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m|p\.m)?/i);
+                    if (horaMatch) {
+                        let h = parseInt(horaMatch[1]);
+                        const ampm = (horaMatch[3] || '').toLowerCase().replace('.', '');
+                        if (ampm === 'pm' && h < 12) h += 12;
+                        if (ampm === 'am' && h === 12) h = 0;
+                        const horaStr = String(h).padStart(2, '0') + ':' + (horaMatch[2] || '00');
+                        const match = userAppts.find(c => c.inicio && c.inicio.startsWith(horaStr));
+                        if (match) resolved = { appt: match, method: 'hora (' + horaStr + ')' };
+                    }
+                }
+
+                // 3. Resolver por fecha: "la del viernes", "la del 14", "la del 14/03"
+                if (!resolved) {
+                    const diasSemana = { 'lunes': 1, 'martes': 2, 'miercoles': 3, 'miércoles': 3, 'jueves': 4, 'viernes': 5, 'sabado': 6, 'sábado': 6, 'domingo': 0, 'manana': -1, 'mañana': -1 };
+                    const msgLower = messageText.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+                    // Por día de semana: "la del viernes", "la de mañana"
+                    for (const [dia, num] of Object.entries(diasSemana)) {
+                        const diaNorm = dia.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                        if (msgLower.includes(diaNorm)) {
+                            let targetDay = num;
+                            if (num === -1) {
+                                // "mañana"
+                                const tomorrow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                                tomorrow.setDate(tomorrow.getDate() + 1);
+                                targetDay = tomorrow.getDay();
+                            }
+                            const match = userAppts.find(c => {
+                                if (!c.fecha) return false;
+                                const parts = c.fecha.split('/');
+                                if (parts.length === 3) {
+                                    const d = new Date(parts[2], parts[1] - 1, parts[0]);
+                                    return d.getDay() === targetDay;
+                                }
+                                return false;
+                            });
+                            if (match) { resolved = { appt: match, method: 'día (' + dia + ')' }; break; }
+                        }
+                    }
+
+                    // Por número de día: "la del 14", "la del 14/03"
+                    if (!resolved) {
+                        const fechaMatch = messageText.match(/(?:la\s+del?\s+)?(\d{1,2})(?:\/(\d{1,2}))?/);
+                        if (fechaMatch) {
+                            const diaNum = fechaMatch[1].padStart(2, '0');
+                            const mesNum = fechaMatch[2] ? fechaMatch[2].padStart(2, '0') : null;
+                            const match = userAppts.find(c => {
+                                if (!c.fecha) return false;
+                                const parts = c.fecha.split('/');
+                                if (parts[0] === diaNum) {
+                                    if (mesNum) return parts[1] === mesNum;
+                                    return true;
+                                }
+                                return false;
+                            });
+                            if (match) resolved = { appt: match, method: 'fecha (' + diaNum + (mesNum ? '/' + mesNum : '') + ')' };
+                        }
+                    }
+                }
+
+                // 4. Resolver por servicio: "la de cejas", "la de manicure"
+                if (!resolved) {
+                    const servicios = [...new Set(userAppts.map(c => (c.servicio || '').toLowerCase()))];
+                    for (const srv of servicios) {
+                        if (srv && messageText.toLowerCase().includes(srv)) {
+                            const match = userAppts.find(c => (c.servicio || '').toLowerCase() === srv);
+                            if (match) { resolved = { appt: match, method: 'servicio (' + srv + ')' }; break; }
+                        }
+                    }
+                }
+
+                if (resolved) {
+                    session.reagendandoCitaId = resolved.appt.id;
+                    console.log(`[${instanceName}] 🎯 Cita resuelta por ${resolved.method}: ${session.reagendandoCitaId}`);
+                }
+            }
+        }
+
+        // ── CANCELACIÓN MASIVA CONFIRMACIÓN ──
+        if (session.pendingCancelacionMasiva) {
+            if (CONFIRM_REGEX.test(msgNorm)) {
+                const idsACancelar = session.pendingCancelacionMasiva;
+                session.pendingCancelacionMasiva = null;
+                session.isCancelando = false;
+                console.log(`[${instanceName}] ❌ Cancelación masiva confirmada: ${idsACancelar.join(', ')}`);
+
+                let cancelados = [];
+                let errores = [];
+                for (const id of idsACancelar) {
+                    const exito = await api.cancelAgenda(id);
+                    if (exito) cancelados.push(id);
+                    else errores.push(id);
+                }
+
+                let replyMsg;
+                if (errores.length === 0) {
+                    replyMsg = `✅ *¡Todas tus citas han sido canceladas!* 💔\n\n` +
+                        `Citas canceladas: ${cancelados.join(', ')}\n\n` +
+                        `Los horarios han sido liberados. ¿Deseas agendar algo nuevo? 🌸`;
+                } else {
+                    replyMsg = `⚠️ Se cancelaron ${cancelados.length} cita(s): ${cancelados.join(', ')}\n` +
+                        `❌ Error en: ${errores.join(', ')}\n\n¿En qué más te puedo ayudar?`;
+                }
+
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: replyMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, replyMsg);
+
+                tenant.pendingAppointments = await loadPendingAppointments(tenant.sheetId);
+
+                const ownerPhone = tenant.config.ownerPhone;
+                if (ownerPhone && cancelados.length > 0) {
+                    const ahora = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+                    const notifMsg = `🚫 *Cancelación Masiva*\n\n` +
+                        `👤 Cliente: *${userData.nombre || 'Cliente'}*\n` +
+                        `📱 Celular: ${phoneNumber}\n` +
+                        `❌ Citas canceladas: ${cancelados.join(', ')}\n` +
+                        `🕐 ${ahora}\n\n` +
+                        `_Notificación automática de ${tenant.config.agentName || 'BeautyOS'}_`;
+                    try {
+                        await evolutionClient.sendText(instanceName, ownerPhone, notifMsg);
+                    } catch (notifErr) {
+                        console.error(`[${instanceName}] Error notificación cancelación masiva:`, notifErr.message);
+                    }
+                }
+                return;
+            } else if (DENY_REGEX.test(msgNorm)) {
+                session.pendingCancelacionMasiva = null;
+                session.isCancelando = false;
+                const cancelMsg = `Entendido, no se canceló ninguna cita. 😊\n\n¿En qué más te puedo ayudar?`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: cancelMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, cancelMsg);
+                return;
+            } else {
+                // Ni sí ni no → re-preguntar
+                const ids = session.pendingCancelacionMasiva;
+                const reaskMsg = `¿Confirmas que deseas cancelar las citas: ${ids.join(', ')}?\n\nResponde *sí* para confirmar o *no* para mantenerlas.`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: reaskMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, reaskMsg);
+                return;
+            }
+        }
 
         // ── CONFIRMACIÓN DIRECTA: El código guarda/reagenda sin pasar por IA ──
         const CONFIRM_REGEX = /^(si+p?|ok[i]?|okey|okay|dale|de una|de una vez|confirmo|confirmado|confirmar|perfecto|de acuerdo|claro|listo|vale|aprobado|bueno|esta bien|por supuesto|obvio|sep|sepi|sipi|hagale|hagamosle|hagalo|vamos|sale|hecho|ya|venga|adelante|correcto|exacto|asi es|procede|agendame|agendeme|reservame|genial|super|excelente|me parece bien|me parece|va|eso|todo bien|agende|por fa|porfa|por favor|simon|aja|ajap|oki doki|okis|dale dale|dale pues|dale si|va pues|pues si|pues dale|listo pues|listo si|listo dale|eso es|eso si|claro si|claro que si|bueno si|bueno dale|venga pues|venga dale|ya dale|perfecto dale|si claro|si dale|si por favor|si porfa|si por fa|si gracias|si senora|si senor|ok dale|ok si|ok perfecto|ok listo|dale gracias|va va|dale va|ta bien|ta bueno|joya|bien|sisas|metale|mandele|reserva|agenda|haga|parce si|of course|yes|yep|yeah|sure)$/;
@@ -379,6 +557,25 @@ router.post('/evolution', async (req, res) => {
             session.history.push({ role: 'assistant', content: reaskMsg });
             await evolutionClient.sendText(instanceName, phoneNumber, reaskMsg);
             return;
+        }
+
+        // ── GUARDA: Si isReagendando + pendingConfirmation, redirigir a pendingReagendamiento ──
+        if (session.isReagendando && session.pendingConfirmation && !session.pendingReagendamiento) {
+            const citaId = session.reagendandoCitaId;
+            if (citaId) {
+                console.log(`⚠️ [${instanceName}] GUARDA: pendingConfirmation durante reagendamiento → redirigiendo a pendingReagendamiento (${citaId})`);
+                session.pendingReagendamiento = session.pendingConfirmation;
+                session.pendingConfirmation = null;
+            } else {
+                // Sin citaId, intentar resolver
+                const userAppts = tenant.pendingAppointments[phoneNumber] || [];
+                if (userAppts.length === 1) {
+                    session.reagendandoCitaId = userAppts[0].id;
+                    console.log(`⚠️ [${instanceName}] GUARDA: Auto-resolvió citaId (${session.reagendandoCitaId}) y redirige a pendingReagendamiento`);
+                    session.pendingReagendamiento = session.pendingConfirmation;
+                    session.pendingConfirmation = null;
+                }
+            }
         }
 
         // ── NUEVA CITA CONFIRMACIÓN (code-level) ──

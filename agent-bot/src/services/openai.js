@@ -566,16 +566,20 @@ async function generateAIResponse(
 10. REAGENDAMIENTO: Si el usuario quiere cambiar su cita:
    a) Si tiene MÚLTIPLES citas pendientes, PRIMERO pregúntale CUÁL cita quiere modificar (muéstralas con fecha, hora, servicio e ID para que elija).
    b) Una vez identificada la cita, pregúntale qué quiere cambiar: ¿la fecha/hora, el servicio, o ambos?
-   c) Verifica disponibilidad con 'verificar_disponibilidad' para la nueva fecha/hora.
-   d) Presenta el resumen del cambio y espera confirmación.
-   e) Llama a 'reagendar_cita' con el ID de la cita antigua y los nuevos datos.
+   c) Si dice "ambos" o da un servicio nuevo directamente, NO crees una cita nueva. Sigue el flujo de REAGENDAMIENTO: pregúntale la nueva fecha/hora y usa el servicio mencionado como el NUEVO servicio del reagendamiento.
+   d) Verifica disponibilidad con 'verificar_disponibilidad' para la nueva fecha/hora.
+   e) Presenta el resumen del cambio y espera confirmación.
+   f) Llama a 'reagendar_cita' con el ID de la cita antigua y los nuevos datos.
+   ⚠️ CRÍTICO: Mientras estés en flujo de reagendamiento, TODO lo que diga el cliente (servicios, fechas, horas) es para MODIFICAR la cita existente. NUNCA llames a 'agendar_cita' durante un reagendamiento — SIEMPRE usa 'reagendar_cita'. Si el cliente menciona un servicio diferente, es porque quiere CAMBIAR el servicio de su cita, NO crear una nueva.
+   ⚠️ GUÍA PASO A PASO: Lleva al cliente paso a paso. Si dice "ambos", primero pregunta "¿Qué servicio deseas ahora?" y luego "¿Para qué fecha y hora?". No intentes resolver todo en un solo paso.
 11. PROMOCIONES: Si hay promociones vigentes hoy, mencionalas brevemente en tu primer mensaje. Al agendar, aplica el descuento si corresponde y muestra el desglose (precio normal → descuento → precio final). Usa el precio CON descuento en precio_total al llamar a 'agendar_cita'.
 12. CANCELACIÓN DE CITAS: Si el usuario quiere cancelar una cita:
    a) Si tiene MÚLTIPLES citas pendientes, pregúntale CUÁL cita quiere cancelar (muéstralas con fecha, hora, servicio e ID).
-   b) Una vez identificada la cita, pregúntale si está seguro de cancelar (muestra resumen de la cita).
-   c) Cuando confirme, llama a 'cancelar_cita' con el ID de la cita.
-   d) NUNCA canceles una cita sin confirmación explícita del usuario.
-   e) Tras cancelar, infórmale que el horario queda libre y pregúntale si desea agendar una nueva cita.
+   b) Si el cliente dice "ambas", "las dos", "todas", "las tres", o cualquier expresión que indique TODAS las citas, confirma: "¿Estás segura de que quieres cancelar TODAS tus citas pendientes?" y si confirma, llama a 'cancelar_cita' UNA VEZ POR CADA CITA (primero una, luego la otra).
+   c) Una vez identificada la cita, pregúntale si está seguro de cancelar (muestra resumen de la cita).
+   d) Cuando confirme, llama a 'cancelar_cita' con el ID de la cita.
+   e) NUNCA canceles una cita sin confirmación explícita del usuario.
+   f) Tras cancelar, infórmale que el horario queda libre y pregúntale si desea agendar una nueva cita.
 13. RETENCIÓN DE CONTEXTO: Cuando el cliente cambia el servicio, profesional o cualquier dato pero NO menciona una nueva fecha u hora, MANTÉN la fecha y hora originalmente solicitada en la conversación. Ejemplo: si pidió "pestañas para el sábado a las 10am" y luego cambia a "entonces cejas", la fecha sigue siendo el sábado a las 10am. Solo cambia lo que el cliente pidió cambiar explícitamente.
 
 📅 ESTADO DE CITAS ACTUALES DEL CLIENTE:
@@ -600,6 +604,9 @@ ${colaboradoresCatalog.length > 0 ? colaboradoresCatalog.map(c => `  - ${c.nombr
 - Intervalo de agenda: cada ${config.slotInterval || 15} minutos
 - Buffer entre citas: ${config.bufferTime || 15} minutos (limpieza/preparación)
 - La función 'verificar_disponibilidad' ya considera estos tiempos automáticamente.
+
+🔄 ESTADO ACTUAL DEL FLUJO:
+${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita objetivo: ${session.reagendandoCitaId || 'POR IDENTIFICAR'}. TODO lo que el cliente diga sobre servicios, fechas u horas es para MODIFICAR esta cita. USA 'reagendar_cita', NUNCA 'agendar_cita'.` : session && session.isCancelando ? `⚠️ MODO CANCELACIÓN ACTIVO — El cliente quiere cancelar una cita. Guíalo para identificar cuál(es) y confirmar.` : '✅ Modo normal — El cliente puede consultar, agendar nuevas citas o pedir otros servicios.'}
 
 ⚠️ VERIFICACIÓN DE DISPONIBILIDAD — REGLA OBLIGATORIA:
 - Tú NO tienes información sobre horarios disponibles. NO puedes saber si una hora está libre o no.
@@ -740,24 +747,46 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
 
             // ─── Herramienta: agendar_cita ───────────────────────────────
             else if (functionName === "agendar_cita") {
-                const agendaId = await api.createAgenda({
-                    fecha: functionArgs.fecha,
-                    inicio: functionArgs.hora_inicio,
-                    fin: functionArgs.hora_fin,
-                    cliente: userName,
-                    celularCliente: userData.celular || "",
-                    servicio: functionArgs.servicios,
-                    precio: functionArgs.precio_total,
-                    profesional: functionArgs.profesional || "Por asignar",
-                    notas: functionArgs.notas || ""
-                });
-
-                if (agendaId) {
-                    const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
-                    toolResultText = `✅ Cita creada exitosamente. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}`;
-                    if (session) session._lastToolAction = 'cita_creada';
+                // GUARDA: Si estamos en modo reagendamiento, NO crear cita nueva — redirigir a reagendar
+                if (session && session.isReagendando && session.reagendandoCitaId) {
+                    console.log(`⚠️ GUARDA: IA llamó agendar_cita durante reagendamiento. Redirigiendo a reagendar_cita (${session.reagendandoCitaId})`);
+                    const exito = await api.rescheduleAgenda({
+                        id: session.reagendandoCitaId,
+                        nuevaFecha: functionArgs.fecha,
+                        nuevoInicio: functionArgs.hora_inicio,
+                        nuevoFin: functionArgs.hora_fin,
+                        nuevosServicios: functionArgs.servicios,
+                        nuevoPrecio: functionArgs.precio_total,
+                        nuevoProfesional: functionArgs.profesional || "Por asignar",
+                        notasAdicionales: functionArgs.notas || ""
+                    });
+                    if (exito) {
+                        const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
+                        toolResultText = `✅ Cita reagendada exitosamente. Cita (${session.reagendandoCitaId}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}`;
+                        session._lastToolAction = 'cita_reagendada';
+                    } else {
+                        toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}. Verifica si el ID es correcto.`;
+                    }
                 } else {
-                    toolResultText = "❌ Hubo un problema al registrar la cita en el sistema. Por favor intenta de nuevo.";
+                    const agendaId = await api.createAgenda({
+                        fecha: functionArgs.fecha,
+                        inicio: functionArgs.hora_inicio,
+                        fin: functionArgs.hora_fin,
+                        cliente: userName,
+                        celularCliente: userData.celular || "",
+                        servicio: functionArgs.servicios,
+                        precio: functionArgs.precio_total,
+                        profesional: functionArgs.profesional || "Por asignar",
+                        notas: functionArgs.notas || ""
+                    });
+
+                    if (agendaId) {
+                        const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
+                        toolResultText = `✅ Cita creada exitosamente. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}`;
+                        if (session) session._lastToolAction = 'cita_creada';
+                    } else {
+                        toolResultText = "❌ Hubo un problema al registrar la cita en el sistema. Por favor intenta de nuevo.";
+                    }
                 }
             }
 
