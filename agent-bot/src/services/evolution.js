@@ -95,6 +95,27 @@ class EvolutionClient {
     }
 
     /**
+     * Descarga el contenido multimedia (audio, imagen, etc.) de un mensaje en base64.
+     * @param {string} instanceName Nombre de la instancia
+     * @param {Object} messageKey Objeto key del mensaje (remoteJid, fromMe, id)
+     * @returns {Buffer|null} Buffer del archivo o null si falla
+     */
+    async getMediaBase64(instanceName, messageKey) {
+        try {
+            const response = await this.http.post(
+                `/chat/getBase64FromMediaMessage/${instanceName}`,
+                { message: { key: messageKey } }
+            );
+            const base64Data = response.data?.base64;
+            if (!base64Data) return null;
+            return Buffer.from(base64Data, 'base64');
+        } catch (error) {
+            console.error(`[Evolution] Error descargando media de "${instanceName}":`, error.response?.data || error.message);
+            return null;
+        }
+    }
+
+    /**
      * Obtiene el QR code de una instancia para escanear.
      * @param {string} instanceName
      */

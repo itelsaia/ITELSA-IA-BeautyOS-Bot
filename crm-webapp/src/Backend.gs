@@ -1093,6 +1093,200 @@ function calcularTipoDia(fechaStr) {
   return '';
 }
 
+// ============================================
+// Controladores CRM Web App — Módulo Analytics
+// ============================================
+
+/**
+ * Retorna datos pre-procesados para el dashboard de análisis.
+ * @param {string} rangoMeses - Número de meses hacia atrás (1, 3, 6, 12 o "todo")
+ */
+function getAnalytics(rangoMeses, profesionalFiltro) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Leer profesionales de la hoja COLABORADORES (siempre disponible)
+  var profesionales = [];
+  var colabSheet = ss.getSheetByName("COLABORADORES");
+  if (colabSheet && colabSheet.getLastRow() > 1) {
+    var colabData = colabSheet.getDataRange().getValues();
+    for (var c = 1; c < colabData.length; c++) {
+      var nombre = (colabData[c][1] || '').toString().trim();
+      if (nombre) profesionales.push(nombre);
+    }
+    profesionales.sort();
+  }
+
+  const sheet = ss.getSheetByName("AGENDA");
+  if (!sheet || sheet.getLastRow() <= 1) {
+    return { byStatus: {}, byProfessional: [], byDayOfWeek: [], byService: [], byMonth: [], byHour: [], kpis: {}, profesionales: profesionales };
+  }
+
+  const tz = Session.getScriptTimeZone();
+  const data = sheet.getDataRange().getValues();
+  const rows = data.slice(1);
+
+  // Filtro por rango de fecha
+  const now = new Date();
+  let fechaLimite = null;
+  if (rangoMeses && rangoMeses !== 'todo') {
+    const meses = parseInt(rangoMeses) || 6;
+    fechaLimite = new Date(now.getFullYear(), now.getMonth() - meses, now.getDate());
+  }
+
+  // Parsear filas
+  const todasCitas = [];
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var fechaRaw = row[1];
+    var fechaDate = null;
+
+    if (fechaRaw instanceof Date) {
+      fechaDate = fechaRaw;
+    } else if (typeof fechaRaw === 'string' && fechaRaw.includes('/')) {
+      var parts = fechaRaw.split('/');
+      if (parts.length === 3) fechaDate = new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+
+    if (!fechaDate) continue;
+    if (fechaLimite && fechaDate < fechaLimite) continue;
+
+    var inicioRaw = row[3];
+    var hora = 0;
+    if (inicioRaw instanceof Date) {
+      hora = inicioRaw.getHours();
+    } else if (typeof inicioRaw === 'string' && inicioRaw.includes(':')) {
+      hora = parseInt(inicioRaw.split(':')[0]) || 0;
+    }
+
+    todasCitas.push({
+      fecha: fechaDate,
+      tipoDia: (row[2] || '').toString(),
+      hora: hora,
+      servicio: (row[7] || '').toString(),
+      precio: parseFloat(row[8]) || 0,
+      profesional: (row[9] || '').toString(),
+      estado: (row[10] || '').toString()
+    });
+  }
+
+  // Filtro por profesional
+  var citas = todasCitas;
+  if (profesionalFiltro && profesionalFiltro !== 'todos') {
+    citas = [];
+    for (var i = 0; i < todasCitas.length; i++) {
+      if (todasCitas[i].profesional === profesionalFiltro) citas.push(todasCitas[i]);
+    }
+  }
+
+  // --- Calculos ---
+
+  // 1. Por estado
+  var byStatus = {};
+  for (var i = 0; i < citas.length; i++) {
+    var est = citas[i].estado || 'SIN_ESTADO';
+    byStatus[est] = (byStatus[est] || 0) + 1;
+  }
+
+  // 2. Por profesional
+  var profMap = {};
+  for (var i = 0; i < citas.length; i++) {
+    var c = citas[i];
+    var prof = c.profesional || 'Sin asignar';
+    if (!profMap[prof]) profMap[prof] = { nombre: prof, total: 0, ejecutadas: 0, rechazadas: 0, canceladas: 0, reagendadas: 0, ingresos: 0 };
+    profMap[prof].total++;
+    if (c.estado === 'EJECUTADO') { profMap[prof].ejecutadas++; profMap[prof].ingresos += c.precio; }
+    else if (c.estado === 'RECHAZADO') profMap[prof].rechazadas++;
+    else if (c.estado === 'CANCELADA') profMap[prof].canceladas++;
+    else if (c.estado === 'REAGENDADO') profMap[prof].reagendadas++;
+  }
+  var byProfessional = [];
+  for (var key in profMap) byProfessional.push(profMap[key]);
+  byProfessional.sort(function(a, b) { return b.total - a.total; });
+
+  // 3. Por dia de semana
+  var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  var dayMap = {};
+  for (var d = 0; d < 7; d++) dayMap[diasSemana[d]] = { dia: diasSemana[d], total: 0, ejecutadas: 0, ingresos: 0 };
+  for (var i = 0; i < citas.length; i++) {
+    var c = citas[i];
+    var diaNombre = diasSemana[c.fecha.getDay()];
+    dayMap[diaNombre].total++;
+    if (c.estado === 'EJECUTADO') { dayMap[diaNombre].ejecutadas++; dayMap[diaNombre].ingresos += c.precio; }
+  }
+  var byDayOfWeek = [];
+  for (var d = 1; d <= 6; d++) byDayOfWeek.push(dayMap[diasSemana[d]]); // Lunes a Sabado
+  byDayOfWeek.push(dayMap[diasSemana[0]]); // Domingo al final
+
+  // 4. Por servicio
+  var srvMap = {};
+  for (var i = 0; i < citas.length; i++) {
+    var c = citas[i];
+    var srv = c.servicio || 'Sin servicio';
+    if (!srvMap[srv]) srvMap[srv] = { servicio: srv, total: 0, ingresos: 0 };
+    srvMap[srv].total++;
+    if (c.estado === 'EJECUTADO') srvMap[srv].ingresos += c.precio;
+  }
+  var byService = [];
+  for (var key in srvMap) byService.push(srvMap[key]);
+  byService.sort(function(a, b) { return b.total - a.total; });
+
+  // 5. Por mes (tendencia)
+  var monthMap = {};
+  for (var i = 0; i < citas.length; i++) {
+    var c = citas[i];
+    var mesKey = c.fecha.getFullYear() + '-' + String(c.fecha.getMonth() + 1).padStart(2, '0');
+    if (!monthMap[mesKey]) monthMap[mesKey] = { mes: mesKey, total: 0, ejecutadas: 0, ingresos: 0 };
+    monthMap[mesKey].total++;
+    if (c.estado === 'EJECUTADO') { monthMap[mesKey].ejecutadas++; monthMap[mesKey].ingresos += c.precio; }
+  }
+  var byMonth = [];
+  for (var key in monthMap) byMonth.push(monthMap[key]);
+  byMonth.sort(function(a, b) { return a.mes.localeCompare(b.mes); });
+
+  // 6. Por hora
+  var hourMap = {};
+  for (var h = 6; h <= 21; h++) hourMap[h] = { hora: h, label: String(h).padStart(2, '0') + ':00', total: 0 };
+  for (var i = 0; i < citas.length; i++) {
+    var h = citas[i].hora;
+    if (hourMap[h]) hourMap[h].total++;
+  }
+  var byHour = [];
+  for (var h = 6; h <= 21; h++) byHour.push(hourMap[h]);
+
+  // 7. KPIs
+  var totalCitas = citas.length;
+  var ejecutadas = byStatus['EJECUTADO'] || 0;
+  var rechazadas = byStatus['RECHAZADO'] || 0;
+  var canceladas = byStatus['CANCELADA'] || 0;
+  var reagendadas = byStatus['REAGENDADO'] || 0;
+  var ingresosTotales = 0;
+  for (var i = 0; i < citas.length; i++) {
+    if (citas[i].estado === 'EJECUTADO') ingresosTotales += citas[i].precio;
+  }
+
+  var kpis = {
+    totalCitas: totalCitas,
+    ejecutadas: ejecutadas,
+    tasaCumplimiento: totalCitas > 0 ? Math.round((ejecutadas / totalCitas) * 100) : 0,
+    ticketPromedio: ejecutadas > 0 ? Math.round(ingresosTotales / ejecutadas) : 0,
+    ingresosTotales: ingresosTotales,
+    tasaCancelacion: totalCitas > 0 ? Math.round((canceladas / totalCitas) * 100) : 0,
+    tasaReagendamiento: totalCitas > 0 ? Math.round((reagendadas / totalCitas) * 100) : 0,
+    tasaRechazo: totalCitas > 0 ? Math.round((rechazadas / totalCitas) * 100) : 0
+  };
+
+  return {
+    byStatus: byStatus,
+    byProfessional: byProfessional,
+    byDayOfWeek: byDayOfWeek,
+    byService: byService,
+    byMonth: byMonth,
+    byHour: byHour,
+    kpis: kpis,
+    profesionales: profesionales
+  };
+}
+
 function responseJSON(code, message, data = null) {
   const out = { code: code, message: message };
   if (data) out.data = data;

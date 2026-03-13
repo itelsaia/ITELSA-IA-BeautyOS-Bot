@@ -7,6 +7,7 @@
   <title>BeautyOS CRM</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -29,8 +30,8 @@
       display:flex; flex-direction:column; transition:transform .3s ease;
     }
     .sidebar-brand {
-      padding:20px 18px; display:flex; align-items:center; gap:12px;
-      border-bottom:1px solid rgba(255,255,255,.08);
+      padding:16px 14px; display:flex; flex-direction:column; align-items:center; gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.08); text-align:center;
     }
     .sidebar-brand .brand-icon {
       width:40px; height:40px; border-radius:10px; display:flex; align-items:center;
@@ -38,10 +39,10 @@
       background:var(--brand);
     }
     .sidebar-brand img {
-      width:40px; height:40px; border-radius:10px; object-fit:cover; display:none;
+      width:56px; height:56px; border-radius:12px; object-fit:cover; display:none;
     }
-    .sidebar-brand .brand-text { overflow:hidden; }
-    .sidebar-brand .brand-text span { display:block; color:#fff; font-weight:700; font-size:.95rem; white-space:nowrap; }
+    .sidebar-brand .brand-text { overflow:hidden; text-align:center; }
+    .sidebar-brand .brand-text span { display:block; color:#fff; font-weight:700; font-size:.88rem; line-height:1.2; word-wrap:break-word; white-space:normal; }
     .sidebar-brand .brand-text small { font-size:.7rem; opacity:.6; }
 
     .sidebar-nav { flex:1; padding:12px 0; overflow-y:auto; }
@@ -234,6 +235,7 @@
       <a href="#" data-page="servicios"><i class="fas fa-concierge-bell"></i> Servicios</a>
       <a href="#" data-page="promociones"><i class="fas fa-tags"></i> Promociones</a>
       <a href="#" data-page="horarios"><i class="fas fa-clock"></i> Horarios</a>
+      <a href="#" data-page="analisis"><i class="fas fa-chart-bar"></i> Análisis</a>
 
       <div class="nav-section">Sistema</div>
       <a href="#" data-page="config"><i class="fas fa-cog"></i> Configuracion</a>
@@ -446,6 +448,8 @@ var promociones = [];
 var disponibilidad = [];
 var colaboradores = [];
 var serviciosNombres = [];
+var analyticsData = null;
+var analyticsCharts = {};
 var currentPage = 'dashboard';
 var pendingLoads = 0;
 
@@ -604,6 +608,214 @@ function convertDriveUrl(url) {
 }
 
 // =============================================
+// Renderizado — Módulo Análisis
+// =============================================
+
+function renderAnalisis() {
+  return '<div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">' +
+    '<h5 class="mb-0"><i class="fas fa-chart-bar me-2" style="color:var(--brand)"></i>Panel de Análisis</h5>' +
+    '<div class="d-flex gap-2 align-items-center">' +
+      '<select id="analisisProfesional" class="form-select" style="width:auto" onchange="loadAnalyticsCharts()">' +
+        '<option value="todos" selected>Todos los colaboradores</option>' +
+      '</select>' +
+      '<select id="analisisRango" class="form-select" style="width:auto" onchange="loadAnalyticsCharts()">' +
+        '<option value="1">Último mes</option>' +
+        '<option value="3" selected>Últimos 3 meses</option>' +
+        '<option value="6">Últimos 6 meses</option>' +
+        '<option value="12">Último año</option>' +
+        '<option value="todo">Todo el historial</option>' +
+      '</select>' +
+    '</div>' +
+  '</div>' +
+  '<!-- KPIs -->' +
+  '<div class="row g-3 mb-4" id="analisisKpis">' +
+    '<div class="col-6 col-md-3"><div class="card text-center p-3"><div class="fs-3 fw-bold" style="color:var(--brand)" id="kpiTotal">-</div><small class="text-muted">Total Citas</small></div></div>' +
+    '<div class="col-6 col-md-3"><div class="card text-center p-3"><div class="fs-3 fw-bold text-success" id="kpiCumplimiento">-</div><small class="text-muted">Cumplimiento</small></div></div>' +
+    '<div class="col-6 col-md-3"><div class="card text-center p-3"><div class="fs-3 fw-bold" style="color:#6f42c1" id="kpiTicket">-</div><small class="text-muted">Ticket Promedio</small></div></div>' +
+    '<div class="col-6 col-md-3"><div class="card text-center p-3"><div class="fs-3 fw-bold text-danger" id="kpiCancelacion">-</div><small class="text-muted">Cancelación</small></div></div>' +
+  '</div>' +
+  '<!-- Fila 1: Estado + Profesionales -->' +
+  '<div class="row g-3 mb-4">' +
+    '<div class="col-md-5"><div class="card p-3"><h6 class="text-center mb-3">Citas por Estado</h6><div style="max-height:280px;display:flex;justify-content:center"><canvas id="chartEstado"></canvas></div></div></div>' +
+    '<div class="col-md-7"><div class="card p-3"><h6 class="text-center mb-3">Rendimiento por Profesional</h6><canvas id="chartProfesional" style="max-height:280px"></canvas></div></div>' +
+  '</div>' +
+  '<!-- Fila 2: Dias + Horas -->' +
+  '<div class="row g-3 mb-4">' +
+    '<div class="col-md-6"><div class="card p-3"><h6 class="text-center mb-3">Citas por Día de Semana</h6><canvas id="chartDias" style="max-height:280px"></canvas></div></div>' +
+    '<div class="col-md-6"><div class="card p-3"><h6 class="text-center mb-3">Citas por Franja Horaria</h6><canvas id="chartHoras" style="max-height:280px"></canvas></div></div>' +
+  '</div>' +
+  '<!-- Fila 3: Tendencia + Servicios -->' +
+  '<div class="row g-3 mb-4">' +
+    '<div class="col-md-7"><div class="card p-3"><h6 class="text-center mb-3">Tendencia Mensual</h6><canvas id="chartTendencia" style="max-height:280px"></canvas></div></div>' +
+    '<div class="col-md-5"><div class="card p-3"><h6 class="text-center mb-3">Servicios Más Populares</h6><canvas id="chartServicios" style="max-height:280px"></canvas></div></div>' +
+  '</div>' +
+  '<!-- Tabla resumen profesionales -->' +
+  '<div class="card p-3">' +
+    '<h6 class="mb-3"><i class="fas fa-users me-2"></i>Detalle por Profesional</h6>' +
+    '<div class="table-responsive"><table class="table table-sm" id="tablaProfesionales">' +
+      '<thead><tr><th>Profesional</th><th class="text-center">Total</th><th class="text-center">Ejecutadas</th><th class="text-center">Rechazadas</th><th class="text-center">Canceladas</th><th class="text-center">Cumplimiento</th><th class="text-end">Ingresos</th></tr></thead>' +
+      '<tbody></tbody>' +
+    '</table></div>' +
+  '</div>';
+}
+
+function loadAnalyticsCharts() {
+  var rangoSelect = document.getElementById('analisisRango');
+  var profSelect = document.getElementById('analisisProfesional');
+  var rango = rangoSelect ? rangoSelect.value : '3';
+  var profesional = profSelect ? profSelect.value : 'todos';
+
+  // Destruir charts anteriores
+  Object.keys(analyticsCharts).forEach(function(k) { if (analyticsCharts[k]) analyticsCharts[k].destroy(); });
+  analyticsCharts = {};
+
+  google.script.run.withSuccessHandler(function(data) {
+    if (!data) { toast('No hay datos de análisis', 'warning'); return; }
+    analyticsData = data;
+    // Poblar dropdown de profesionales (solo si tiene opciones nuevas)
+    if (data.profesionales && profSelect) {
+      var currentVal = profSelect.value;
+      var existingOpts = profSelect.options.length;
+      if (existingOpts <= 1) {
+        for (var p = 0; p < data.profesionales.length; p++) {
+          var opt = document.createElement('option');
+          opt.value = data.profesionales[p];
+          opt.textContent = data.profesionales[p];
+          profSelect.appendChild(opt);
+        }
+      }
+      profSelect.value = currentVal;
+    }
+    renderKpis(data.kpis);
+    renderChartEstado(data.byStatus);
+    renderChartProfesional(data.byProfessional);
+    renderChartDias(data.byDayOfWeek);
+    renderChartHoras(data.byHour);
+    renderChartTendencia(data.byMonth);
+    renderChartServicios(data.byService);
+    renderTablaProfesionales(data.byProfessional);
+  }).withFailureHandler(function(err) {
+    toast('Error cargando análisis: ' + err.message, 'danger');
+  }).getAnalytics(rango, profesional);
+}
+
+function renderKpis(kpis) {
+  document.getElementById('kpiTotal').textContent = kpis.totalCitas || 0;
+  document.getElementById('kpiCumplimiento').textContent = (kpis.tasaCumplimiento || 0) + '%';
+  document.getElementById('kpiTicket').textContent = '$' + (kpis.ticketPromedio || 0).toLocaleString('es-CO');
+  document.getElementById('kpiCancelacion').textContent = (kpis.tasaCancelacion || 0) + '%';
+}
+
+function renderChartEstado(byStatus) {
+  var ctx = document.getElementById('chartEstado');
+  if (!ctx) return;
+  var labels = ['Ejecutadas', 'Pendientes', 'Rechazadas', 'Canceladas', 'Reagendadas'];
+  var values = [byStatus['EJECUTADO']||0, byStatus['PENDIENTE']||0, byStatus['RECHAZADO']||0, byStatus['CANCELADA']||0, byStatus['REAGENDADO']||0];
+  var colors = ['#28a745', '#ffc107', '#dc3545', '#6c757d', '#17a2b8'];
+  analyticsCharts.estado = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { padding: 12, usePointStyle: true } } } }
+  });
+}
+
+function renderChartProfesional(byProf) {
+  var ctx = document.getElementById('chartProfesional');
+  if (!ctx || !byProf.length) return;
+  var labels = byProf.map(function(p) { return p.nombre; });
+  analyticsCharts.profesional = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Ejecutadas', data: byProf.map(function(p){return p.ejecutadas;}), backgroundColor: '#28a745' },
+        { label: 'Rechazadas', data: byProf.map(function(p){return p.rechazadas;}), backgroundColor: '#dc3545' },
+        { label: 'Canceladas', data: byProf.map(function(p){return p.canceladas;}), backgroundColor: '#6c757d' }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } }, scales: { x: { stacked: true }, y: { stacked: true } } }
+  });
+}
+
+function renderChartDias(byDay) {
+  var ctx = document.getElementById('chartDias');
+  if (!ctx || !byDay.length) return;
+  var labels = byDay.map(function(d) { return d.dia; });
+  var values = byDay.map(function(d) { return d.total; });
+  var maxVal = Math.max.apply(null, values);
+  var avg = values.reduce(function(a,b){return a+b;},0) / values.length;
+  var bgColors = values.map(function(v) { return v < avg * 0.5 ? '#dc354580' : (v >= maxVal * 0.8 ? '#28a74580' : '#E91E6350'); });
+  analyticsCharts.dias = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ label: 'Citas', data: values, backgroundColor: bgColors, borderColor: bgColors.map(function(c){return c.replace('50','').replace('80','');}), borderWidth: 1 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { afterLabel: function(ctx) { var d = byDay[ctx.dataIndex]; return 'Ejecutadas: ' + d.ejecutadas + ' | Ingresos: $' + d.ingresos.toLocaleString('es-CO'); } } } } }
+  });
+}
+
+function renderChartHoras(byHour) {
+  var ctx = document.getElementById('chartHoras');
+  if (!ctx || !byHour.length) return;
+  var labels = byHour.map(function(h) { return h.label; });
+  var values = byHour.map(function(h) { return h.total; });
+  var maxVal = Math.max.apply(null, values);
+  var bgColors = values.map(function(v) { return v >= maxVal * 0.7 ? '#E91E63' : (v === 0 ? '#e9ecef' : '#E91E6360'); });
+  analyticsCharts.horas = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ label: 'Citas', data: values, backgroundColor: bgColors, borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+  });
+}
+
+function renderChartTendencia(byMonth) {
+  var ctx = document.getElementById('chartTendencia');
+  if (!ctx || !byMonth.length) return;
+  var labels = byMonth.map(function(m) { var p = m.mes.split('-'); var meses = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']; return meses[parseInt(p[1])] + ' ' + p[0].slice(2); });
+  analyticsCharts.tendencia = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        { label: 'Total Citas', data: byMonth.map(function(m){return m.total;}), borderColor: '#E91E63', backgroundColor: '#E91E6320', fill: true, tension: 0.3 },
+        { label: 'Ejecutadas', data: byMonth.map(function(m){return m.ejecutadas;}), borderColor: '#28a745', backgroundColor: '#28a74520', fill: true, tension: 0.3 }
+      ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { usePointStyle: true } } } }
+  });
+}
+
+function renderChartServicios(byService) {
+  var ctx = document.getElementById('chartServicios');
+  if (!ctx || !byService.length) return;
+  var top5 = byService.slice(0, 5);
+  var labels = top5.map(function(s) { return s.servicio.length > 20 ? s.servicio.substring(0,18) + '...' : s.servicio; });
+  var values = top5.map(function(s) { return s.total; });
+  var colors = ['#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#FF9800'];
+  analyticsCharts.servicios = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ label: 'Citas', data: values, backgroundColor: colors.slice(0, top5.length), borderRadius: 4 }] },
+    options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } } }
+  });
+}
+
+function renderTablaProfesionales(byProf) {
+  var tbody = document.querySelector('#tablaProfesionales tbody');
+  if (!tbody) return;
+  tbody.innerHTML = byProf.map(function(p) {
+    var cumpl = p.total > 0 ? Math.round((p.ejecutadas / p.total) * 100) : 0;
+    var cumplClass = cumpl >= 70 ? 'text-success' : (cumpl >= 40 ? 'text-warning' : 'text-danger');
+    return '<tr>' +
+      '<td><strong>' + p.nombre + '</strong></td>' +
+      '<td class="text-center">' + p.total + '</td>' +
+      '<td class="text-center text-success">' + p.ejecutadas + '</td>' +
+      '<td class="text-center text-danger">' + p.rechazadas + '</td>' +
+      '<td class="text-center text-muted">' + p.canceladas + '</td>' +
+      '<td class="text-center ' + cumplClass + '"><strong>' + cumpl + '%</strong></td>' +
+      '<td class="text-end">$' + p.ingresos.toLocaleString('es-CO') + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+// =============================================
 // Navegacion
 // =============================================
 function navigateTo(page) {
@@ -613,7 +825,7 @@ function navigateTo(page) {
     a.classList.toggle('active', a.getAttribute('data-page') === page);
   });
   // Update title
-  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', equipo:'Equipo', servicios:'Servicios', promociones:'Promociones', horarios:'Horarios', config:'Configuracion' };
+  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', equipo:'Equipo', servicios:'Servicios', promociones:'Promociones', horarios:'Horarios', analisis:'Análisis', config:'Configuracion' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   // Render
   var area = document.getElementById('contentArea');
@@ -625,6 +837,7 @@ function navigateTo(page) {
     case 'servicios': area.innerHTML = renderServicios(); break;
     case 'promociones': area.innerHTML = renderPromociones(); break;
     case 'horarios': area.innerHTML = renderHorarios(); break;
+    case 'analisis': area.innerHTML = renderAnalisis(); loadAnalyticsCharts(); break;
     case 'config': area.innerHTML = renderConfig(); break;
   }
 }

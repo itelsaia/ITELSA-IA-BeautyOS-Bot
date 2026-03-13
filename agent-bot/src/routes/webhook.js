@@ -5,6 +5,7 @@ const { getTenant } = require('../services/tenants');
 const { generateAIResponse } = require('../services/openai');
 const { handleOnboarding } = require('../services/session');
 const { loadPendingAppointments } = require('../services/sheets');
+const { transcribeAudio } = require('../services/whisper');
 const api = require('../services/api'); // singleton — override webhookUrl por tenant
 
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
@@ -50,10 +51,47 @@ router.post('/evolution', async (req, res) => {
         if (remoteJid === 'status@broadcast' || remoteJid.includes('@g.us')) return;
 
         // Extraer texto del mensaje (manejar ambos formatos)
-        const messageText = data.message?.conversation
+        let messageText = data.message?.conversation
             || data.message?.extendedTextMessage?.text
             || '';
-        if (!messageText) return; // Ignorar mensajes no-texto (imágenes, stickers, etc.)
+
+        // ── Soporte de audios: transcribir con Whisper ──
+        const isAudio = !!(data.message?.audioMessage);
+        if (isAudio && !messageText) {
+            // Resolver tenant primero para obtener la API key de OpenAI
+            const tenantForAudio = getTenant(instance);
+            if (!tenantForAudio || !tenantForAudio.config?.openApiKey) {
+                console.warn(`[WEBHOOK] Audio recibido pero sin tenant/apiKey para transcribir.`);
+                return;
+            }
+
+            try {
+                const audioBuffer = await evolutionClient.getMediaBase64(instance, data.key);
+                if (audioBuffer) {
+                    const transcription = await transcribeAudio(audioBuffer, tenantForAudio.config.openApiKey);
+                    if (transcription) {
+                        messageText = transcription;
+                        console.log(`[${instance}] 🎤 Audio transcrito: "${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}"`);
+                    } else {
+                        // Transcripcion vacia — pedir que escriba
+                        const phoneForAudio = (data.key.remoteJid || '').split('@')[0];
+                        await evolutionClient.sendText(instance, phoneForAudio, '🎤 No pude entender tu audio. ¿Podrías escribirme tu mensaje por favor? 😊');
+                        return;
+                    }
+                } else {
+                    const phoneForAudio = (data.key.remoteJid || '').split('@')[0];
+                    await evolutionClient.sendText(instance, phoneForAudio, '🎤 No pude procesar tu audio. ¿Podrías escribirme tu mensaje por favor? 😊');
+                    return;
+                }
+            } catch (audioErr) {
+                console.error(`[${instance}] Error procesando audio:`, audioErr.message);
+                const phoneForAudio = (data.key.remoteJid || '').split('@')[0];
+                await evolutionClient.sendText(instance, phoneForAudio, '🎤 Hubo un problema con tu audio. ¿Podrías escribirme tu mensaje por favor? 😊');
+                return;
+            }
+        }
+
+        if (!messageText) return; // Ignorar mensajes sin texto ni audio (imágenes, stickers, etc.)
 
         // ── Resolver tenant por nombre de instancia ──
         const tenant = getTenant(instance);
