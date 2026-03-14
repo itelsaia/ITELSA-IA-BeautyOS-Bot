@@ -170,8 +170,8 @@ router.post('/evolution', async (req, res) => {
 
         // ── Datos del usuario para contexto de IA ──
         const userData = session.datos
-            ? { nombre: session.datos.nombre, celular: phoneNumber }
-            : { nombre: data.pushName || "Cliente", celular: phoneNumber };
+            ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo' }
+            : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo' };
 
         // ── Saludo cálido para clientes REGISTRADOS (primer mensaje de sesión) ──
         const esClienteRegistrado = session.estado === 'REGISTRADO';
@@ -213,8 +213,10 @@ router.post('/evolution', async (req, res) => {
             const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
             const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
             const hoyDia = weekDays[nowCol.getDay()];
+            const clientTipoSaludo = (session.datos && session.datos.tipo) ? session.datos.tipo : 'Nuevo';
             const promosHoy = (tenant.promotionsCatalog || []).filter(p => {
                 if (p.estado !== 'ACTIVO') return false;
+                if (p.tipoPromo === 'CUMPLEANOS') return false; // Cumpleanos se maneja aparte
                 if (p.vence) {
                     const parts = p.vence.split('/');
                     if (parts.length === 3) {
@@ -226,6 +228,11 @@ router.post('/evolution', async (req, res) => {
                 if (p.aplicaDia && p.aplicaDia.trim() !== '') {
                     const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
                     if (!dias.includes(hoyDia)) return false;
+                }
+                // Filtrar por tipo de cliente
+                if (p.aplicaTipoCliente && p.aplicaTipoCliente !== 'TODOS') {
+                    const allowed = p.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+                    if (!allowed.includes(clientTipoSaludo.toLowerCase())) return false;
                 }
                 return true;
             });
@@ -812,20 +819,33 @@ router.post('/evolution', async (req, res) => {
                     citaData.servicios, tenant.servicesCatalog
                 );
 
-                // ── Descuento cumpleanos ──
+                // ── Descuento cumpleanos (desde promo CUMPLEANOS) ──
                 let descuentoCumple = 0;
                 const clienteInfoBday = tenant.registeredClients[phoneNumber] || {};
-                if (tenant.config.birthdayEnabled && clienteInfoBday.cumple) {
-                    const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-                    const ddNow = String(nowCol.getDate()).padStart(2, '0');
-                    const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
-                    const cumpleParts = clienteInfoBday.cumple.split('/');
-                    const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
-                    if (cumpleDDMM === `${ddNow}/${mmNow}`) {
-                        descuentoCumple = Math.round(citaData.precio_total * (tenant.config.birthdayDiscount || 20) / 100);
-                        citaData.precio_total = citaData.precio_total - descuentoCumple;
-                        citaData.notas_cumple = `DESCUENTO CUMPLE ${tenant.config.birthdayDiscount || 20}%: -$${descuentoCumple.toLocaleString('es-CO')}`;
-                        console.log(`🎂 [${instanceName}] Descuento cumpleanos aplicado: -$${descuentoCumple} → nuevo total: $${citaData.precio_total}`);
+                const cumplePromoWh = (tenant.promotionsCatalog || []).find(p =>
+                    p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
+                );
+                if (cumplePromoWh && clienteInfoBday.cumple) {
+                    // Verificar tipo de cliente permitido
+                    const cTipoWh = clienteInfoBday.tipo || 'Nuevo';
+                    const allowedWh = cumplePromoWh.aplicaTipoCliente === 'TODOS'
+                        ? null
+                        : cumplePromoWh.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+                    const clientAllowedWh = !allowedWh || allowedWh.includes(cTipoWh.toLowerCase());
+
+                    if (clientAllowedWh) {
+                        const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                        const ddNow = String(nowCol.getDate()).padStart(2, '0');
+                        const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
+                        const cumpleParts = clienteInfoBday.cumple.split('/');
+                        const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
+                        if (cumpleDDMM === `${ddNow}/${mmNow}`) {
+                            const bdayDiscount = cumplePromoWh.valorDescuento || 20;
+                            descuentoCumple = Math.round(citaData.precio_total * bdayDiscount / 100);
+                            citaData.precio_total = citaData.precio_total - descuentoCumple;
+                            citaData.notas_cumple = `DESCUENTO CUMPLE ${bdayDiscount}%: -$${descuentoCumple.toLocaleString('es-CO')}`;
+                            console.log(`[${instanceName}] Descuento cumpleanos aplicado: -$${descuentoCumple} -> nuevo total: $${citaData.precio_total}`);
+                        }
                     }
                 }
 

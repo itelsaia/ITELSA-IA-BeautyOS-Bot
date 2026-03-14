@@ -408,7 +408,8 @@ function getPromociones() {
     aplicaServicio: row[4] || 'TODOS',
     aplicaDia: row[5] || '',
     vence: row[6] instanceof Date ? Utilities.formatDate(row[6], Session.getScriptTimeZone(), "dd/MM/yyyy") : (row[6] || ''),
-    estado: row[7] || 'INACTIVO'
+    estado: row[7] || 'INACTIVO',
+    aplicaTipoCliente: row[8] || 'TODOS'
   }));
 }
 
@@ -425,7 +426,8 @@ function savePromocion(data) {
     data.aplicaServicio || 'TODOS',
     data.aplicaDia || '',
     data.vence || '',
-    (data.estado || 'ACTIVO').toUpperCase()
+    (data.estado || 'ACTIVO').toUpperCase(),
+    data.aplicaTipoCliente || 'TODOS'
   ]);
 
   return { status: "Promoción creada exitosamente", nombre: data.nombre };
@@ -447,6 +449,7 @@ function updatePromocion(data) {
   sheet.getRange(row, 6).setValue(data.aplicaDia || '');
   sheet.getRange(row, 7).setValue(data.vence || '');
   sheet.getRange(row, 8).setValue((data.estado || '').toUpperCase());
+  sheet.getRange(row, 9).setValue(data.aplicaTipoCliente || 'TODOS');
 
   return { status: "Promoción actualizada", nombre: data.nombre };
 }
@@ -1492,7 +1495,8 @@ function handleGetBirthdayClients(ss, payload) {
     var clienteInfo = {
       celular: (data[i][1] || '').toString(),
       nombre: (data[i][2] || '').toString(),
-      cumple: ddmm
+      cumple: ddmm,
+      tipo: (data[i][6] || 'Nuevo').toString()
     };
 
     if (ddmm === payload.fechaHoy) hoy.push(clienteInfo);

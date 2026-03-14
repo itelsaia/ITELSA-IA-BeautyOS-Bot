@@ -455,9 +455,11 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
 // ============================================================
 // Filtro de promociones vigentes para el día actual
 // ============================================================
-function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName) {
+function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo) {
     return promotionsCatalog.filter(p => {
         if (p.estado !== 'ACTIVO') return false;
+        // Excluir CUMPLEANOS del listado general (se maneja como birthdayContext)
+        if (p.tipoPromo === 'CUMPLEANOS') return false;
         if (p.vence) {
             const parts = p.vence.split('/');
             if (parts.length === 3) {
@@ -469,6 +471,11 @@ function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName) {
         if (p.aplicaDia && p.aplicaDia.trim() !== '') {
             const diasAplicables = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
             if (!diasAplicables.includes(todayDayName.toLowerCase())) return false;
+        }
+        // Filtrar por tipo de cliente
+        if (clientTipo && p.aplicaTipoCliente && p.aplicaTipoCliente !== 'TODOS') {
+            const allowedTypes = p.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+            if (!allowedTypes.includes(clientTipo.toLowerCase())) return false;
         }
         return true;
     });
@@ -539,8 +546,9 @@ async function generateAIResponse(
         const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const todayDayName = weekDays[nowColombia.getDay()];
 
-        // 4b. Filtrar promociones activas para hoy
-        const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName);
+        // 4b. Filtrar promociones activas para hoy (segmentadas por tipo de cliente)
+        const clientTipo = (userData.tipo || 'Nuevo');
+        const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo);
         let promotionsText = "No hay promociones activas para hoy.";
         if (activePromotions.length > 0) {
             promotionsText = activePromotions.map(p => {
@@ -667,17 +675,29 @@ ${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
 
         const userName = userData.nombre || "Cliente";
 
-        // Contexto de cumpleanos: si el cliente cumple anos hoy, inyectar instruccion especial
+        // Contexto de cumpleanos: si hay promo CUMPLEANOS activa y el cliente cumple hoy
         let birthdayContext = '';
-        if (config.birthdayEnabled && userData.cumple) {
-            const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-            const ddNow = String(nowCol.getDate()).padStart(2, '0');
-            const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
-            const cumpleStr = userData.cumple.toString();
-            const cumpleParts = cumpleStr.split('/');
-            const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
-            if (cumpleDDMM === `${ddNow}/${mmNow}`) {
-                birthdayContext = `\n\nHOY ES EL CUMPLEANOS DE ESTE CLIENTE. Felicitalo calidamente y recuerdale que tiene un ${config.birthdayDiscount || 20}% de descuento especial por su cumpleanos en cualquier servicio. Incentivalo a agendar una cita para celebrar.`;
+        const cumplePromo = promotionsCatalog.find(p =>
+            p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
+        );
+        if (cumplePromo && userData.cumple) {
+            // Verificar que el tipo de cliente esta permitido
+            const cTipo = (userData.tipo || 'Nuevo');
+            const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
+                ? null
+                : cumplePromo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+            const clientAllowed = !allowedTypes || allowedTypes.includes(cTipo.toLowerCase());
+
+            if (clientAllowed) {
+                const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                const ddNow = String(nowCol.getDate()).padStart(2, '0');
+                const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
+                const cumpleStr = userData.cumple.toString();
+                const cumpleParts = cumpleStr.split('/');
+                const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
+                if (cumpleDDMM === `${ddNow}/${mmNow}`) {
+                    birthdayContext = `\n\nHOY ES EL CUMPLEANOS DE ESTE CLIENTE. Felicitalo calidamente y recuerdale que tiene un ${cumplePromo.valorDescuento || 20}% de descuento especial por su cumpleanos en cualquier servicio. Incentivalo a agendar una cita para celebrar.`;
+                }
             }
         }
 

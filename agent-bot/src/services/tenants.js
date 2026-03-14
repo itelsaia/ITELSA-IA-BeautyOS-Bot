@@ -194,10 +194,13 @@ async function syncTenantData(tenantId) {
             console.error(`[${tenantId}] Error en clasificacion:`, classError.message);
         }
 
-        // ── Cumpleanos proactivos (1 vez al dia) ──
+        // ── Cumpleanos proactivos (1 vez al dia, desde PROMOCIONES) ──
         try {
-            const config = tenant.config;
-            if (config.birthdayEnabled && evolutionClient) {
+            const cumplePromo = (tenant.promotionsCatalog || []).find(p =>
+                p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
+            );
+
+            if (cumplePromo && evolutionClient) {
                 const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
                 const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
@@ -214,20 +217,29 @@ async function syncTenantData(tenantId) {
                     api.webhookUrl = tenant.webhookGasUrl;
                     const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
 
+                    // Tipos de cliente permitidos por la promo
+                    const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
+                        ? null
+                        : cumplePromo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+
+                    let enviados = 0;
                     if (bday.manana && bday.manana.length > 0) {
                         for (const c of bday.manana) {
-                            await sendBirthdayMessage(tenant, c, 'manana');
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
+                            await sendBirthdayMessage(tenant, c, 'manana', cumplePromo);
+                            enviados++;
                         }
                     }
                     if (bday.hoy && bday.hoy.length > 0) {
                         for (const c of bday.hoy) {
-                            await sendBirthdayMessage(tenant, c, 'hoy');
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
+                            await sendBirthdayMessage(tenant, c, 'hoy', cumplePromo);
+                            enviados++;
                         }
                     }
 
-                    const totalBday = (bday.hoy ? bday.hoy.length : 0) + (bday.manana ? bday.manana.length : 0);
-                    if (totalBday > 0) {
-                        console.log(`[${tenantId}] Cumpleanos: ${totalBday} mensaje(s) enviado(s)`);
+                    if (enviados > 0) {
+                        console.log(`[${tenantId}] Cumpleanos: ${enviados} mensaje(s) enviado(s) (tipos: ${cumplePromo.aplicaTipoCliente})`);
                     }
                 }
             }
@@ -240,23 +252,39 @@ async function syncTenantData(tenantId) {
 }
 
 /**
- * Envia mensaje proactivo de cumpleanos via WhatsApp
+ * Envia mensaje proactivo de cumpleanos via WhatsApp usando la plantilla de la promo
  */
-async function sendBirthdayMessage(tenant, cliente, timing) {
+async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo) {
     if (!evolutionClient) return;
     const config = tenant.config;
-    const descuento = config.birthdayDiscount || 20;
+    const descuento = cumplePromo.valorDescuento || 20;
 
     let mensaje = '';
-    if (timing === 'manana') {
-        mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial y en ${config.businessName} queremos celebrarlo contigo. Te ofrecemos un ${descuento}% de descuento en cualquier servicio. Agenda tu cita y luce increible en tu cumpleanos!`;
+    const plantilla = (cumplePromo.descripcion || '').trim();
+
+    if (plantilla) {
+        // Reemplazar placeholders de la plantilla configurada por la duena
+        mensaje = plantilla
+            .replace(/\{nombre\}/gi, cliente.nombre)
+            .replace(/\{negocio\}/gi, config.businessName || '')
+            .replace(/\{descuento\}/gi, descuento + '%');
+
+        // Si es "manana" y la plantilla no menciona "manana", agregar prefijo
+        if (timing === 'manana' && !plantilla.toLowerCase().includes('manana')) {
+            mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial. ` + mensaje;
+        }
     } else {
-        mensaje = `Feliz cumpleanos ${cliente.nombre}! En ${config.businessName} queremos que este dia sea aun mas especial. Te regalamos un ${descuento}% de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!`;
+        // Fallback si no hay plantilla
+        if (timing === 'manana') {
+            mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial y en ${config.businessName} queremos celebrarlo contigo. Te ofrecemos un ${descuento}% de descuento en cualquier servicio. Agenda tu cita y luce increible en tu cumpleanos!`;
+        } else {
+            mensaje = `Feliz cumpleanos ${cliente.nombre}! En ${config.businessName} queremos que este dia sea aun mas especial. Te regalamos un ${descuento}% de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!`;
+        }
     }
 
     try {
         await evolutionClient.sendText(tenant.instanceName, cliente.celular, mensaje);
-        console.log(`[${tenant.instanceName}] Cumpleanos ${timing}: mensaje enviado a ${cliente.nombre} (${cliente.celular})`);
+        console.log(`[${tenant.instanceName}] Cumpleanos ${timing}: mensaje enviado a ${cliente.nombre} (${cliente.celular}) [tipo: ${cliente.tipo}]`);
     } catch (err) {
         console.error(`[${tenant.instanceName}] Error enviando cumpleanos a ${cliente.celular}:`, err.message);
     }

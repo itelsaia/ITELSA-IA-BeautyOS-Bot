@@ -56,10 +56,7 @@ async function loadClientConfig(sheetId) {
             // Clasificacion automatica de clientes
             classifyOcasional: parseInt(configRaw['UMBRAL_OCASIONAL']) || 1,
             classifyFrecuente: parseInt(configRaw['UMBRAL_FRECUENTE']) || 4,
-            classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9,
-            // Cumpleanos
-            birthdayEnabled: (configRaw['CUMPLE_HABILITADO'] || 'SI').toUpperCase() === 'SI',
-            birthdayDiscount: parseInt(configRaw['DESCUENTO_CUMPLE']) || 20
+            classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -195,7 +192,8 @@ async function loadRegisteredClients(sheetId) {
                     correo: data['CORREO'] || '',
                     id: data['ID_CLIENTE'] || '',
                     cumple: (data['CUMPLE'] || '').toString().trim(),
-                    exemptFromPayment: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI'
+                    exemptFromPayment: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI',
+                    tipo: (data['TIPO'] || 'Nuevo').toString().trim()
                 };
             }
         });
@@ -311,7 +309,8 @@ async function loadPromotions(sheetId) {
                 aplicaServicio: cleanData['APLICA_SERVICIO'] || 'TODOS',
                 aplicaDia: cleanData['APLICA_DIA'] || '',
                 vence: cleanData['VENCE'] || '',
-                estado: (cleanData['ESTADO'] || '').toUpperCase().trim()
+                estado: (cleanData['ESTADO'] || '').toUpperCase().trim(),
+                aplicaTipoCliente: (cleanData['APLICA_TIPO_CLIENTE'] || 'TODOS').trim()
             };
         }).filter(item => item.nombre !== '');
 

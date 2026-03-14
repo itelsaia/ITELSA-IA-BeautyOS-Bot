@@ -356,6 +356,7 @@
                 <option value="PORCENTAJE">% Porcentaje</option>
                 <option value="2X1">2x1</option>
                 <option value="VALOR_FIJO">$ Valor Fijo</option>
+                <option value="CUMPLEANOS">Cumpleanos</option>
               </select>
             </div>
             <div class="col-md-3">
@@ -396,6 +397,22 @@
               <div class="form-check form-switch mt-2">
                 <input class="form-check-input" type="checkbox" id="promoEstadoSwitch" checked style="transform:scale(1.3);">
                 <label class="form-check-label ms-2" id="promoEstadoLabel">ACTIVO</label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Aplica a Tipo de Cliente</label>
+              <div id="promoTipoClienteCheck" class="d-flex flex-wrap gap-3 mt-1">
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="TODOS" id="tcTodos" checked><label class="form-check-label" for="tcTodos">Todos</label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Nuevo" id="tcNuevo"><label class="form-check-label" for="tcNuevo"><span class="badge bg-info text-dark">Nuevo</span></label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Ocasional" id="tcOcasional"><label class="form-check-label" for="tcOcasional"><span class="badge bg-warning text-dark">Ocasional</span></label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="Frecuente" id="tcFrecuente"><label class="form-check-label" for="tcFrecuente"><span class="badge bg-success">Frecuente</span></label></div>
+                <div class="form-check"><input class="form-check-input" type="checkbox" value="VIP" id="tcVIP"><label class="form-check-label" for="tcVIP"><span class="badge text-white" style="background:#7c3aed;">VIP</span></label></div>
+              </div>
+              <small class="text-muted">Marca "Todos" o selecciona tipos especificos.</small>
+            </div>
+            <div class="col-12" id="promoCumpleHint" style="display:none;">
+              <div class="alert alert-info mb-0">
+                <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> El bot enviara automaticamente un mensaje con el descuento el dia antes y el mismo dia del cumpleanos. La DESCRIPCION se usa como plantilla (usa <code>{nombre}</code> para el nombre, <code>{negocio}</code> para tu negocio, <code>{descuento}</code> para el %). Se recomienda dirigir a clientes Frecuente y VIP.
               </div>
             </div>
           </div>
@@ -496,12 +513,45 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   });
 
-  // Promo tipo hint
+  // Promo tipo hint + logica CUMPLEANOS
   document.getElementById('promoTipo').addEventListener('change', function() {
     var h = document.getElementById('promoValorHint');
-    if (this.value === 'PORCENTAJE') h.textContent = '% de descuento';
-    else if (this.value === '2X1') h.textContent = 'Ej: 50 = 2do al 50%';
+    var tipo = this.value;
+    var diasGroup = document.getElementById('promoDiasCheck').closest('.col-md-6');
+    var cumpleHint = document.getElementById('promoCumpleHint');
+
+    if (tipo === 'PORCENTAJE') h.textContent = '% de descuento';
+    else if (tipo === '2X1') h.textContent = 'Ej: 50 = 2do al 50%';
+    else if (tipo === 'CUMPLEANOS') h.textContent = '% de descuento por cumpleanos';
     else h.textContent = '$ COP de descuento';
+
+    // Ocultar dias para CUMPLEANOS (no aplica por dia de semana)
+    if (diasGroup) diasGroup.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
+    // Mostrar hint de cumpleanos
+    if (cumpleHint) cumpleHint.style.display = tipo === 'CUMPLEANOS' ? '' : 'none';
+
+    // Pre-seleccionar Frecuente+VIP para CUMPLEANOS
+    if (tipo === 'CUMPLEANOS') {
+      document.getElementById('tcTodos').checked = false;
+      document.getElementById('tcNuevo').checked = false;
+      document.getElementById('tcOcasional').checked = false;
+      document.getElementById('tcFrecuente').checked = true;
+      document.getElementById('tcVIP').checked = true;
+    }
+  });
+
+  // Checkboxes tipo cliente: exclusion mutua TODOS vs individuales
+  document.getElementById('tcTodos').addEventListener('change', function() {
+    if (this.checked) {
+      ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) { document.getElementById(id).checked = false; });
+    }
+  });
+  ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) {
+    document.getElementById(id).addEventListener('change', function() {
+      if (this.checked) document.getElementById('tcTodos').checked = false;
+      var anyChecked = ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].some(function(cid) { return document.getElementById(cid).checked; });
+      if (!anyChecked) document.getElementById('tcTodos').checked = true;
+    });
   });
   document.getElementById('promoEstadoSwitch').addEventListener('change', function() {
     document.getElementById('promoEstadoLabel').textContent = this.checked ? 'ACTIVO' : 'INACTIVO';
@@ -1172,14 +1222,14 @@ function renderPromociones() {
   html += '<button class="btn btn-brand btn-sm" onclick="abrirModalPromoCrear()"><i class="fas fa-plus me-1"></i> Nueva Promocion</button></div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
-  html += '<thead><tr><th>Nombre</th><th>Tipo</th><th>Descuento</th><th class="d-none d-md-table-cell">Aplica a</th><th class="d-none d-md-table-cell">Dia(s)</th><th>Vence</th><th>Estado</th><th class="text-center">Acciones</th></tr></thead><tbody>';
+  html += '<thead><tr><th>Nombre</th><th>Tipo</th><th>Descuento</th><th class="d-none d-md-table-cell">Aplica a</th><th class="d-none d-md-table-cell">Dia(s)</th><th class="d-none d-md-table-cell">Cliente</th><th>Vence</th><th>Estado</th><th class="text-center">Acciones</th></tr></thead><tbody>';
 
   if (promociones.length === 0) {
-    html += '<tr><td colspan="8" class="text-center text-muted py-4"><i class="fas fa-tags fa-2x d-block mb-2"></i>No hay promociones.</td></tr>';
+    html += '<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-tags fa-2x d-block mb-2"></i>No hay promociones.</td></tr>';
   } else {
     promociones.forEach(function(p) {
       var esActivo = (p.estado || '').toUpperCase() === 'ACTIVO';
-      var tipoLabel = p.tipoPromo === 'PORCENTAJE' ? '% Porcentaje' : p.tipoPromo === '2X1' ? '2x1' : p.tipoPromo === 'VALOR_FIJO' ? '$ Fijo' : p.tipoPromo;
+      var tipoLabel = p.tipoPromo === 'PORCENTAJE' ? '% Porcentaje' : p.tipoPromo === '2X1' ? '2x1' : p.tipoPromo === 'VALOR_FIJO' ? '$ Fijo' : p.tipoPromo === 'CUMPLEANOS' ? 'Cumpleanos' : p.tipoPromo;
       var descLabel = p.tipoPromo === 'PORCENTAJE' ? p.valorDescuento + '%' : p.tipoPromo === 'VALOR_FIJO' ? formatMoney(p.valorDescuento) : p.valorDescuento + '%';
 
       var toggleBtn = esActivo
@@ -1190,6 +1240,7 @@ function renderPromociones() {
       html += '<td>' + tipoLabel + '</td><td>' + descLabel + '</td>';
       html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaServicio || 'TODOS') + '</small></td>';
       html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaDia || 'Todos') + '</small></td>';
+      html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaTipoCliente || 'TODOS') + '</small></td>';
       html += '<td>' + esc(p.vence || '-') + '</td>';
       html += '<td><span class="badge-status ' + (esActivo ? 'badge-activo' : 'badge-inactivo') + '">' + (esActivo ? 'ACTIVO' : 'INACTIVO') + '</span></td>';
       html += '<td class="text-center"><div class="btn-group btn-group-sm">';
@@ -1574,29 +1625,12 @@ function renderConfig() {
 
   html += '</div>';
 
-  // ── Promocion de Cumpleanos ──
-  var cumpleHab = (f.CUMPLE_HABILITADO || 'SI').toUpperCase();
-  var descCumple = f.DESCUENTO_CUMPLE || '20';
-  html += '<div class="row g-3 mt-1"><div class="col-lg-6"><div class="config-card">';
-  html += '<h6><i class="fas fa-birthday-cake me-1" style="color:#e91e63;"></i> Promocion de Cumpleanos</h6>';
-  html += '<p class="text-muted small mb-3">Envia automaticamente un mensaje de felicitacion con descuento a tus clientes el dia antes y el mismo dia de su cumpleanos.</p>';
-  html += '<div class="row g-3">';
-  html += '<div class="col-md-6"><label class="form-label fw-semibold">Habilitar</label>';
-  html += '<select class="form-select config-input" data-key="CUMPLE_HABILITADO">';
-  html += '<option value="SI"' + (cumpleHab === 'SI' ? ' selected' : '') + '>Activo</option>';
-  html += '<option value="NO"' + (cumpleHab === 'NO' ? ' selected' : '') + '>Desactivado</option>';
-  html += '</select>';
-  html += '<div class="form-text">Si esta activo, el bot enviara mensajes de cumpleanos automaticamente.</div></div>';
-  html += '<div class="col-md-6"><label class="form-label fw-semibold">Descuento (%)</label>';
-  html += '<input type="number" class="form-control config-input" data-key="DESCUENTO_CUMPLE" value="' + esc(descCumple) + '" min="0" max="100" step="5">';
-  html += '<div class="form-text">Porcentaje de descuento que se ofrece al cliente en su cumpleanos.</div></div>';
-  html += '</div></div></div>';
-
   // ── Clasificacion de Clientes ──
+  html += '<div class="row g-3 mt-1">';
   var umbOcasional = f.UMBRAL_OCASIONAL || '1';
   var umbFrecuente = f.UMBRAL_FRECUENTE || '4';
   var umbVip = f.UMBRAL_VIP || '9';
-  html += '<div class="col-lg-6"><div class="config-card">';
+  html += '<div class="col-lg-12"><div class="config-card">';
   html += '<h6><i class="fas fa-users-cog me-1" style="color:#7c3aed;"></i> Clasificacion de Clientes</h6>';
   html += '<p class="text-muted small mb-3">Los clientes se clasifican automaticamente segun la cantidad de citas completadas (EJECUTADO). Ajusta los umbrales a tu criterio.</p>';
   html += '<div class="row g-3">';
@@ -1778,6 +1812,14 @@ function abrirModalPromoCrear() {
   var sel = document.getElementById('promoServicio');
   for (var i = 0; i < sel.options.length; i++) sel.options[i].selected = (sel.options[i].value === 'TODOS');
   document.querySelectorAll('#promoDiasCheck input').forEach(function(cb) { cb.checked = false; });
+  // Reset tipo cliente a TODOS
+  document.getElementById('tcTodos').checked = true;
+  ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) { document.getElementById(id).checked = false; });
+  // Reset cumple hint y dias visibles
+  var cumpleHint = document.getElementById('promoCumpleHint');
+  if (cumpleHint) cumpleHint.style.display = 'none';
+  var diasGroup = document.getElementById('promoDiasCheck').closest('.col-md-6');
+  if (diasGroup) diasGroup.style.display = '';
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
 
@@ -1803,6 +1845,20 @@ function abrirModalPromoEditar(rowIndex) {
   var esActivo = (p.estado || '').toUpperCase() === 'ACTIVO';
   document.getElementById('promoEstadoSwitch').checked = esActivo;
   document.getElementById('promoEstadoLabel').textContent = esActivo ? 'ACTIVO' : 'INACTIVO';
+  // Poblar checkboxes tipo cliente
+  var tipoCliente = (p.aplicaTipoCliente || 'TODOS').toUpperCase();
+  ['tcTodos','tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) { document.getElementById(id).checked = false; });
+  if (tipoCliente === 'TODOS') {
+    document.getElementById('tcTodos').checked = true;
+  } else {
+    var tipos = (p.aplicaTipoCliente || '').split(',').map(function(t) { return t.trim(); });
+    tipos.forEach(function(t) {
+      if (t === 'Nuevo') document.getElementById('tcNuevo').checked = true;
+      else if (t === 'Ocasional') document.getElementById('tcOcasional').checked = true;
+      else if (t === 'Frecuente') document.getElementById('tcFrecuente').checked = true;
+      else if (t === 'VIP') document.getElementById('tcVIP').checked = true;
+    });
+  }
   document.getElementById('promoTipo').dispatchEvent(new Event('change'));
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
@@ -1818,12 +1874,24 @@ function guardarPromocion() {
   var fInput = document.getElementById('promoVence').value;
   if (fInput) { var pp = fInput.split('-'); fechaVence = pp[2] + '/' + pp[1] + '/' + pp[0]; }
 
+  // Recoger tipo de cliente
+  var tipoClienteArr = [];
+  if (document.getElementById('tcTodos').checked) {
+    tipoClienteArr = ['TODOS'];
+  } else {
+    ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) {
+      if (document.getElementById(id).checked) tipoClienteArr.push(document.getElementById(id).value);
+    });
+  }
+  if (tipoClienteArr.length === 0) tipoClienteArr = ['TODOS'];
+
   var data = {
     nombre: nombre, descripcion: document.getElementById('promoDescripcion').value.trim(),
     tipoPromo: document.getElementById('promoTipo').value,
     valorDescuento: parseInt(document.getElementById('promoValor').value) || 0,
     aplicaServicio: srvArr.join(','), aplicaDia: diasArr.join(','), vence: fechaVence,
-    estado: document.getElementById('promoEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO'
+    estado: document.getElementById('promoEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO',
+    aplicaTipoCliente: tipoClienteArr.join(',')
   };
   var btn = document.getElementById('btnGuardarPromo');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
