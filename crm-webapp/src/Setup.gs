@@ -30,12 +30,15 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["INTERVALO_SLOTS_MIN", "15", "Intervalo en minutos entre opciones de horario (15, 20 o 30)"]);
   sheetConfig.appendRow(["TIEMPO_ENTRE_CITAS_MIN", "15", "Minutos de preparacion/limpieza entre citas"]);
   sheetConfig.appendRow(["MINUTOS_VENCIMIENTO_CITA", "30", "Minutos despues de vencida una cita para cambiar estado a RECHAZADO automaticamente y liberar agenda del profesional"]);
+  sheetConfig.appendRow(["DATOS_PAGO", "", "Instrucciones de pago para anticipos (Nequi, Daviplata, cuenta bancaria, etc.)"]);
+  sheetConfig.appendRow(["MOMENTO_ANTICIPO", "DESPUES", "Momento del anticipo: ANTES (pagar para reservar) o DESPUES (reservar y luego pagar)"]);
+  sheetConfig.appendRow(["POLITICA_ANTICIPO", "", "Texto de politica de anticipo que el bot comunica al cliente antes de agendar"]);
   formatHeaders(sheetConfig);
 
   // 2. CLIENTES (CRM)
   let sheetClientes = getOrCreateSheet(ss, "CLIENTES");
   sheetClientes.clear();
-  sheetClientes.appendRow(["ID_CLIENTE", "CELULAR", "NOMBRE", "CORREO", "CUMPLE", "DIRECCION", "TIPO", "REGISTRO"]);
+  sheetClientes.appendRow(["ID_CLIENTE", "CELULAR", "NOMBRE", "CORREO", "CUMPLE", "DIRECCION", "TIPO", "REGISTRO", "EXENTO_ANTICIPO"]);
   formatHeaders(sheetClientes);
 
   // 3. SESIONES (Máquina de Estados)
@@ -62,7 +65,7 @@ function inicializarEntorno() {
   // 6. AGENDA
   let sheetAgenda = getOrCreateSheet(ss, "AGENDA");
   sheetAgenda.clear();
-  sheetAgenda.appendRow(["ID", "FECHA", "TIPO_DIA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS"]);
+  sheetAgenda.appendRow(["ID", "FECHA", "TIPO_DIA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS", "EXENTO_ANTICIPO", "MONTO_ANTICIPO", "MONTO_PAGADO", "SALDO_RESTANTE", "ESTADO_PAGO", "REF_COMPROBANTE", "FECHA_PAGO"]);
   formatHeaders(sheetAgenda);
 
   // 6.1 LISTA_ESTADOS (Tabla de referencia para validación de datos)
@@ -113,19 +116,25 @@ function inicializarEntorno() {
   });
 
 
-  // 10. CONFIG_SERVICIOS (Catálogo de servicios con nombre oficial)
+  // 10. CONFIG_SERVICIOS (Catálogo de servicios con anticipo per-service)
   let sheetServiciosCfg = ss.getSheetByName("CONFIG_SERVICIOS");
-  if (sheetServiciosCfg) {
+  if (!sheetServiciosCfg) {
+    sheetServiciosCfg = ss.insertSheet("CONFIG_SERVICIOS");
+    sheetServiciosCfg.appendRow(["ID_SERVICIO", "INTENCION", "RESPUESTA_BASE", "TIEMPO_SERVICIO", "CATEGORIA", "TIPO_SERVICIO", "ANTICIPO_HABILITADO", "TIPO_ANTICIPO", "VALOR_ANTICIPO"]);
+    formatHeaders(sheetServiciosCfg);
+    Logger.log('✅ CONFIG_SERVICIOS creada con headers de anticipo.');
+  } else {
+    // Asegurar que las columnas nuevas existan
     const headers = sheetServiciosCfg.getRange(1, 1, 1, sheetServiciosCfg.getLastColumn()).getValues()[0];
-    if (!headers.includes('TIPO_SERVICIO')) {
-      // Agregar columna TIPO_SERVICIO al final si no existe
-      const nextCol = sheetServiciosCfg.getLastColumn() + 1;
-      sheetServiciosCfg.getRange(1, nextCol).setValue('TIPO_SERVICIO');
-      sheetServiciosCfg.getRange(1, nextCol).setFontWeight('bold').setBackground('#f3f3f3');
-      Logger.log('✅ Columna TIPO_SERVICIO agregada a CONFIG_SERVICIOS.');
-    } else {
-      Logger.log('ℹ️ CONFIG_SERVICIOS ya tiene la columna TIPO_SERVICIO.');
-    }
+    var colsToAdd = ["TIPO_SERVICIO", "ANTICIPO_HABILITADO", "TIPO_ANTICIPO", "VALOR_ANTICIPO"];
+    colsToAdd.forEach(function(col) {
+      if (!headers.includes(col)) {
+        var nextCol = sheetServiciosCfg.getLastColumn() + 1;
+        sheetServiciosCfg.getRange(1, nextCol).setValue(col);
+        sheetServiciosCfg.getRange(1, nextCol).setFontWeight('bold').setBackground('#f3f3f3');
+        Logger.log('✅ Columna ' + col + ' agregada a CONFIG_SERVICIOS.');
+      }
+    });
   }
 
   Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");
