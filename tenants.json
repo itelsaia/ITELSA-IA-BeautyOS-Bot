@@ -11,6 +11,7 @@
     "sheetId": "1FYPscayUUApRptMbYfMPb0hEKzhxZ_gm7BDt_Ovks7A",
     "webhookGasUrl": "https://script.google.com/macros/s/AKfycbyOYj4lUTYTohz8pP2m5eU54oCRZ4CTmgVltqpfzmUlO61_Q2LdEUltXF20O3DweQV0/exec",
     "instanceName": "demo-beautyos",
+    "syncInterval": 60000,
     "enabled": true
   }
 }

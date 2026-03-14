@@ -28,3 +28,9 @@ evolution-api.env
 # Docker volumes (si se persisten localmente)
 postgres_data/
 redis_data/
+
+# Deploy (archivos de producción con datos sensibles)
+deploy/
+
+# Clasp backup
+*.backup

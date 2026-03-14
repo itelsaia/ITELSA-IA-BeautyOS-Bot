@@ -5,7 +5,7 @@ const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig,
 const api = require('./api');
 const { isValidLicense } = require('../utils/license');
 
-const SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+const DEFAULT_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 
 // Almacén en memoria de todos los tenants activos
 const tenantStore = {};
@@ -73,9 +73,11 @@ async function initTenant(tenantId, tenantDef) {
     };
 
     // Iniciar sincronización periódica con Google Sheets
+    const syncMs = tenantDef.syncInterval || DEFAULT_SYNC_INTERVAL_MS;
     tenant.syncInterval = setInterval(async () => {
         await syncTenantData(tenantId);
-    }, SYNC_INTERVAL_MS);
+    }, syncMs);
+    console.log(`[${tenantId}] 🔄 Sync cada ${syncMs / 1000}s`);
 
     tenantStore[tenantId] = tenant;
 
