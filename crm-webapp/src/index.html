@@ -356,13 +356,17 @@
                 <option value="PORCENTAJE">% Porcentaje</option>
                 <option value="2X1">2x1</option>
                 <option value="VALOR_FIJO">$ Valor Fijo</option>
-                <option value="CUMPLEANOS">Cumpleanos</option>
+                <option disabled>───────────────</option>
+                <option value="CUMPLEANOS">&#127874; Cumpleanos (Especial)</option>
               </select>
             </div>
             <div class="col-md-3">
               <label class="form-label fw-semibold">Valor *</label>
               <input type="number" class="form-control" id="promoValor" placeholder="50" min="0" required>
               <small class="text-muted" id="promoValorHint">% de descuento</small>
+            </div>
+            <div class="col-12" id="promoTipCumple">
+              <small class="text-muted"><i class="fas fa-lightbulb me-1" style="color:#ffc107;"></i><strong>Tip:</strong> Selecciona el tipo <strong>"&#127874; Cumpleanos"</strong> para crear una promocion especial que el bot enviara automaticamente a tus clientes en su cumpleanos.</small>
             </div>
             <div class="col-12">
               <label class="form-label fw-semibold">Descripcion</label>
@@ -388,7 +392,7 @@
               </div>
               <small class="text-muted">Sin marcar = todos los dias</small>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-6" id="promoVenceGroup">
               <label class="form-label fw-semibold">Valida Hasta</label>
               <input type="date" class="form-control" id="promoVence">
             </div>
@@ -412,7 +416,7 @@
             </div>
             <div class="col-12" id="promoCumpleHint" style="display:none;">
               <div class="alert alert-info mb-0">
-                <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> El bot enviara automaticamente un mensaje con el descuento el dia antes y el mismo dia del cumpleanos. La DESCRIPCION se usa como plantilla (usa <code>{nombre}</code> para el nombre, <code>{negocio}</code> para tu negocio, <code>{descuento}</code> para el %). Se recomienda dirigir a clientes Frecuente y VIP.
+                <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> Esta promocion es <strong>permanente</strong> (no vence). El bot enviara automaticamente un mensaje con el descuento el dia antes y el mismo dia del cumpleanos. La DESCRIPCION se usa como plantilla del mensaje (usa <code>{nombre}</code> para el nombre del cliente, <code>{negocio}</code> para tu negocio, <code>{descuento}</code> para el %). Activa o desactiva cuando quieras.
               </div>
             </div>
           </div>
@@ -525,10 +529,14 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (tipo === 'CUMPLEANOS') h.textContent = '% de descuento por cumpleanos';
     else h.textContent = '$ COP de descuento';
 
-    // Ocultar dias para CUMPLEANOS (no aplica por dia de semana)
+    // Ocultar dias y fecha vencimiento para CUMPLEANOS (es permanente)
     if (diasGroup) diasGroup.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
-    // Mostrar hint de cumpleanos
+    var venceGroup = document.getElementById('promoVenceGroup');
+    if (venceGroup) venceGroup.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
+    // Mostrar hint de cumpleanos y ocultar tip
     if (cumpleHint) cumpleHint.style.display = tipo === 'CUMPLEANOS' ? '' : 'none';
+    var tipCumple = document.getElementById('promoTipCumple');
+    if (tipCumple) tipCumple.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
 
     // Pre-seleccionar Frecuente+VIP para CUMPLEANOS
     if (tipo === 'CUMPLEANOS') {
@@ -1815,11 +1823,15 @@ function abrirModalPromoCrear() {
   // Reset tipo cliente a TODOS
   document.getElementById('tcTodos').checked = true;
   ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) { document.getElementById(id).checked = false; });
-  // Reset cumple hint y dias visibles
+  // Reset cumple hint, dias, vence y tip visibles
   var cumpleHint = document.getElementById('promoCumpleHint');
   if (cumpleHint) cumpleHint.style.display = 'none';
+  var tipCumple = document.getElementById('promoTipCumple');
+  if (tipCumple) tipCumple.style.display = '';
   var diasGroup = document.getElementById('promoDiasCheck').closest('.col-md-6');
   if (diasGroup) diasGroup.style.display = '';
+  var venceGroup = document.getElementById('promoVenceGroup');
+  if (venceGroup) venceGroup.style.display = '';
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
 
