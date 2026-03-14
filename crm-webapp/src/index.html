@@ -1002,7 +1002,7 @@ function renderClientes() {
   html += '<span class="text-muted" style="font-size:.85rem;">' + clientes.length + ' cliente(s)</span></div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
-  html += '<thead><tr><th>ID</th><th>Nombre</th><th>Celular</th><th>Correo</th><th class="d-none d-md-table-cell">Cumple</th><th class="d-none d-md-table-cell">Direccion</th><th>Tipo</th><th class="d-none d-md-table-cell">Registro</th></tr></thead>';
+  html += '<thead><tr><th>ID</th><th>Nombre</th><th>Celular</th><th>Correo</th><th class="d-none d-md-table-cell">Cumple</th><th class="d-none d-md-table-cell">Direccion</th><th>Tipo</th><th>Anticipo</th><th class="d-none d-md-table-cell">Registro</th></tr></thead>';
   html += '<tbody id="tbodyClientes">';
   html += renderClienteRows(clientes);
   html += '</tbody></table></div></div>';
@@ -1010,16 +1010,33 @@ function renderClientes() {
 }
 
 function renderClienteRows(data) {
-  if (data.length === 0) return '<tr><td colspan="8" class="text-center text-muted py-4"><i class="fas fa-users fa-2x d-block mb-2"></i>No hay clientes.</td></tr>';
+  if (data.length === 0) return '<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-users fa-2x d-block mb-2"></i>No hay clientes.</td></tr>';
   return data.map(function(c) {
+    var esExento = (c.exentoAnticipo || '').toUpperCase() === 'SI';
+    var toggleId = 'exento-' + esc(c.celular);
+    var toggleHtml = '<div class="form-check form-switch">' +
+      '<input class="form-check-input" type="checkbox" id="' + toggleId + '" ' + (esExento ? 'checked' : '') +
+      ' onchange="toggleExentoAnticipo(\'' + esc(c.celular) + '\', this.checked)">' +
+      '<label class="form-check-label small" for="' + toggleId + '">' + (esExento ? 'Exento' : 'Cobra') + '</label></div>';
     return '<tr><td><small class="text-muted">' + esc(c.id) + '</small></td>' +
       '<td><strong>' + esc(c.nombre) + '</strong></td>' +
       '<td>' + esc(c.celular) + '</td><td>' + esc(c.correo) + '</td>' +
       '<td class="d-none d-md-table-cell">' + esc(c.cumple) + '</td>' +
       '<td class="d-none d-md-table-cell">' + esc(c.direccion) + '</td>' +
       '<td>' + badgeTipoCliente(c.tipo) + '</td>' +
+      '<td>' + toggleHtml + '</td>' +
       '<td class="d-none d-md-table-cell"><small>' + esc(c.registro) + '</small></td></tr>';
   }).join('');
+}
+
+function toggleExentoAnticipo(celular, checked) {
+  var nuevoEstado = checked ? 'SI' : 'NO';
+  var label = document.querySelector('label[for="exento-' + celular + '"]');
+  if (label) label.textContent = checked ? 'Exento' : 'Cobra';
+  google.script.run
+    .withSuccessHandler(function() { toast('Cliente ' + (checked ? 'exento' : 'cobra anticipo'), 'success'); })
+    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); })
+    .toggleClienteExento(celular, nuevoEstado);
 }
 
 // =============================================
