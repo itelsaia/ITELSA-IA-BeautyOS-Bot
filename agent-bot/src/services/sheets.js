@@ -47,7 +47,12 @@ async function loadClientConfig(sheetId) {
             systemPrompt: `Eres ${configRaw['NOMBRE_AGENTE'] || 'un asistente virtual amable y conciso'}, y trabajas para el negocio de estética y belleza llamado ${configRaw['NOMBRE_NEGOCIO'] || 'la tienda'}.`,
             slotInterval: parseInt(configRaw['INTERVALO_SLOTS_MIN']) || 15,
             bufferTime: parseInt(configRaw['TIEMPO_ENTRE_CITAS_MIN']) || 15,
-            expirationMinutes: parseInt(configRaw['MINUTOS_VENCIMIENTO_CITA']) || 30
+            expirationMinutes: parseInt(configRaw['MINUTOS_VENCIMIENTO_CITA']) || 30,
+            // Config global de Anticipo (datos bancarios, momento, politica)
+            // NOTA: ANTICIPO_HABILITADO, TIPO_ANTICIPO, VALOR_ANTICIPO ahora son per-service en CONFIG_SERVICIOS
+            paymentInstructions: configRaw['DATOS_PAGO'] || '',
+            paymentMoment: (configRaw['MOMENTO_ANTICIPO'] || 'DESPUES').toUpperCase(),
+            paymentPolicy: configRaw['POLITICA_ANTICIPO'] || ''
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -103,7 +108,11 @@ async function loadServicesConfig(sheetId) {
                 response: textResponse,
                 timeMins: cleanData['TIEMPO_SERVICIO'] || '0',
                 price: parsedPrice, // Precio explícito extraído
-                category: cleanData['CATEGORIA'] || 'General'
+                category: cleanData['CATEGORIA'] || 'General',
+                // Per-service anticipo config (columnas G, H, I de CONFIG_SERVICIOS)
+                anticipoEnabled: (cleanData['ANTICIPO_HABILITADO'] || '').toUpperCase() === 'SI',
+                anticipoType: (cleanData['TIPO_ANTICIPO'] || 'FIJO').toUpperCase(),
+                anticipoValue: parseInt(String(cleanData['VALOR_ANTICIPO'] || '0').replace(/[.,]/g, ''), 10) || 0
             };
         }).filter(item => item.id !== 'SIN_ID' || item.intent !== ''); // Filtrar filas vacías
 
@@ -177,7 +186,8 @@ async function loadRegisteredClients(sheetId) {
                 clientsDict[celular] = {
                     nombre: data['NOMBRE'] || '',
                     correo: data['CORREO'] || '',
-                    id: data['ID_CLIENTE'] || ''
+                    id: data['ID_CLIENTE'] || '',
+                    exemptFromPayment: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI'
                 };
             }
         });
@@ -238,7 +248,15 @@ async function loadPendingAppointments(sheetId) {
                         servicio: data['SERVICIO'] || 'N/A',
                         precio: data['PRECIO'] || 'N/A',
                         estado: estado,
-                        profesional: data['PROFESIONAL'] || 'Por asignar'
+                        profesional: data['PROFESIONAL'] || 'Por asignar',
+                        // Columnas de anticipo/pago
+                        exentoAnticipo: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI',
+                        montoAnticipo: parseInt(data['MONTO_ANTICIPO']) || 0,
+                        montoPagado: parseInt(data['MONTO_PAGADO']) || 0,
+                        saldoRestante: parseInt(data['SALDO_RESTANTE']) || 0,
+                        estadoPago: data['ESTADO_PAGO'] || '',
+                        refComprobante: data['REF_COMPROBANTE'] || '',
+                        fechaPago: data['FECHA_PAGO'] || ''
                     });
                 }
             }

@@ -57,6 +57,9 @@ async function initTenant(tenantId, tenantDef) {
             loadColaboradores(sheetId)
         ]);
 
+    // Computed flag: al menos un servicio tiene anticipo habilitado
+    config.hasAnyAnticipo = servicesCatalog.some(s => s.anticipoEnabled);
+
     const tenant = {
         ...tenantDef,
         config,
@@ -120,6 +123,8 @@ async function syncTenantData(tenantId) {
 
         tenant.config = config || tenant.config;
         tenant.servicesCatalog = servicesCatalog;
+        // Recomputar flag de anticipo tras sync
+        tenant.config.hasAnyAnticipo = servicesCatalog.some(s => s.anticipoEnabled);
         tenant.knowledgeCatalog = knowledgeCatalog;
         tenant.registeredClients = registeredClients;
         tenant.pendingAppointments = pendingAppointments;

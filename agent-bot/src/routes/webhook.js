@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { getTenant } = require('../services/tenants');
-const { generateAIResponse } = require('../services/openai');
+const { generateAIResponse, analyzePaymentReceipt } = require('../services/openai');
 const { handleOnboarding } = require('../services/session');
 const { loadPendingAppointments } = require('../services/sheets');
 const { transcribeAudio } = require('../services/whisper');
@@ -10,6 +10,33 @@ const api = require('../services/api'); // singleton — override webhookUrl por
 
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
 let evolutionClient = null;
+
+/**
+ * Calcula el anticipo total sumando los anticipos individuales de cada servicio.
+ * @param {string} serviciosStr Nombres de servicios separados por coma
+ * @param {Array} servicesCatalog Catálogo de servicios del tenant
+ * @returns {{ anticipoEnabled: boolean, montoAnticipo: number }}
+ */
+function resolveAnticipoForServices(serviciosStr, servicesCatalog) {
+    const serviceNames = serviciosStr.split(',').map(s => s.trim()).filter(Boolean);
+    let totalAnticipo = 0;
+    let anyEnabled = false;
+
+    serviceNames.forEach(serviceName => {
+        const serviceInfo = servicesCatalog.find(s =>
+            s.name.toLowerCase().trim() === serviceName.toLowerCase().trim()
+        );
+        if (serviceInfo && serviceInfo.anticipoEnabled) {
+            anyEnabled = true;
+            const monto = serviceInfo.anticipoType === 'PORCENTAJE'
+                ? Math.round(serviceInfo.price * serviceInfo.anticipoValue / 100)
+                : serviceInfo.anticipoValue;
+            totalAnticipo += monto;
+        }
+    });
+
+    return { anticipoEnabled: anyEnabled, montoAnticipo: totalAnticipo };
+}
 
 function setEvolutionClient(client) {
     evolutionClient = client;
@@ -91,7 +118,11 @@ router.post('/evolution', async (req, res) => {
             }
         }
 
-        if (!messageText) return; // Ignorar mensajes sin texto ni audio (imágenes, stickers, etc.)
+        // ── Detectar si el mensaje es una imagen (posible comprobante de pago) ──
+        const isImage = !!(data.message?.imageMessage);
+        const imageCaption = data.message?.imageMessage?.caption || '';
+
+        if (!messageText && !isImage) return; // Ignorar mensajes sin texto, audio ni imagen (stickers, etc.)
 
         // ── Resolver tenant por nombre de instancia ──
         const tenant = getTenant(instance);
@@ -210,6 +241,192 @@ router.post('/evolution', async (req, res) => {
             session.history.push({ role: 'assistant', content: saludoPersonalizado });
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
             return;
+        }
+
+        // ── PROCESAMIENTO DE COMPROBANTES DE PAGO (imagen) ──
+        if (isImage && tenant.config.hasAnyAnticipo) {
+            // Verificar si el usuario tiene un pago pendiente
+            const pendingPaymentAfter = session.pendingPaymentAfterBooking;   // DESPUES de agendar
+            const pendingPaymentBefore = session.pendingPaymentBeforeBooking; // ANTES de agendar
+
+            if (pendingPaymentAfter || pendingPaymentBefore) {
+                const paymentInfo = pendingPaymentAfter || pendingPaymentBefore;
+                console.log(`[${instanceName}] 📸 Comprobante recibido de ${phoneNumber}. Analizando con Vision...`);
+
+                try {
+                    const imageBuffer = await evolutionClient.getMediaBase64(instanceName, data.key);
+                    if (!imageBuffer) {
+                        await evolutionClient.sendText(instanceName, phoneNumber, '📸 No pude procesar tu imagen. ¿Podrías enviarla de nuevo? 🙏');
+                        return;
+                    }
+
+                    const analysis = await analyzePaymentReceipt(
+                        imageBuffer,
+                        tenant.config.businessName,
+                        tenant.config.openApiKey
+                    );
+
+                    console.log(`[${instanceName}] 🔍 Resultado Vision:`, JSON.stringify(analysis));
+
+                    // Caso 1: Comprobante no válido (fraude/editado)
+                    if (!analysis.esValido) {
+                        const rejectMsg = `⚠️ Lo sentimos, no pudimos validar este comprobante.\n\n` +
+                            `${analysis.motivoRechazo ? 'Motivo: ' + analysis.motivoRechazo + '\n\n' : ''}` +
+                            `Por favor envía un comprobante válido de tu transferencia o contacta directamente al negocio. 📞`;
+                        session.history.push({ role: 'user', content: '[Envió imagen de comprobante]' });
+                        session.history.push({ role: 'assistant', content: rejectMsg });
+                        await evolutionClient.sendText(instanceName, phoneNumber, rejectMsg);
+
+                        // Notificar a dueña
+                        const ownerPhone = tenant.config.ownerPhone;
+                        if (ownerPhone) {
+                            const notifMsg = `⚠️ *Comprobante Sospechoso*\n\n` +
+                                `👤 Cliente: *${userData.nombre || 'Cliente'}*\n` +
+                                `📱 Celular: ${phoneNumber}\n` +
+                                `❌ Motivo: ${analysis.motivoRechazo || 'No se pudo validar'}\n` +
+                                `💰 Anticipo esperado: $${Number(paymentInfo.montoAnticipo).toLocaleString('es-CO')}\n\n` +
+                                `_Revisa manualmente este caso._`;
+                            try { await evolutionClient.sendText(instanceName, ownerPhone, notifMsg); } catch (e) {}
+                        }
+                        return;
+                    }
+
+                    // Caso 2: Fecha no reciente
+                    if (!analysis.fechaReciente) {
+                        const dateMsg = `⚠️ El comprobante parece ser de otra fecha (${analysis.fecha || 'no detectada'}).\n\n` +
+                            `Por favor envía un comprobante *reciente* de tu transferencia de $${Number(paymentInfo.montoAnticipo).toLocaleString('es-CO')}. 📸`;
+                        session.history.push({ role: 'user', content: '[Envió imagen de comprobante]' });
+                        session.history.push({ role: 'assistant', content: dateMsg });
+                        await evolutionClient.sendText(instanceName, phoneNumber, dateMsg);
+                        return;
+                    }
+
+                    // Caso 3: Todo válido — confirmar pago (acepta cualquier monto)
+                    const refStr = `${analysis.fecha || ''} Ref:${analysis.referencia || 'N/A'}`;
+                    const saldoRestante = paymentInfo.precioTotal - analysis.monto;
+
+                    if (pendingPaymentAfter) {
+                        // Flujo DESPUES: La cita ya existe → confirmar pago
+                        api.webhookUrl = tenant.webhookGasUrl;
+                        await api.confirmarPago(paymentInfo.agendaId, {
+                            montoPagado: analysis.monto,
+                            referencia: refStr,
+                            fechaPago: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+                        });
+
+                        const successMsg = `✅ *¡Pago confirmado!* 💖\n\n` +
+                            `💰 Anticipo recibido: *$${Number(analysis.monto).toLocaleString('es-CO')}*\n` +
+                            `📋 Referencia: ${analysis.referencia || 'N/A'}\n` +
+                            `🆔 Cita: ${paymentInfo.agendaId}\n\n` +
+                            `Tu cita está 100% reservada. ✨\n` +
+                            `💵 Saldo restante al momento del servicio: *$${Number(saldoRestante).toLocaleString('es-CO')}*\n\n` +
+                            `¡Te esperamos! 🌸`;
+
+                        session.pendingPaymentAfterBooking = null;
+                        session.history.push({ role: 'user', content: '[Envió comprobante de pago]' });
+                        session.history.push({ role: 'assistant', content: successMsg });
+                        await evolutionClient.sendText(instanceName, phoneNumber, successMsg);
+
+                        // Notificar a dueña
+                        const ownerPhone = tenant.config.ownerPhone;
+                        if (ownerPhone) {
+                            const notifMsg = `✅ *Pago Confirmado*\n\n` +
+                                `👤 Cliente: *${userData.nombre || 'Cliente'}*\n` +
+                                `📱 Celular: ${phoneNumber}\n` +
+                                `🆔 Cita: ${paymentInfo.agendaId}\n` +
+                                `💰 Monto: $${Number(analysis.monto).toLocaleString('es-CO')}\n` +
+                                `📋 Ref: ${analysis.referencia || 'N/A'}\n` +
+                                `💵 Saldo restante: $${Number(saldoRestante).toLocaleString('es-CO')}\n\n` +
+                                `_Pago verificado automáticamente por ${tenant.config.agentName || 'BeautyOS'}_`;
+                            try { await evolutionClient.sendText(instanceName, ownerPhone, notifMsg); } catch (e) {}
+                        }
+
+                        tenant.pendingAppointments = await loadPendingAppointments(tenant.sheetId);
+                    } else if (pendingPaymentBefore) {
+                        // Flujo ANTES: Pago primero, luego agendar
+                        api.webhookUrl = tenant.webhookGasUrl;
+                        const agendaId = await api.createAgenda({
+                            fecha: paymentInfo.fecha,
+                            inicio: paymentInfo.hora_inicio,
+                            fin: paymentInfo.hora_fin,
+                            cliente: userData.nombre || 'Cliente',
+                            celularCliente: phoneNumber,
+                            servicio: paymentInfo.servicios,
+                            precio: paymentInfo.precioTotal,
+                            profesional: paymentInfo.profesional || 'Por asignar',
+                            notas: '',
+                            // Datos de anticipo para incluir en la cita
+                            exentoAnticipo: 'NO',
+                            montoAnticipo: paymentInfo.montoAnticipo,
+                            montoPagado: analysis.monto,
+                            saldoRestante: saldoRestante,
+                            estadoPago: 'PAGO_CONFIRMADO',
+                            refComprobante: refStr,
+                            fechaPago: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+                        });
+
+                        let successMsg;
+                        if (agendaId) {
+                            successMsg = `✅ *¡Pago recibido y cita confirmada!* 💖\n\n` +
+                                `📋 *Resumen de tu cita:*\n` +
+                                `· *Servicio:* ${paymentInfo.servicios} ✂️\n` +
+                                `· *Fecha:* ${paymentInfo.fecha}\n` +
+                                `· *Hora:* ${paymentInfo.hora_inicio} a ${paymentInfo.hora_fin}\n` +
+                                `· *Profesional:* ${paymentInfo.profesional}\n` +
+                                `· *Precio total:* $${Number(paymentInfo.precioTotal).toLocaleString('es-CO')}\n` +
+                                `· *Anticipo pagado:* $${Number(analysis.monto).toLocaleString('es-CO')}\n` +
+                                `· *Saldo restante:* $${Number(saldoRestante).toLocaleString('es-CO')}\n` +
+                                `· *ID Cita:* ${agendaId}\n\n` +
+                                `¡Te esperamos! 🌸✨`;
+                        } else {
+                            successMsg = `✅ Pago recibido de $${Number(analysis.monto).toLocaleString('es-CO')}.\n\n` +
+                                `❌ Sin embargo, hubo un problema al guardar tu cita. Por favor escríbenos para resolverlo. 🙏`;
+                        }
+
+                        session.pendingPaymentBeforeBooking = null;
+                        session.history.push({ role: 'user', content: '[Envió comprobante de pago]' });
+                        session.history.push({ role: 'assistant', content: successMsg });
+                        await evolutionClient.sendText(instanceName, phoneNumber, successMsg);
+
+                        // Notificar a dueña
+                        const ownerPhone = tenant.config.ownerPhone;
+                        if (ownerPhone && agendaId) {
+                            const notifMsg = `📋 *Nueva Cita + Pago Confirmado*\n\n` +
+                                `👤 Cliente: *${userData.nombre || 'Cliente'}*\n` +
+                                `📱 Celular: ${phoneNumber}\n` +
+                                `🆔 Cita: ${agendaId}\n` +
+                                `📅 ${paymentInfo.fecha} de ${paymentInfo.hora_inicio} a ${paymentInfo.hora_fin}\n` +
+                                `✂️ Servicio: ${paymentInfo.servicios}\n` +
+                                `💰 Anticipo: $${Number(analysis.monto).toLocaleString('es-CO')} | Saldo: $${Number(saldoRestante).toLocaleString('es-CO')}\n` +
+                                `📋 Ref: ${analysis.referencia || 'N/A'}\n\n` +
+                                `_${tenant.config.agentName || 'BeautyOS'}_`;
+                            try { await evolutionClient.sendText(instanceName, ownerPhone, notifMsg); } catch (e) {}
+                        }
+
+                        tenant.pendingAppointments = await loadPendingAppointments(tenant.sheetId);
+                    }
+                    return;
+                } catch (visionErr) {
+                    console.error(`[${instanceName}] Error procesando comprobante:`, visionErr.message);
+                    await evolutionClient.sendText(instanceName, phoneNumber, '📸 Hubo un problema al procesar tu comprobante. ¿Podrías enviarlo de nuevo? 🙏');
+                    return;
+                }
+            } else if (isImage && !messageText) {
+                // Imagen recibida pero no tiene pago pendiente — si tiene caption, usar como texto
+                if (imageCaption) {
+                    messageText = imageCaption;
+                } else {
+                    // Imagen sin contexto de pago — ignorar amablemente
+                    return;
+                }
+            }
+        } else if (isImage && !messageText) {
+            // Anticipo no habilitado — si tiene caption, usar como texto
+            if (imageCaption) {
+                messageText = imageCaption;
+            } else {
+                return;
+            }
         }
 
         // ── Detectar intenciones: REAGENDAMIENTO, CANCELACIÓN, NUEVA CITA ──
@@ -588,6 +805,50 @@ router.post('/evolution', async (req, res) => {
                 session.isReagendando = false;
                 session.isCancelando = false;
 
+                // ── Lógica de Anticipo (per-service) ──
+                const clientData = session.datos || {};
+                const isExempt = clientData.exemptFromPayment === true;
+                const { anticipoEnabled, montoAnticipo } = resolveAnticipoForServices(
+                    citaData.servicios, tenant.servicesCatalog
+                );
+
+                // ── Flujo ANTES: Pedir pago antes de agendar ──
+                if (anticipoEnabled && !isExempt && tenant.config.paymentMoment === 'ANTES' && montoAnticipo > 0) {
+                    const saldoRestante = citaData.precio_total - montoAnticipo;
+                    session.pendingPaymentBeforeBooking = {
+                        ...citaData,
+                        precioTotal: citaData.precio_total,
+                        montoAnticipo: montoAnticipo
+                    };
+
+                    const payMsg = `📋 *Resumen de tu cita:*\n` +
+                        `· *Servicio:* ${citaData.servicios} ✂️\n` +
+                        `· *Fecha:* ${citaData.fecha}\n` +
+                        `· *Hora:* ${citaData.hora_inicio} a ${citaData.hora_fin}\n` +
+                        `· *Profesional:* ${citaData.profesional}\n` +
+                        `· *Precio total:* $${Number(citaData.precio_total).toLocaleString('es-CO')}\n\n` +
+                        `💰 Para reservar tu cita, transfiere *$${Number(montoAnticipo).toLocaleString('es-CO')}* de anticipo.\n` +
+                        `${tenant.config.paymentPolicy ? '📋 ' + tenant.config.paymentPolicy + '\n\n' : '\n'}` +
+                        `📲 *Datos de pago:*\n${tenant.config.paymentInstructions}\n\n` +
+                        `💵 Saldo restante al servicio: $${Number(saldoRestante).toLocaleString('es-CO')}\n\n` +
+                        `Envía tu comprobante por aquí 📸`;
+
+                    session.history.push({ role: 'user', content: messageText });
+                    session.history.push({ role: 'assistant', content: payMsg });
+                    await evolutionClient.sendText(instanceName, phoneNumber, payMsg);
+                    return;
+                }
+
+                // ── Flujo normal (sin anticipo o cliente exento) ──
+                const extraPaymentData = {};
+                if (anticipoEnabled) {
+                    extraPaymentData.exentoAnticipo = isExempt ? 'SI' : 'NO';
+                    extraPaymentData.montoAnticipo = montoAnticipo;
+                    extraPaymentData.montoPagado = 0;
+                    extraPaymentData.saldoRestante = isExempt ? 0 : citaData.precio_total;
+                    extraPaymentData.estadoPago = isExempt ? 'EXENTO' : (montoAnticipo > 0 ? 'PENDIENTE_PAGO' : 'EXENTO');
+                }
+
                 const agendaId = await api.createAgenda({
                     fecha: citaData.fecha,
                     inicio: citaData.hora_inicio,
@@ -597,20 +858,46 @@ router.post('/evolution', async (req, res) => {
                     servicio: citaData.servicios,
                     precio: citaData.precio_total,
                     profesional: citaData.profesional || 'Por asignar',
-                    notas: ''
+                    notas: '',
+                    ...extraPaymentData
                 });
 
                 let replyMsg;
                 if (agendaId) {
-                    replyMsg = `✅ *¡Tu cita ha sido agendada exitosamente!* 💖\n\n` +
-                        `📋 *Resumen de tu cita:*\n` +
-                        `· *Servicio:* ${citaData.servicios} ✂️\n` +
-                        `· *Fecha:* ${citaData.fecha}\n` +
-                        `· *Hora:* ${citaData.hora_inicio} a ${citaData.hora_fin}\n` +
-                        `· *Profesional:* ${citaData.profesional}\n` +
-                        `· *Precio:* $${Number(citaData.precio_total).toLocaleString('es-CO')}\n` +
-                        `· *ID Cita:* ${agendaId}\n\n` +
-                        `¡Te esperamos! 🌸✨`;
+                    // ── Flujo DESPUES: Agendar y luego pedir pago ──
+                    if (anticipoEnabled && !isExempt && tenant.config.paymentMoment === 'DESPUES' && montoAnticipo > 0) {
+                        const saldoRestante = citaData.precio_total - montoAnticipo;
+                        session.pendingPaymentAfterBooking = {
+                            agendaId: agendaId,
+                            precioTotal: citaData.precio_total,
+                            montoAnticipo: montoAnticipo,
+                            servicios: citaData.servicios
+                        };
+
+                        replyMsg = `✅ *¡Tu cita ha sido reservada!* 💖\n\n` +
+                            `📋 *Resumen de tu cita:*\n` +
+                            `· *Servicio:* ${citaData.servicios} ✂️\n` +
+                            `· *Fecha:* ${citaData.fecha}\n` +
+                            `· *Hora:* ${citaData.hora_inicio} a ${citaData.hora_fin}\n` +
+                            `· *Profesional:* ${citaData.profesional}\n` +
+                            `· *Precio total:* $${Number(citaData.precio_total).toLocaleString('es-CO')}\n` +
+                            `· *ID Cita:* ${agendaId}\n\n` +
+                            `💰 Para confirmar tu asistencia, transfiere *$${Number(montoAnticipo).toLocaleString('es-CO')}* de anticipo.\n` +
+                            `${tenant.config.paymentPolicy ? '📋 ' + tenant.config.paymentPolicy + '\n\n' : '\n'}` +
+                            `📲 *Datos de pago:*\n${tenant.config.paymentInstructions}\n\n` +
+                            `💵 Saldo restante al servicio: $${Number(saldoRestante).toLocaleString('es-CO')}\n\n` +
+                            `Envía tu comprobante por aquí 📸`;
+                    } else {
+                        replyMsg = `✅ *¡Tu cita ha sido agendada exitosamente!* 💖\n\n` +
+                            `📋 *Resumen de tu cita:*\n` +
+                            `· *Servicio:* ${citaData.servicios} ✂️\n` +
+                            `· *Fecha:* ${citaData.fecha}\n` +
+                            `· *Hora:* ${citaData.hora_inicio} a ${citaData.hora_fin}\n` +
+                            `· *Profesional:* ${citaData.profesional}\n` +
+                            `· *Precio:* $${Number(citaData.precio_total).toLocaleString('es-CO')}\n` +
+                            `· *ID Cita:* ${agendaId}\n\n` +
+                            `¡Te esperamos! 🌸✨`;
+                    }
                     console.log(`✅ [${instanceName}] Cita guardada: ${agendaId}`);
                 } else {
                     replyMsg = `❌ Hubo un problema al guardar tu cita. Por favor intenta de nuevo o escríbenos para ayudarte. 🙏`;
@@ -634,6 +921,7 @@ router.post('/evolution', async (req, res) => {
                             `👩‍💼 Profesional: ${citaData.profesional}\n` +
                             `💰 Precio: $${Number(citaData.precio_total).toLocaleString('es-CO')}\n` +
                             `🆔 ID: ${agendaId}\n` +
+                            (montoAnticipo > 0 && !isExempt ? `💳 Anticipo: $${Number(montoAnticipo).toLocaleString('es-CO')} (${tenant.config.paymentMoment === 'DESPUES' ? 'pendiente' : 'por cobrar'})\n` : '') +
                             `🕐 Registrada: ${ahora}\n\n` +
                             `_Notificación automática de ${tenant.config.agentName || 'BeautyOS'}_`;
                         try {

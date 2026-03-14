@@ -140,6 +140,49 @@ class ApiService {
         }
     }
     /**
+     * Confirma el pago de anticipo de una cita, actualizando las columnas de pago en AGENDA.
+     * @param {string} agendaId ID de la cita (ej. AG-CS-001)
+     * @param {Object} paymentData { montoPagado, referencia, fechaPago }
+     * @returns {boolean} true si se actualizó correctamente
+     */
+    async confirmarPago(agendaId, paymentData) {
+        if (!this.webhookUrl) {
+            console.error("❌ webhookUrl no definido para confirmarPago");
+            return false;
+        }
+
+        try {
+            const response = await axios.post(this.webhookUrl, {
+                action: 'confirmarPago',
+                payload: {
+                    id: agendaId,
+                    montoPagado: paymentData.montoPagado || 0,
+                    referencia: paymentData.referencia || '',
+                    fechaPago: paymentData.fechaPago || new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
+                }
+            }, { timeout: 15000 });
+
+            const data = response.data;
+
+            if (typeof data === 'string') {
+                console.error(`⚠️ GAS retornó texto en vez de JSON para confirmarPago ${agendaId}:`, data.substring(0, 200));
+                return false;
+            }
+
+            if (data && data.code === 200) {
+                console.log(`✅ Pago confirmado para cita ${agendaId}. Monto: $${paymentData.montoPagado}`);
+                return true;
+            } else {
+                console.error(`⚠️ Error lógico en GAS (confirmarPago ${agendaId}):`, data?.message || JSON.stringify(data).substring(0, 200));
+                return false;
+            }
+        } catch (error) {
+            console.error(`❌ Error HTTP confirmarPago (${agendaId}):`, error.message);
+            return false;
+        }
+    }
+
+    /**
      * Cancela una cita existente cambiando su estado a CANCELADA
      * @param {string} agendaId ID de la cita (ej. AG-CS-001)
      */

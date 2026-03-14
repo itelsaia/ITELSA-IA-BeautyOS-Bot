@@ -299,6 +299,26 @@
               <textarea class="form-control" id="srvRespuesta" rows="3" placeholder="Ej: El manicure tradicional cuesta $15.000" required></textarea>
               <small class="text-muted">Incluye el precio para que el bot lo muestre al cliente</small>
             </div>
+            <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">Configuracion de Anticipo</small></div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Anticipo</label>
+              <select class="form-select" id="srvAnticipoHabilitado">
+                <option value="NO">No requiere</option>
+                <option value="SI">Si, requiere anticipo</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Tipo</label>
+              <select class="form-select" id="srvTipoAnticipo">
+                <option value="FIJO">Valor fijo ($)</option>
+                <option value="PORCENTAJE">Porcentaje (%)</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Valor Anticipo</label>
+              <input type="number" class="form-control" id="srvValorAnticipo" placeholder="Ej: 15000" min="0">
+              <small class="text-muted">Monto ($) o porcentaje (%) segun tipo</small>
+            </div>
           </div>
         </form>
       </div>
@@ -1112,6 +1132,10 @@ function renderServicios() {
       html += '</div></div>';
       html += '<p class="mb-1" style="font-size:.85rem;color:#555;">' + esc(s.respuestaBase) + '</p>';
       html += '<small class="text-muted"><i class="fas fa-robot me-1"></i>Intencion: <code>' + esc(s.intencion) + '</code></small>';
+      if (s.anticipoHabilitado === 'SI') {
+        var anticipoLabel = s.tipoAnticipo === 'PORCENTAJE' ? s.valorAnticipo + '%' : formatMoney(s.valorAnticipo);
+        html += '<br><span class="badge bg-warning text-dark"><i class="fas fa-hand-holding-usd me-1"></i>Anticipo: ' + anticipoLabel + '</span>';
+      }
       html += '<br><small class="text-muted">ID: ' + esc(s.idServicio) + '</small>';
       html += '</div></div>';
     });
@@ -1648,6 +1672,9 @@ function abrirModalServicioEditar(rowIndex) {
   document.getElementById('srvTiempo').value = srv.tiempoServicio;
   document.getElementById('srvIntencion').value = srv.intencion;
   document.getElementById('srvRespuesta').value = srv.respuestaBase;
+  document.getElementById('srvAnticipoHabilitado').value = srv.anticipoHabilitado || 'NO';
+  document.getElementById('srvTipoAnticipo').value = srv.tipoAnticipo || 'FIJO';
+  document.getElementById('srvValorAnticipo').value = srv.valorAnticipo || 0;
   new bootstrap.Modal(document.getElementById('modalServicio')).show();
 }
 
@@ -1660,7 +1687,10 @@ function guardarServicio() {
     categoria: document.getElementById('srvCategoria').value.trim(),
     tiempoServicio: parseInt(document.getElementById('srvTiempo').value) || 0,
     intencion: document.getElementById('srvIntencion').value.trim(),
-    respuestaBase: document.getElementById('srvRespuesta').value.trim()
+    respuestaBase: document.getElementById('srvRespuesta').value.trim(),
+    anticipoHabilitado: document.getElementById('srvAnticipoHabilitado').value,
+    tipoAnticipo: document.getElementById('srvTipoAnticipo').value,
+    valorAnticipo: parseInt(document.getElementById('srvValorAnticipo').value) || 0
   };
 
   var btn = document.getElementById('btnGuardarSrv');

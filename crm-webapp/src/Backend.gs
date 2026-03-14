@@ -37,6 +37,12 @@ function doPost(e) {
       case 'rescheduleAgenda':
         result = handleRescheduleAgenda(ss, payload);
         break;
+      case 'confirmarPago':
+        result = handleConfirmarPago(ss, payload);
+        break;
+      case 'toggleExentoAnticipo':
+        result = handleToggleExentoAnticipo(ss, payload);
+        break;
       default:
         return responseJSON(400, "Acción no reconocida: " + action);
     }
@@ -120,7 +126,7 @@ function handleCreateCliente(ss, payload) {
   }
   const nextId = "CLI-" + (maxNum + 1).toString().padStart(3, '0');
   
-  // 2. Insertar los datos calculados
+  // 2. Insertar los datos calculados (incluye columna I: EXENTO_ANTICIPO)
   sheet.appendRow([
     nextId,
     payload.celular || "",
@@ -129,7 +135,8 @@ function handleCreateCliente(ss, payload) {
     payload.cumple || "",
     payload.direccion || "",
     payload.tipo || "Nuevo",
-    registro
+    registro,
+    "NO"
   ]);
   
   return { status: "Cliente creado exitosamente", celular: payload.celular };
@@ -170,6 +177,20 @@ function handleCreateAgenda(ss, payload) {
   validarDisponibilidad(payload.fecha, payload.inicio, payload.fin, payload.profesional || "Por asignar");
   // ──────────────────────────────────────────────────────────────────────────
 
+  // Campos de anticipo/pago (opcionales, las columnas M-S)
+  var exentoAnticipo = payload.exentoAnticipo || "";
+  var montoAnticipo = payload.montoAnticipo || 0;
+  var montoPagado = payload.montoPagado || 0;
+  var saldoRestante = payload.saldoRestante || 0;
+  var estadoPago = payload.estadoPago || "";
+  var refComprobante = payload.refComprobante || "";
+  var fechaPago = payload.fechaPago || "";
+
+  // Si hay precio y anticipo pero no se calculó saldoRestante, calcularlo
+  if (montoPagado > 0 && saldoRestante === 0) {
+    saldoRestante = (payload.precio || 0) - montoPagado;
+  }
+
   sheet.appendRow([
     agendaId,
     payload.fecha || "",
@@ -182,7 +203,14 @@ function handleCreateAgenda(ss, payload) {
     payload.precio || 0,
     payload.profesional || "Por asignar",
     "PENDIENTE",
-    payload.notas || ""
+    payload.notas || "",
+    exentoAnticipo,
+    montoAnticipo,
+    montoPagado,
+    saldoRestante,
+    estadoPago,
+    refComprobante,
+    fechaPago
   ]);
 
   return { status: "Cita agendada exitosamente", id: agendaId };
@@ -212,8 +240,8 @@ function handleUpdateAgendaStatus(ss, payload) {
   for (let i = 1; i < data.length; i++) {
     if (data[i][ID_COL - 1].toString().trim() === payload.id.toString().trim()) {
       var fila = i + 1;
-      // Limpiar validación obsoleta de la fila (legacy: columna J tenía validación de ESTADO)
-      sheet.getRange(fila, 1, 1, 12).clearDataValidations();
+      // Limpiar validación obsoleta de la fila
+      sheet.getRange(fila, 1, 1, 19).clearDataValidations();
       sheet.getRange(fila, ESTADO_COL).setValue(nuevoEstado);
       return { status: "Estado actualizado a " + nuevoEstado, id: payload.id };
     }
@@ -255,9 +283,7 @@ function handleRescheduleAgenda(ss, payload) {
       validarDisponibilidad(payload.nuevaFecha, payload.nuevoInicio, payload.nuevoFin, nuevoProfVal, payload.id);
 
       // ── Limpiar validación de datos obsoleta antes de escribir ──
-      // Legacy fix: Antes de agregar TIPO_DIA, la columna J era ESTADO con validación.
-      // Limpiar toda validación de la fila. La validación se hace por código (estadosValidos).
-      sheet.getRange(fila, 1, 1, 12).clearDataValidations();
+      sheet.getRange(fila, 1, 1, 19).clearDataValidations();
 
       // Actualizar datos de la fila
       sheet.getRange(fila, 2).setValue(payload.nuevaFecha);
@@ -284,6 +310,76 @@ function handleRescheduleAgenda(ss, payload) {
   }
 
   throw new Error("No se encontró la cita con ID: " + payload.id + " para reagendar.");
+}
+
+/**
+ * Confirma el pago de anticipo de una cita existente.
+ * Actualiza las columnas de pago (O, P, Q, R, S) en la hoja AGENDA.
+ * Payload: { id, montoPagado, referencia, fechaPago }
+ */
+function handleConfirmarPago(ss, payload) {
+  var sheet = ss.getSheetByName("AGENDA");
+  if (!sheet) throw new Error("La hoja AGENDA no existe.");
+
+  var data = sheet.getDataRange().getValues();
+  // Columnas de pago (base 1): M=13 EXENTO, N=14 MONTO_ANTICIPO, O=15 MONTO_PAGADO,
+  // P=16 SALDO_RESTANTE, Q=17 ESTADO_PAGO, R=18 REF_COMPROBANTE, S=19 FECHA_PAGO
+
+  for (var i = 1; i < data.length; i++) {
+    if (data[i][0].toString().trim() === payload.id.toString().trim()) {
+      var fila = i + 1;
+      var precioServicio = parseFloat(data[i][8]) || 0; // Columna I (index 8) = PRECIO
+      var montoPagado = parseFloat(payload.montoPagado) || 0;
+      var saldoRestante = precioServicio - montoPagado;
+
+      sheet.getRange(fila, 15).setValue(montoPagado);        // O: MONTO_PAGADO
+      sheet.getRange(fila, 16).setValue(saldoRestante);       // P: SALDO_RESTANTE
+      sheet.getRange(fila, 17).setValue("PAGO_CONFIRMADO");   // Q: ESTADO_PAGO
+      sheet.getRange(fila, 18).setValue(payload.referencia || ""); // R: REF_COMPROBANTE
+      sheet.getRange(fila, 19).setValue(payload.fechaPago || ""); // S: FECHA_PAGO
+
+      return { status: "Pago confirmado", id: payload.id, saldoRestante: saldoRestante };
+    }
+  }
+
+  throw new Error("No se encontró la cita con ID: " + payload.id + " para confirmar pago.");
+}
+
+/**
+ * Alterna el estado EXENTO_ANTICIPO de un cliente en la hoja CLIENTES.
+ * Payload: { celular, exento } donde exento es "SI" o "NO"
+ */
+function handleToggleExentoAnticipo(ss, payload) {
+  var sheet = ss.getSheetByName("CLIENTES");
+  if (!sheet) throw new Error("La hoja CLIENTES no existe.");
+
+  // Buscar la columna EXENTO_ANTICIPO (debería ser la columna I = index 8)
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var exentoCol = -1;
+  for (var h = 0; h < headers.length; h++) {
+    if ((headers[h] || '').toString().trim().toUpperCase() === 'EXENTO_ANTICIPO') {
+      exentoCol = h + 1; // base 1
+      break;
+    }
+  }
+
+  // Si no existe la columna, crearla
+  if (exentoCol === -1) {
+    exentoCol = sheet.getLastColumn() + 1;
+    sheet.getRange(1, exentoCol).setValue('EXENTO_ANTICIPO');
+  }
+
+  // Buscar al cliente por celular (columna B = index 1)
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    var celularSheet = (data[i][1] || '').toString().trim();
+    if (celularSheet === payload.celular.toString().trim()) {
+      sheet.getRange(i + 1, exentoCol).setValue((payload.exento || 'NO').toUpperCase());
+      return { status: "Exención actualizada", celular: payload.celular, exento: payload.exento };
+    }
+  }
+
+  throw new Error("No se encontró el cliente con celular: " + payload.celular);
 }
 
 // ============================================
@@ -733,8 +829,19 @@ function getClientes() {
     tipo: (row[6] || '').toString(),
     registro: row[7] instanceof Date
       ? Utilities.formatDate(row[7], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
-      : (row[7] || '').toString()
+      : (row[7] || '').toString(),
+    exentoAnticipo: (row[8] || '').toString()
   }));
+}
+
+/**
+ * Toggle de exención de anticipo para un cliente (llamado desde CRM Web App).
+ * @param {string} celular Celular del cliente
+ * @param {string} nuevoEstado "SI" o "NO"
+ */
+function toggleClienteExento(celular, nuevoEstado) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return handleToggleExentoAnticipo(ss, { celular: celular, exento: nuevoEstado });
 }
 
 // ============================================
@@ -766,7 +873,16 @@ function getAgenda() {
     precio: row[8] || 0,
     profesional: (row[9] || '').toString(),
     estado: (row[10] || '').toString(),
-    notas: (row[11] || '').toString()
+    notas: (row[11] || '').toString(),
+    exentoAnticipo: (row[12] || '').toString(),
+    montoAnticipo: row[13] || 0,
+    montoPagado: row[14] || 0,
+    saldoRestante: row[15] || 0,
+    estadoPago: (row[16] || '').toString(),
+    refComprobante: (row[17] || '').toString(),
+    fechaPago: row[18] instanceof Date
+      ? Utilities.formatDate(row[18], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
+      : (row[18] || '').toString()
   }));
 }
 
@@ -787,7 +903,10 @@ function getServicios() {
     respuestaBase: (row[2] || '').toString(),
     tiempoServicio: row[3] || 0,
     categoria: (row[4] || '').toString(),
-    tipoServicio: (row[5] || '').toString()
+    tipoServicio: (row[5] || '').toString(),
+    anticipoHabilitado: (row[6] || 'NO').toString(),
+    tipoAnticipo: (row[7] || 'FIJO').toString(),
+    valorAnticipo: row[8] || 0
   }));
 }
 
@@ -816,7 +935,10 @@ function saveServicio(data) {
     data.respuestaBase || '',
     parseInt(data.tiempoServicio) || 0,
     data.categoria || '',
-    data.tipoServicio || ''
+    data.tipoServicio || '',
+    data.anticipoHabilitado || 'NO',
+    data.tipoAnticipo || 'FIJO',
+    parseInt(data.valorAnticipo) || 0
   ]);
 
   return { status: "Servicio creado exitosamente", id: newId };
@@ -835,6 +957,9 @@ function updateServicio(data) {
   sheet.getRange(row, 4).setValue(parseInt(data.tiempoServicio) || 0);
   sheet.getRange(row, 5).setValue(data.categoria || '');
   sheet.getRange(row, 6).setValue(data.tipoServicio || '');
+  sheet.getRange(row, 7).setValue(data.anticipoHabilitado || 'NO');
+  sheet.getRange(row, 8).setValue(data.tipoAnticipo || 'FIJO');
+  sheet.getRange(row, 9).setValue(parseInt(data.valorAnticipo) || 0);
 
   return { status: "Servicio actualizado", id: data.idServicio };
 }

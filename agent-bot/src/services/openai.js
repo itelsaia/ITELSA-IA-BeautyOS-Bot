@@ -500,9 +500,16 @@ async function generateAIResponse(
         const openai = new OpenAI({ apiKey: config.openApiKey });
 
         // 1. Construir contexto de servicios
-        const catalogText = servicesCatalog.map(s =>
-            `- ID_INTERNO: ${s.id} | Categoría: ${s.category} | Intención_Búsqueda: ${s.intent} | TIPO_SERVICIO_OFICIAL: ${s.name} | Info/Precio: ${s.response} | Tiempo: ${s.timeMins} min | PRECIO_NUMERICO: COP ${s.price}`
-        ).join('\n');
+        const catalogText = servicesCatalog.map(s => {
+            let line = `- ID_INTERNO: ${s.id} | Categoría: ${s.category} | Intención_Búsqueda: ${s.intent} | TIPO_SERVICIO_OFICIAL: ${s.name} | Info/Precio: ${s.response} | Tiempo: ${s.timeMins} min | PRECIO_NUMERICO: COP ${s.price}`;
+            if (s.anticipoEnabled) {
+                const label = s.anticipoType === 'PORCENTAJE'
+                    ? `${s.anticipoValue}% del precio`
+                    : `$${Number(s.anticipoValue).toLocaleString('es-CO')} fijos`;
+                line += ` | ANTICIPO: ${label}`;
+            }
+            return line;
+        }).join('\n');
 
         // 2. Construir conocimiento RAG
         const knowledgeText = knowledgeCatalog.map(k =>
@@ -514,9 +521,10 @@ async function generateAIResponse(
         if (userPendingAppointments.length > 0) {
             pendingAppointmentsText = `⚠️ ATENCIÓN: El cliente TIENE las siguientes citas PENDIENTES:\n` +
                 userPendingAppointments.map(c =>
-                    `  - ID: ${c.id} | Fecha: ${c.fecha} | Hora: ${c.inicio}-${c.fin} | Profesional: ${c.profesional || 'Por asignar'} | Servicio: ${c.servicio} | Precio: $${c.precio}`
+                    `  - ID: ${c.id} | Fecha: ${c.fecha} | Hora: ${c.inicio}-${c.fin} | Profesional: ${c.profesional || 'Por asignar'} | Servicio: ${c.servicio} | Precio: $${c.precio} | Estado pago: ${c.estadoPago || 'N/A'}`
                 ).join('\n') +
-                `\n→ Si el usuario pide cambiar o modificar su cita, usa la herramienta 'reagendar_cita' con el ID_CITA arriba indicado.\n→ Tener citas pendientes NO impide agendar nuevas citas. El cliente puede tener múltiples citas.`;
+                `\n→ Si el usuario pide cambiar o modificar su cita, usa la herramienta 'reagendar_cita' con el ID_CITA arriba indicado.\n→ Tener citas pendientes NO impide agendar nuevas citas. El cliente puede tener múltiples citas.` +
+                `\n→ RECORDATORIO: Si el cliente saluda o inicia una nueva conversación, recuérdale amablemente sus citas pendientes de forma natural (no como lista robótica). Pregúntale si necesita algo con ellas (reagendar, cancelar, o confirmar asistencia).`;
         }
 
         // 4. Calcular fecha y hora actual en Colombia (UTC-5)
@@ -634,6 +642,26 @@ ${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita
 
 📚 BASE DE CONOCIMIENTO / MULTIMEDIA:
 ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado."}
+
+${config.hasAnyAnticipo ? `
+💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
+- Algunos servicios de este negocio requieren anticipo para confirmar la cita.
+- Cada servicio tiene su propio anticipo (fijo o porcentaje). Consulta el catálogo arriba para ver cuáles.
+- Momento: ${config.paymentMoment === 'ANTES' ? 'El cliente debe pagar ANTES de agendar la cita.' : 'Se agenda primero y luego el cliente debe enviar el comprobante.'}
+- Datos de pago: ${config.paymentInstructions}
+${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
+
+📋 REGLAS DE ANTICIPO:
+1. ANTES de presentar el resumen, consulta si el servicio solicitado requiere anticipo (columna ANTICIPO en el catálogo).
+2. Si requiere anticipo, informa amablemente el monto SUGERIDO y la política.
+3. Incluye los datos de pago (Nequi, Daviplata, cuenta bancaria, etc.) para que el cliente sepa dónde transferir.
+4. Después de agendar (si MOMENTO=DESPUES), recuérdale que envíe el comprobante de pago por este mismo chat.
+5. Si el cliente es EXENTO de anticipo, NO pidas pago. Flujo normal sin condiciones.
+6. Si el servicio NO tiene anticipo, flujo normal sin mencionar pagos anticipados.
+7. NUNCA rechaces o cuestiones el comprobante tú mismo — el sistema lo valida automáticamente.
+8. El cliente puede pagar el anticipo sugerido, más, o incluso el servicio completo. Cualquier monto es válido.
+9. Muestra siempre el SALDO RESTANTE (precio total - monto pagado) que se pagará al momento del servicio.
+` : ''}
 ---
 `;
 
@@ -853,4 +881,78 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
     }
 }
 
-module.exports = { generateAIResponse };
+/**
+ * Analiza un comprobante de pago/transferencia usando GPT-4o Vision.
+ * Extrae monto, fecha, referencia y valida autenticidad.
+ * @param {Buffer} imageBuffer Buffer de la imagen del comprobante
+ * @param {string} businessName Nombre del negocio destinatario
+ * @param {string} openApiKey API Key de OpenAI del tenant
+ * @returns {Object} { monto, fecha, referencia, destinatario, esValido, fechaReciente, motivoRechazo }
+ */
+async function analyzePaymentReceipt(imageBuffer, businessName, openApiKey) {
+    try {
+        const openai = new OpenAI({ apiKey: openApiKey });
+        const base64Image = imageBuffer.toString('base64');
+        const todayStr = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{
+                role: 'user',
+                content: [
+                    {
+                        type: 'text',
+                        text: `Analiza este comprobante de pago/transferencia bancaria.
+Extrae y valida:
+1. MONTO transferido (numero exacto, sin puntos ni comas)
+2. FECHA de la transaccion (formato DD/MM/YYYY)
+3. REFERENCIA o numero de transaccion
+4. NOMBRE del destinatario (a quien le transfirieron)
+5. Es un comprobante REAL y VALIDO? (no editado, no screenshot de chat, formato consistente de banco o app de pagos)
+
+El negocio destinatario es: ${businessName}
+La fecha de hoy es: ${todayStr}
+
+IMPORTANTE: Considera la fecha como "reciente" si es del dia de hoy o de ayer.
+NO valides el monto — solo extraelo. Cualquier monto es aceptable.
+
+Responde SOLO con un JSON valido, sin markdown ni texto adicional:
+{
+    "monto": numero,
+    "fecha": "DD/MM/YYYY",
+    "referencia": "string",
+    "destinatario": "string",
+    "esValido": true/false,
+    "fechaReciente": true/false,
+    "motivoRechazo": "string o null"
+}`
+                    },
+                    {
+                        type: 'image_url',
+                        image_url: { url: `data:image/jpeg;base64,${base64Image}` }
+                    }
+                ]
+            }],
+            max_tokens: 500,
+            temperature: 0.1
+        });
+
+        const content = response.choices[0].message.content.trim();
+        // Limpiar posible markdown wrapping
+        const jsonStr = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        return JSON.parse(jsonStr);
+    } catch (error) {
+        console.error('❌ Error analizando comprobante con Vision:', error.message);
+        return {
+            monto: 0,
+            fecha: '',
+            referencia: '',
+            destinatario: '',
+            esValido: false,
+            fechaReciente: false,
+            motivoRechazo: 'Error al procesar la imagen: ' + error.message
+        };
+    }
+}
+
+module.exports = { generateAIResponse, analyzePaymentReceipt };
