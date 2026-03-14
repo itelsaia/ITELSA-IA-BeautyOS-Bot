@@ -43,6 +43,12 @@ function doPost(e) {
       case 'toggleExentoAnticipo':
         result = handleToggleExentoAnticipo(ss, payload);
         break;
+      case 'classifyClientes':
+        result = handleClassifyClientes(ss, payload);
+        break;
+      case 'getBirthdayClients':
+        result = handleGetBirthdayClients(ss, payload);
+        break;
       default:
         return responseJSON(400, "Acción no reconocida: " + action);
     }
@@ -1410,6 +1416,90 @@ function getAnalytics(rangoMeses, profesionalFiltro) {
     kpis: kpis,
     profesionales: profesionales
   };
+}
+
+// ============================================
+// Clasificacion Automatica de Clientes
+// ============================================
+
+function handleClassifyClientes(ss, payload) {
+  var agendaSheet = ss.getSheetByName('AGENDA');
+  var clientesSheet = ss.getSheetByName('CLIENTES');
+  if (!agendaSheet || !clientesSheet) throw new Error("Hojas AGENDA o CLIENTES no encontradas.");
+
+  var umbrales = payload.umbrales || { ocasional: 1, frecuente: 4, vip: 9 };
+
+  // Contar citas EJECUTADO por celular
+  var agendaData = agendaSheet.getDataRange().getValues();
+  var conteo = {};
+  for (var i = 1; i < agendaData.length; i++) {
+    var estado = (agendaData[i][10] || '').toString().toUpperCase().trim(); // Col K = ESTADO
+    var celular = (agendaData[i][6] || '').toString().trim();               // Col G = CELULAR_CLIENTE
+    if (estado === 'EJECUTADO' && celular) {
+      conteo[celular] = (conteo[celular] || 0) + 1;
+    }
+  }
+
+  // Clasificar y actualizar
+  var clientesData = clientesSheet.getDataRange().getValues();
+  var updated = [];
+  for (var j = 1; j < clientesData.length; j++) {
+    var cel = (clientesData[j][1] || '').toString().trim(); // Col B = CELULAR
+    var oldTipo = (clientesData[j][6] || '').toString().trim(); // Col G = TIPO
+    var citas = conteo[cel] || 0;
+
+    var newTipo = 'Nuevo';
+    if (citas >= umbrales.vip) newTipo = 'VIP';
+    else if (citas >= umbrales.frecuente) newTipo = 'Frecuente';
+    else if (citas >= umbrales.ocasional) newTipo = 'Ocasional';
+
+    if (newTipo !== oldTipo) {
+      clientesSheet.getRange(j + 1, 7).setValue(newTipo); // Col G = TIPO
+      updated.push({ celular: cel, oldTipo: oldTipo, newTipo: newTipo, citas: citas });
+    }
+  }
+
+  return { updated: updated, total: updated.length };
+}
+
+// ============================================
+// Clientes de Cumpleanos
+// ============================================
+
+function handleGetBirthdayClients(ss, payload) {
+  var sheet = ss.getSheetByName('CLIENTES');
+  if (!sheet) throw new Error("Hoja CLIENTES no encontrada.");
+
+  var data = sheet.getDataRange().getValues();
+  var hoy = [], manana = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var cumpleRaw = data[i][4]; // Col E = CUMPLE
+    if (!cumpleRaw) continue;
+
+    var ddmm = '';
+    if (cumpleRaw instanceof Date) {
+      var d = cumpleRaw.getDate().toString().padStart(2, '0');
+      var m = (cumpleRaw.getMonth() + 1).toString().padStart(2, '0');
+      ddmm = d + '/' + m;
+    } else {
+      var parts = cumpleRaw.toString().split('/');
+      if (parts.length >= 2) ddmm = parts[0].padStart(2, '0') + '/' + parts[1].padStart(2, '0');
+    }
+
+    if (!ddmm) continue;
+
+    var clienteInfo = {
+      celular: (data[i][1] || '').toString(),
+      nombre: (data[i][2] || '').toString(),
+      cumple: ddmm
+    };
+
+    if (ddmm === payload.fechaHoy) hoy.push(clienteInfo);
+    if (ddmm === payload.fechaManana) manana.push(clienteInfo);
+  }
+
+  return { hoy: hoy, manana: manana };
 }
 
 function responseJSON(code, message, data = null) {

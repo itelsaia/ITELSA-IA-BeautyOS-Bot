@@ -2,7 +2,7 @@ require('dotenv').config({ path: '../.env' });
 const express = require('express');
 
 const EvolutionClient = require('./services/evolution');
-const { initAllTenants, getActiveTenantIds, shutdownAllTenants } = require('./services/tenants');
+const { initAllTenants, getActiveTenantIds, shutdownAllTenants, setEvolutionClient: setTenantsEvolutionClient } = require('./services/tenants');
 const { router: webhookRouter, setEvolutionClient } = require('./routes/webhook');
 
 const PORT = process.env.PORT || 3000;
@@ -16,6 +16,7 @@ const main = async () => {
         process.env.EVOLUTION_API_KEY || 'beautyos-global-api-key-change-me'
     );
     setEvolutionClient(evolutionClient);
+    setTenantsEvolutionClient(evolutionClient);
 
     console.log(`Evolution API: ${process.env.EVOLUTION_API_URL || 'http://localhost:8080'}`);
 

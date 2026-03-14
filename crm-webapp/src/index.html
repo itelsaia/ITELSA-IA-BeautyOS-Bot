@@ -1018,8 +1018,10 @@ function renderClienteRows(data) {
       '<input class="form-check-input" type="checkbox" id="' + toggleId + '" ' + (esExento ? 'checked' : '') +
       ' onchange="toggleExentoAnticipo(\'' + esc(c.celular) + '\', this.checked)">' +
       '<label class="form-check-label small" for="' + toggleId + '">' + (esExento ? 'Exento' : 'Cobra') + '</label></div>';
+    var cumpleHoy = esCumpleHoy(c.cumple);
+    var nombreHtml = '<strong>' + esc(c.nombre) + '</strong>' + (cumpleHoy ? ' <span title="Hoy cumple anos!" style="cursor:help;">&#127874;</span>' : '');
     return '<tr><td><small class="text-muted">' + esc(c.id) + '</small></td>' +
-      '<td><strong>' + esc(c.nombre) + '</strong></td>' +
+      '<td>' + nombreHtml + '</td>' +
       '<td>' + esc(c.celular) + '</td><td>' + esc(c.correo) + '</td>' +
       '<td class="d-none d-md-table-cell">' + esc(c.cumple) + '</td>' +
       '<td class="d-none d-md-table-cell">' + esc(c.direccion) + '</td>' +
@@ -2514,11 +2516,24 @@ function badgeEstadoCita(estado) {
   return '<span class="badge-status ' + cls + '">' + esc(estado) + '</span>';
 }
 
+function esCumpleHoy(cumpleStr) {
+  if (!cumpleStr) return false;
+  var parts = cumpleStr.toString().split('/');
+  if (parts.length < 2) return false;
+  var dd = parseInt(parts[0], 10);
+  var mm = parseInt(parts[1], 10);
+  var hoy = new Date();
+  return hoy.getDate() === dd && (hoy.getMonth() + 1) === mm;
+}
+
 function badgeTipoCliente(tipo) {
   var t = (tipo || '').toLowerCase();
-  if (t === 'nuevo') return '<span class="badge-status badge-nuevo">Nuevo</span>';
-  if (t === 'recurrente') return '<span class="badge-status badge-recurrente">Recurrente</span>';
-  return '<span class="badge-status badge-inactivo">' + esc(tipo || '-') + '</span>';
+  if (t === 'nuevo') return '<span class="badge bg-info">Nuevo</span>';
+  if (t === 'ocasional') return '<span class="badge bg-warning text-dark">Ocasional</span>';
+  if (t === 'frecuente') return '<span class="badge bg-success">Frecuente</span>';
+  if (t === 'vip') return '<span class="badge text-white" style="background:#7c3aed;">&#9733; VIP</span>';
+  if (t === 'recurrente') return '<span class="badge bg-success">Recurrente</span>';
+  return '<span class="badge bg-secondary">' + esc(tipo || 'Sin tipo') + '</span>';
 }
 
 function formatMoney(val) {

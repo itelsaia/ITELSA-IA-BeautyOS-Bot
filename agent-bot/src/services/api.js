@@ -186,6 +186,51 @@ class ApiService {
      * Cancela una cita existente cambiando su estado a CANCELADA
      * @param {string} agendaId ID de la cita (ej. AG-CS-001)
      */
+    /**
+     * Clasifica clientes automaticamente segun historial de citas EJECUTADO.
+     * @param {Object} umbrales { ocasional, frecuente, vip }
+     */
+    async classifyClientes(umbrales) {
+        if (!this.webhookUrl) return { total: 0 };
+
+        try {
+            const response = await axios.post(this.webhookUrl, {
+                action: 'classifyClientes',
+                payload: { umbrales }
+            }, { timeout: 30000 });
+
+            const data = response.data;
+            if (typeof data === 'string') return { total: 0 };
+            return (data && data.code === 200 && data.data) ? data.data : { total: 0 };
+        } catch (error) {
+            console.error("Error clasificando clientes:", error.message);
+            return { total: 0 };
+        }
+    }
+
+    /**
+     * Obtiene clientes que cumplen anos hoy o manana.
+     * @param {string} fechaHoy "DD/MM"
+     * @param {string} fechaManana "DD/MM"
+     */
+    async getBirthdayClients(fechaHoy, fechaManana) {
+        if (!this.webhookUrl) return { hoy: [], manana: [] };
+
+        try {
+            const response = await axios.post(this.webhookUrl, {
+                action: 'getBirthdayClients',
+                payload: { fechaHoy, fechaManana }
+            }, { timeout: 15000 });
+
+            const data = response.data;
+            if (typeof data === 'string') return { hoy: [], manana: [] };
+            return (data && data.code === 200 && data.data) ? data.data : { hoy: [], manana: [] };
+        } catch (error) {
+            console.error("Error obteniendo cumpleanos:", error.message);
+            return { hoy: [], manana: [] };
+        }
+    }
+
     async cancelAgenda(agendaId) {
         if (!this.webhookUrl) return false;
 

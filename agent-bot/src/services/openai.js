@@ -666,7 +666,22 @@ ${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
 `;
 
         const userName = userData.nombre || "Cliente";
-        const systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando con: ${userName}\n\n${businessRules}`;
+
+        // Contexto de cumpleanos: si el cliente cumple anos hoy, inyectar instruccion especial
+        let birthdayContext = '';
+        if (config.birthdayEnabled && userData.cumple) {
+            const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+            const ddNow = String(nowCol.getDate()).padStart(2, '0');
+            const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
+            const cumpleStr = userData.cumple.toString();
+            const cumpleParts = cumpleStr.split('/');
+            const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
+            if (cumpleDDMM === `${ddNow}/${mmNow}`) {
+                birthdayContext = `\n\nHOY ES EL CUMPLEANOS DE ESTE CLIENTE. Felicitalo calidamente y recuerdale que tiene un ${config.birthdayDiscount || 20}% de descuento especial por su cumpleanos en cualquier servicio. Incentivalo a agendar una cita para celebrar.`;
+            }
+        }
+
+        const systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando con: ${userName}${birthdayContext}\n\n${businessRules}`;
 
         const messages = [
             { role: 'system', content: systemFinalPrompt },

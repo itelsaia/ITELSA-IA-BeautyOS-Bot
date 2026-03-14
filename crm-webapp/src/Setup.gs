@@ -33,6 +33,11 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["DATOS_PAGO", "", "Instrucciones de pago para anticipos (Nequi, Daviplata, cuenta bancaria, etc.)"]);
   sheetConfig.appendRow(["MOMENTO_ANTICIPO", "DESPUES", "Momento del anticipo: ANTES (pagar para reservar) o DESPUES (reservar y luego pagar)"]);
   sheetConfig.appendRow(["POLITICA_ANTICIPO", "", "Texto de politica de anticipo que el bot comunica al cliente antes de agendar"]);
+  sheetConfig.appendRow(["UMBRAL_OCASIONAL", "1", "Citas EJECUTADO minimas para pasar de Nuevo a Ocasional"]);
+  sheetConfig.appendRow(["UMBRAL_FRECUENTE", "4", "Citas EJECUTADO minimas para pasar a Frecuente"]);
+  sheetConfig.appendRow(["UMBRAL_VIP", "9", "Citas EJECUTADO minimas para pasar a VIP"]);
+  sheetConfig.appendRow(["CUMPLE_HABILITADO", "SI", "Habilitar mensajes proactivos de cumpleanos (SI/NO)"]);
+  sheetConfig.appendRow(["DESCUENTO_CUMPLE", "20", "Porcentaje de descuento por cumpleanos"]);
   formatHeaders(sheetConfig);
 
   // 2. CLIENTES (CRM)

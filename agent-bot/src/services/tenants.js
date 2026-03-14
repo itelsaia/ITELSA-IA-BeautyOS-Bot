@@ -10,6 +10,13 @@ const DEFAULT_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 // Almacén en memoria de todos los tenants activos
 const tenantStore = {};
 
+// Referencia al cliente de Evolution API (inyectado desde app.js)
+let evolutionClient = null;
+
+function setEvolutionClient(client) {
+    evolutionClient = client;
+}
+
 /**
  * Lee las definiciones estáticas de tenants desde tenants.json
  */
@@ -165,8 +172,93 @@ async function syncTenantData(tenantId) {
         } catch (expError) {
             console.error(`[${tenantId}] Error en auto-expire:`, expError.message);
         }
+
+        // ── Clasificacion automatica de clientes (cada 3 syncs = ~15 min) ──
+        try {
+            tenant.syncCount = (tenant.syncCount || 0) + 1;
+            if (tenant.syncCount % 3 === 0) {
+                api.webhookUrl = tenant.webhookGasUrl;
+                const classResult = await api.classifyClientes({
+                    ocasional: tenant.config.classifyOcasional || 1,
+                    frecuente: tenant.config.classifyFrecuente || 4,
+                    vip: tenant.config.classifyVip || 9
+                });
+                if (classResult.total > 0) {
+                    console.log(`[${tenantId}] Clasificacion: ${classResult.total} cliente(s) actualizado(s)`);
+                    classResult.updated.forEach(u => {
+                        console.log(`[${tenantId}]   ${u.celular}: ${u.oldTipo || 'Sin tipo'} → ${u.newTipo} (${u.citas} citas)`);
+                    });
+                }
+            }
+        } catch (classError) {
+            console.error(`[${tenantId}] Error en clasificacion:`, classError.message);
+        }
+
+        // ── Cumpleanos proactivos (1 vez al dia) ──
+        try {
+            const config = tenant.config;
+            if (config.birthdayEnabled && evolutionClient) {
+                const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+
+                if (tenant.lastBirthdayCheck !== todayKey) {
+                    tenant.lastBirthdayCheck = todayKey;
+
+                    const dd = String(today.getDate()).padStart(2, '0');
+                    const mm = String(today.getMonth() + 1).padStart(2, '0');
+                    const tomorrow = new Date(today);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    const dd2 = String(tomorrow.getDate()).padStart(2, '0');
+                    const mm2 = String(tomorrow.getMonth() + 1).padStart(2, '0');
+
+                    api.webhookUrl = tenant.webhookGasUrl;
+                    const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
+
+                    if (bday.manana && bday.manana.length > 0) {
+                        for (const c of bday.manana) {
+                            await sendBirthdayMessage(tenant, c, 'manana');
+                        }
+                    }
+                    if (bday.hoy && bday.hoy.length > 0) {
+                        for (const c of bday.hoy) {
+                            await sendBirthdayMessage(tenant, c, 'hoy');
+                        }
+                    }
+
+                    const totalBday = (bday.hoy ? bday.hoy.length : 0) + (bday.manana ? bday.manana.length : 0);
+                    if (totalBday > 0) {
+                        console.log(`[${tenantId}] Cumpleanos: ${totalBday} mensaje(s) enviado(s)`);
+                    }
+                }
+            }
+        } catch (bdayError) {
+            console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message);
+        }
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
+    }
+}
+
+/**
+ * Envia mensaje proactivo de cumpleanos via WhatsApp
+ */
+async function sendBirthdayMessage(tenant, cliente, timing) {
+    if (!evolutionClient) return;
+    const config = tenant.config;
+    const descuento = config.birthdayDiscount || 20;
+
+    let mensaje = '';
+    if (timing === 'manana') {
+        mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial y en ${config.businessName} queremos celebrarlo contigo. Te ofrecemos un ${descuento}% de descuento en cualquier servicio. Agenda tu cita y luce increible en tu cumpleanos!`;
+    } else {
+        mensaje = `Feliz cumpleanos ${cliente.nombre}! En ${config.businessName} queremos que este dia sea aun mas especial. Te regalamos un ${descuento}% de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!`;
+    }
+
+    try {
+        await evolutionClient.sendText(tenant.instanceName, cliente.celular, mensaje);
+        console.log(`[${tenant.instanceName}] Cumpleanos ${timing}: mensaje enviado a ${cliente.nombre} (${cliente.celular})`);
+    } catch (err) {
+        console.error(`[${tenant.instanceName}] Error enviando cumpleanos a ${cliente.celular}:`, err.message);
     }
 }
 
@@ -219,4 +311,4 @@ function shutdownAllTenants() {
     }
 }
 
-module.exports = { initAllTenants, getTenant, getActiveTenantIds, syncTenantData, shutdownAllTenants };
+module.exports = { initAllTenants, getTenant, getActiveTenantIds, syncTenantData, shutdownAllTenants, setEvolutionClient };

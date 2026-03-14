@@ -52,7 +52,14 @@ async function loadClientConfig(sheetId) {
             // NOTA: ANTICIPO_HABILITADO, TIPO_ANTICIPO, VALOR_ANTICIPO ahora son per-service en CONFIG_SERVICIOS
             paymentInstructions: configRaw['DATOS_PAGO'] || '',
             paymentMoment: (configRaw['MOMENTO_ANTICIPO'] || 'DESPUES').toUpperCase(),
-            paymentPolicy: configRaw['POLITICA_ANTICIPO'] || ''
+            paymentPolicy: configRaw['POLITICA_ANTICIPO'] || '',
+            // Clasificacion automatica de clientes
+            classifyOcasional: parseInt(configRaw['UMBRAL_OCASIONAL']) || 1,
+            classifyFrecuente: parseInt(configRaw['UMBRAL_FRECUENTE']) || 4,
+            classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9,
+            // Cumpleanos
+            birthdayEnabled: (configRaw['CUMPLE_HABILITADO'] || 'SI').toUpperCase() === 'SI',
+            birthdayDiscount: parseInt(configRaw['DESCUENTO_CUMPLE']) || 20
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -187,6 +194,7 @@ async function loadRegisteredClients(sheetId) {
                     nombre: data['NOMBRE'] || '',
                     correo: data['CORREO'] || '',
                     id: data['ID_CLIENTE'] || '',
+                    cumple: (data['CUMPLE'] || '').toString().trim(),
                     exemptFromPayment: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI'
                 };
             }

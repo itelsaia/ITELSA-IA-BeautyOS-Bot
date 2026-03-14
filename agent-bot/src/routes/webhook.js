@@ -812,6 +812,23 @@ router.post('/evolution', async (req, res) => {
                     citaData.servicios, tenant.servicesCatalog
                 );
 
+                // ── Descuento cumpleanos ──
+                let descuentoCumple = 0;
+                const clienteInfoBday = tenant.registeredClients[phoneNumber] || {};
+                if (tenant.config.birthdayEnabled && clienteInfoBday.cumple) {
+                    const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                    const ddNow = String(nowCol.getDate()).padStart(2, '0');
+                    const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
+                    const cumpleParts = clienteInfoBday.cumple.split('/');
+                    const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
+                    if (cumpleDDMM === `${ddNow}/${mmNow}`) {
+                        descuentoCumple = Math.round(citaData.precio_total * (tenant.config.birthdayDiscount || 20) / 100);
+                        citaData.precio_total = citaData.precio_total - descuentoCumple;
+                        citaData.notas_cumple = `DESCUENTO CUMPLE ${tenant.config.birthdayDiscount || 20}%: -$${descuentoCumple.toLocaleString('es-CO')}`;
+                        console.log(`🎂 [${instanceName}] Descuento cumpleanos aplicado: -$${descuentoCumple} → nuevo total: $${citaData.precio_total}`);
+                    }
+                }
+
                 // ── Flujo ANTES: Pedir pago antes de agendar ──
                 if (anticipoEnabled && !isExempt && tenant.config.paymentMoment === 'ANTES' && montoAnticipo > 0) {
                     const saldoRestante = citaData.precio_total - montoAnticipo;
@@ -858,7 +875,7 @@ router.post('/evolution', async (req, res) => {
                     servicio: citaData.servicios,
                     precio: citaData.precio_total,
                     profesional: citaData.profesional || 'Por asignar',
-                    notas: '',
+                    notas: citaData.notas_cumple || '',
                     ...extraPaymentData
                 });
 
