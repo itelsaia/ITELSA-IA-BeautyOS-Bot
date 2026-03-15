@@ -206,3 +206,336 @@ npx clasp versions
 6. Click **Implementar**
 
 **IMPORTANTE:** NO crear una implementacion nueva (genera URL diferente). Siempre EDITAR la existente.
+
+---
+
+## Servidor de Produccion - Google Cloud VM (SIN Docker)
+
+El bot corre 24/7 en una VM de Google Cloud Compute Engine. **NO usa Docker**. PostgreSQL se instala directamente en Ubuntu y Evolution API usa Prisma para conectarse.
+
+### Datos del Servidor
+
+| Campo | Valor |
+|-------|-------|
+| Proyecto GCP | `itelsa-beautyos` |
+| Nombre VM | `beautyos-server` |
+| Usuario SSH | `iaitelsa` |
+| Hostname | `beautyos` |
+| SO | Ubuntu 24.04 LTS |
+| Machine Type | `e2-micro` (0.25 vCPU, 1GB RAM) - Free Tier |
+| Region/Zona | `us-central1-a` (Iowa) |
+| Disco | 30GB Standard (Free Tier) |
+| Swap | 2GB (archivo /swapfile) |
+| Firewall | Puertos 3000, 8080 abiertos (tag `beautyos`) |
+
+### Acceder por SSH
+
+**Desde Google Cloud Console:**
+- Ir a Compute Engine > VM Instances > click en "SSH" de `beautyos-server`
+
+**Desde terminal local:**
+```bash
+gcloud compute ssh beautyos-server --zone=us-central1-a
+```
+
+---
+
+### FASE 1: Creacion de la VM (ya hecho)
+
+1. Google Cloud Console > Compute Engine > VM Instances > Create Instance
+2. Nombre: `beautyos-server`
+3. Region: `us-central1-a` (Free Tier)
+4. Machine type: `e2-micro`
+5. Boot disk: Ubuntu 24.04 LTS, 30GB Standard
+6. Firewall: Allow HTTP + HTTPS traffic
+7. Network tag: `beautyos`
+
+**IP Estatica:** VPC Network > External IP Addresses > Reservar IP para la VM
+
+**Reglas de Firewall:**
+- Nombre: `allow-beautyos-ports`
+- Target tags: `beautyos`
+- Source: `0.0.0.0/0`
+- Protocols: `tcp:3000,8080`
+
+---
+
+### FASE 2: Instalacion de Software Base (ya hecho)
+
+```bash
+# Actualizar sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Node.js 18+
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+
+# Verificar
+node -v    # v18.x+
+npm -v     # 9.x+
+
+# Instalar PM2 (process manager 24/7)
+sudo npm install -g pm2
+
+# Crear swap de 2GB (respaldo para 1GB RAM)
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+---
+
+### FASE 3: Instalar PostgreSQL (ya hecho)
+
+Evolution API v2 **requiere PostgreSQL** (no funciona standalone como v1).
+
+```bash
+# Instalar PostgreSQL
+sudo apt-get install -y postgresql postgresql-contrib
+
+# Verificar que esta corriendo
+sudo systemctl status postgresql
+
+# Crear base de datos para Evolution API
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'TU_PASSWORD_AQUI';"
+sudo -u postgres psql -c "CREATE DATABASE evolution;"
+
+# Verificar conexion
+sudo -u postgres psql -c "SELECT 1;"
+```
+
+PostgreSQL corre como servicio automatico (se inicia con el servidor).
+
+---
+
+### FASE 4: Instalar Evolution API (ya hecho)
+
+```bash
+cd /home/iaitelsa
+git clone https://github.com/EvolutionAPI/evolution-api.git
+cd evolution-api
+npm install
+```
+
+**Configurar .env de Evolution API** (`/home/iaitelsa/evolution-api/.env`):
+Copiar desde `deploy/evolution-api-env-produccion.txt` y agregar datos de PostgreSQL:
+```env
+SERVER_TYPE=http
+SERVER_PORT=8080
+SERVER_URL=http://IP_ESTATICA:8080
+
+AUTHENTICATION_API_KEY=beautyos-prod-key-2026
+
+DATABASE_PROVIDER=postgresql
+DATABASE_CONNECTION_URI=postgresql://postgres:evolution2026@localhost:5432/evolution?schema=public
+
+WEBHOOK_GLOBAL_ENABLED=true
+WEBHOOK_GLOBAL_URL=http://localhost:3000/webhook/evolution
+WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=false
+
+CACHE_REDIS_ENABLED=false
+CACHE_LOCAL_ENABLED=true
+
+CONFIG_SESSION_PHONE_CLIENT=BeautyOS
+CONFIG_SESSION_PHONE_NAME=Chrome
+QRCODE_LIMIT=30
+```
+
+**Generar Prisma Client y migrar DB:**
+```bash
+cd /home/iaitelsa/evolution-api
+npm run db:generate
+npm run db:deploy
+```
+
+**NOTA**: `WEBHOOK_GLOBAL_URL` apunta a `localhost:3000` porque ambos servicios corren en la misma VM. **No necesita ngrok.**
+
+---
+
+### FASE 5: Desplegar el Bot
+
+El script `deploy/setup-server.sh` clona el repo como `beautyos`:
+```bash
+cd /home/iaitelsa
+git clone https://github.com/itelsaia/ITELSA-IA-BeautyOS-Bot.git beautyos
+cd beautyos/agent-bot
+npm install
+```
+
+**Archivos sensibles** (copiar manualmente, NO estan en git):
+
+| Archivo | Ubicacion en servidor | Que contiene |
+|---------|----------------------|--------------|
+| `.env` | `/home/iaitelsa/beautyos/agent-bot/.env` | PORT, EVOLUTION_API_URL, EVOLUTION_API_KEY |
+| `credenciales-google.json` | `/home/iaitelsa/beautyos/agent-bot/credenciales-google.json` | Service Account JWT |
+| `tenants.json` | `/home/iaitelsa/beautyos/tenants.json` | Configuracion de clientes |
+
+**Archivo `.env` del bot en produccion** (ver `deploy/env-produccion.txt`):
+```env
+PORT=3000
+EVOLUTION_API_URL=http://localhost:8080
+EVOLUTION_API_KEY=beautyos-prod-key-2026
+```
+
+**IMPORTANTE:** La API KEY debe coincidir en ambos `.env` (Evolution API y Bot).
+
+---
+
+### FASE 6: Configurar PM2 (24/7)
+
+Copiar `deploy/ecosystem.config.js` al servidor (`/home/iaitelsa/ecosystem.config.js`):
+```javascript
+module.exports = {
+  apps: [
+    {
+      name: 'evolution-api',
+      cwd: '/home/iaitelsa/evolution-api',
+      script: 'npm',
+      args: 'start',
+      interpreter: 'none',
+      restart_delay: 5000,
+      max_restarts: 10,
+      env: { NODE_ENV: 'production' }
+    },
+    {
+      name: 'beautyos-bot',
+      cwd: '/home/iaitelsa/beautyos/agent-bot',
+      script: 'src/app.js',
+      restart_delay: 5000,
+      max_restarts: 10,
+      env: {
+        NODE_ENV: 'production',
+        PORT: '3000',
+        EVOLUTION_API_URL: 'http://localhost:8080',
+        EVOLUTION_API_KEY: 'beautyos-prod-key-2026'
+      }
+    }
+  ]
+};
+```
+
+**Iniciar servicios:**
+```bash
+# Evolution API primero, luego el bot
+pm2 start ecosystem.config.js --only evolution-api
+sleep 10
+pm2 start ecosystem.config.js --only beautyos-bot
+
+# Guardar para auto-inicio al reiniciar VM
+pm2 save
+pm2 startup  # Ejecutar el comando que muestra
+```
+
+**Verificar:**
+```bash
+pm2 status          # Ambos deben estar "online"
+pm2 logs            # Ver logs en tiempo real
+curl localhost:3000/health   # Debe retornar JSON ok
+curl localhost:8080          # Debe retornar Welcome to Evolution API
+```
+
+---
+
+### FASE 7: Conectar WhatsApp
+
+1. Abrir en navegador: `http://IP_ESTATICA:8080/manager`
+2. API Key: `beautyos-api-key-produccion-2026`
+3. Las instancias se crean automaticamente al iniciar el bot
+4. Click en la instancia > escanear QR con WhatsApp del celular
+5. Esperar a que muestre "Connected" (badge verde)
+
+---
+
+### Comandos de Mantenimiento (Produccion)
+
+**Ver estado de servicios:**
+```bash
+pm2 status
+```
+
+**Ver logs en tiempo real:**
+```bash
+pm2 logs                        # Todos
+pm2 logs beautyos-bot           # Solo bot
+pm2 logs evolution-api          # Solo Evolution
+```
+
+**Reiniciar servicios:**
+```bash
+pm2 restart beautyos-bot        # Solo bot
+pm2 restart evolution-api       # Solo Evolution
+pm2 restart all                 # Todo
+```
+
+**Actualizar el bot (despues de git push desde local):**
+```bash
+cd ~/beautyos && git pull && cd agent-bot && npm install && pm2 restart beautyos-bot
+```
+
+**Actualizar Evolution API:**
+```bash
+cd ~/evolution-api && git pull && npm install && npm run db:generate && npm run db:deploy && pm2 restart evolution-api
+```
+
+**Ver uso de RAM:**
+```bash
+free -h
+pm2 monit
+```
+
+**Estado de PostgreSQL:**
+```bash
+sudo systemctl status postgresql
+```
+
+---
+
+### Costos Mensuales
+
+| Recurso | Costo/mes |
+|---------|-----------|
+| VM e2-micro (Free Tier) | $0 |
+| 30GB disco (Free Tier) | $0 |
+| IP estatica (asignada a VM) | $0 |
+| Firewall rules | $0 |
+| OpenAI API (GPT + Whisper) | ~$2-5 |
+| **TOTAL** | **~$2-5/mes** |
+
+Si se necesita upgrade a e2-small (2GB RAM): +$13/mes
+
+---
+
+### Estructura de Directorios en el Servidor
+
+```
+/home/iaitelsa/
+  evolution-api/              # Evolution API v2 + Prisma + PostgreSQL
+    .env                      # Config (SERVER_URL, DATABASE_CONNECTION_URI, API_KEY, WEBHOOK)
+    prisma/                   # Schemas y migraciones
+  beautyos/                   # Repositorio (clonado como "beautyos")
+    agent-bot/
+      .env                    # Config del bot (PORT, EVOLUTION_API_URL, API_KEY)
+      credenciales-google.json # Service Account JWT
+      src/app.js              # Entry point
+    tenants.json              # Configuracion multi-tenant
+    crm-webapp/               # Codigo fuente GAS (se despliega con clasp desde local)
+    deploy/                   # Scripts de despliegue
+      setup-server.sh         # Script automatizado de instalacion
+      ecosystem.config.js     # Config PM2 (copiar a ~/)
+      env-produccion.txt      # Template .env del bot
+      evolution-api-env-produccion.txt  # Template .env de Evolution API
+  ecosystem.config.js         # Configuracion PM2 (copia de deploy/)
+```
+
+### Diferencias Local vs Produccion
+
+| Aspecto | Local (Mac Boot Camp) | Produccion (Google Cloud) |
+|---------|----------------------|--------------------------|
+| ngrok | Necesario (URL cambia) | NO necesario (localhost) |
+| PostgreSQL | Servicio Windows local | Servicio Ubuntu local |
+| Evolution API | `npx tsx ./src/main.ts` | PM2 con `npm start` |
+| Bot | `npm start` manual | PM2 24/7 auto-restart |
+| Webhook URL | `https://xxxx.ngrok-free.app/webhook/evolution` | `http://localhost:3000/webhook/evolution` |
+| IP | Dinamica (ngrok) | Estatica (Google Cloud) |
