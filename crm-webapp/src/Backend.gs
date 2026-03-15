@@ -1486,8 +1486,16 @@ function handleGetBirthdayClients(ss, payload) {
       var m = (cumpleRaw.getMonth() + 1).toString().padStart(2, '0');
       ddmm = d + '/' + m;
     } else {
-      var parts = cumpleRaw.toString().split('/');
-      if (parts.length >= 2) ddmm = parts[0].padStart(2, '0') + '/' + parts[1].padStart(2, '0');
+      var cumpleStr = cumpleRaw.toString().trim();
+      var parts = cumpleStr.split('/');
+      if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+        ddmm = parts[0].padStart(2, '0') + '/' + parts[1].padStart(2, '0');
+      } else {
+        // Formato español: "15 de marzo", "15 de Marzo"
+        var mesesEs = {enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
+        var match = cumpleStr.toLowerCase().match(/(\d{1,2})\s*de\s*(\w+)/);
+        if (match && mesesEs[match[2]]) ddmm = match[1].padStart(2, '0') + '/' + mesesEs[match[2]];
+      }
     }
 
     if (!ddmm) continue;

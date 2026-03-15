@@ -194,7 +194,7 @@ async function syncTenantData(tenantId) {
             console.error(`[${tenantId}] Error en clasificacion:`, classError.message);
         }
 
-        // ── Cumpleanos proactivos (1 vez al dia, desde PROMOCIONES) ──
+        // ── Cumpleanos proactivos (multi-envio configurable desde PROMOCIONES) ──
         try {
             const cumplePromo = (tenant.promotionsCatalog || []).find(p =>
                 p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
@@ -204,8 +204,34 @@ async function syncTenantData(tenantId) {
                 const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
                 const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
-                if (tenant.lastBirthdayCheck !== todayKey) {
-                    tenant.lastBirthdayCheck = todayKey;
+                // Parsear horas de envio desde APLICA_DIA (ej: "08:00,13:00,19:00")
+                const rawHours = (cumplePromo.aplicaDia || '08:00').toString().trim();
+                const sendHours = rawHours.split(',')
+                    .map(h => h.trim())
+                    .filter(h => /^\d{1,2}:\d{2}$/.test(h))
+                    .map(h => { const [hh, mm] = h.split(':').map(Number); return { h: hh, m: mm, label: h }; });
+                if (sendHours.length === 0) sendHours.push({ h: 8, m: 0, label: '08:00' });
+
+                // Resetear tracking si cambio de dia
+                if (!tenant.birthdaySent || tenant.birthdaySent.date !== todayKey) {
+                    tenant.birthdaySent = { date: todayKey, manana: false, hoy: {} };
+                }
+
+                const nowH = today.getHours();
+                const nowM = today.getMinutes();
+
+                // Indices de horas que ya llegaron
+                const arrivedIndices = [];
+                for (let i = 0; i < sendHours.length; i++) {
+                    if (nowH > sendHours[i].h || (nowH === sendHours[i].h && nowM >= sendHours[i].m)) {
+                        arrivedIndices.push(i);
+                    }
+                }
+
+                if (arrivedIndices.length > 0) {
+                    const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
+                        ? null
+                        : cumplePromo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
 
                     const dd = String(today.getDate()).padStart(2, '0');
                     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -217,29 +243,49 @@ async function syncTenantData(tenantId) {
                     api.webhookUrl = tenant.webhookGasUrl;
                     const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
 
-                    // Tipos de cliente permitidos por la promo
-                    const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
-                        ? null
-                        : cumplePromo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
-
                     let enviados = 0;
-                    if (bday.manana && bday.manana.length > 0) {
+
+                    // MANANA: 1 solo mensaje al llegar la primera hora
+                    if (!tenant.birthdaySent.manana && bday.manana && bday.manana.length > 0) {
+                        tenant.birthdaySent.manana = true;
                         for (const c of bday.manana) {
                             if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
-                            await sendBirthdayMessage(tenant, c, 'manana', cumplePromo);
+                            await sendBirthdayMessage(tenant, c, 'manana', cumplePromo, 0, sendHours.length);
                             enviados++;
                         }
                     }
+
+                    // HOY: multi-envio por cliente, se detiene si ya agendo
                     if (bday.hoy && bday.hoy.length > 0) {
+                        const todayDDMMYYYY = `${dd}/${mm}/${today.getFullYear()}`;
+
                         for (const c of bday.hoy) {
                             if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
-                            await sendBirthdayMessage(tenant, c, 'hoy', cumplePromo);
-                            enviados++;
+
+                            // Verificar si ya tiene cita para hoy → SKIP
+                            const clientAppts = tenant.pendingAppointments[c.celular] || [];
+                            const hasApptToday = clientAppts.some(a => a.fecha === todayDDMMYYYY);
+                            if (hasApptToday) {
+                                console.log(`[${tenantId}] Cumpleanos: ${c.nombre} ya tiene cita hoy, omitiendo envios.`);
+                                continue;
+                            }
+
+                            // Tracking per-client
+                            if (!tenant.birthdaySent.hoy[c.celular]) tenant.birthdaySent.hoy[c.celular] = [];
+                            const sentIndices = tenant.birthdaySent.hoy[c.celular];
+
+                            for (const idx of arrivedIndices) {
+                                if (!sentIndices.includes(idx)) {
+                                    await sendBirthdayMessage(tenant, c, 'hoy', cumplePromo, idx, sendHours.length);
+                                    sentIndices.push(idx);
+                                    enviados++;
+                                }
+                            }
                         }
                     }
 
                     if (enviados > 0) {
-                        console.log(`[${tenantId}] Cumpleanos: ${enviados} mensaje(s) enviado(s) (tipos: ${cumplePromo.aplicaTipoCliente})`);
+                        console.log(`[${tenantId}] Cumpleanos: ${enviados} mensaje(s) enviado(s) (horas: ${rawHours}, tipos: ${cumplePromo.aplicaTipoCliente})`);
                     }
                 }
             }
@@ -252,39 +298,77 @@ async function syncTenantData(tenantId) {
 }
 
 /**
- * Envia mensaje proactivo de cumpleanos via WhatsApp usando la plantilla de la promo
+ * Envia mensaje proactivo de cumpleanos via WhatsApp.
+ * @param {number} sendIndex - Indice del envio (0 = primero, N-1 = ultimo)
+ * @param {number} totalSends - Total de envios configurados
  */
-async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo) {
+async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendIndex, totalSends) {
     if (!evolutionClient) return;
     const config = tenant.config;
     const descuento = cumplePromo.valorDescuento || 20;
 
+    // ── Calcular horario disponible del dia de cumpleanos ──
+    const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const targetDate = new Date(now);
+    if (timing === 'manana') targetDate.setDate(targetDate.getDate() + 1);
+    const diaNombre = DIAS_SEMANA[targetDate.getDay()];
+
+    const normalize = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const jornadas = (tenant.disponibilidadCatalog || []).filter(d =>
+        d.tipo === 'Jornada' && normalize(d.fechaDia) === normalize(diaNombre)
+    );
+    const horarioTexto = jornadas.length > 0 ? `${jornadas[0].horaIni} a ${jornadas[0].horaFin}` : '';
+    const horarioInfo = horarioTexto ? ` Estamos disponibles de ${horarioTexto}.` : '';
+    const diaLabel = timing === 'manana' ? 'manana ' + diaNombre : 'hoy ' + diaNombre;
+
     let mensaje = '';
     const plantilla = (cumplePromo.descripcion || '').trim();
 
-    if (plantilla) {
-        // Reemplazar placeholders de la plantilla configurada por la duena
-        mensaje = plantilla
-            .replace(/\{nombre\}/gi, cliente.nombre)
-            .replace(/\{negocio\}/gi, config.businessName || '')
-            .replace(/\{descuento\}/gi, descuento + '%');
-
-        // Si es "manana" y la plantilla no menciona "manana", agregar prefijo
-        if (timing === 'manana' && !plantilla.toLowerCase().includes('manana')) {
-            mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial. ` + mensaje;
+    if (timing === 'manana') {
+        // Mensaje de "manana es tu cumple" - 1 solo envio, usa plantilla
+        if (plantilla) {
+            mensaje = plantilla
+                .replace(/\{nombre\}/gi, cliente.nombre)
+                .replace(/\{negocio\}/gi, config.businessName || '')
+                .replace(/\{descuento\}/gi, descuento + '%')
+                .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
+                .replace(/\{dia\}/gi, diaLabel);
+            if (!plantilla.toLowerCase().includes('manana')) {
+                mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial. ` + mensaje;
+            }
+        } else {
+            mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial y en ${config.businessName} queremos celebrarlo contigo. Te ofrecemos un *${descuento}% de descuento* en cualquier servicio.${horarioInfo} Responde a este mensaje para agendar tu cita de cumpleanos!`;
         }
     } else {
-        // Fallback si no hay plantilla
-        if (timing === 'manana') {
-            mensaje = `Hola ${cliente.nombre}! Sabemos que manana es tu dia especial y en ${config.businessName} queremos celebrarlo contigo. Te ofrecemos un ${descuento}% de descuento en cualquier servicio. Agenda tu cita y luce increible en tu cumpleanos!`;
+        // Mensajes de "hoy" - varian segun el indice de envio
+        const isFirst = sendIndex === 0;
+        const isLast = sendIndex === totalSends - 1 && totalSends > 1;
+
+        if (isFirst) {
+            // Primer envio: felicitacion completa con plantilla
+            if (plantilla) {
+                mensaje = plantilla
+                    .replace(/\{nombre\}/gi, cliente.nombre)
+                    .replace(/\{negocio\}/gi, config.businessName || '')
+                    .replace(/\{descuento\}/gi, descuento + '%')
+                    .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
+                    .replace(/\{dia\}/gi, diaLabel);
+            } else {
+                mensaje = `Feliz cumpleanos ${cliente.nombre}! En ${config.businessName} queremos que este dia sea aun mas especial. Te regalamos un *${descuento}% de descuento* en el servicio que desees.${horarioInfo} Escribenos ahora para agendar tu cita de cumpleanos! Solo valido hoy.`;
+            }
+        } else if (isLast) {
+            // Ultimo envio: urgencia
+            mensaje = `Ultima oportunidad ${cliente.nombre}! Tu regalo de cumpleanos de *${descuento}% de descuento* en ${config.businessName} vence hoy a medianoche. No dejes pasar esta oportunidad, responde ahora para agendar tu cita!`;
         } else {
-            mensaje = `Feliz cumpleanos ${cliente.nombre}! En ${config.businessName} queremos que este dia sea aun mas especial. Te regalamos un ${descuento}% de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!`;
+            // Envios intermedios: recordatorio
+            mensaje = `Hola ${cliente.nombre}! Recuerda que hoy por tu cumpleanos tienes un *${descuento}% de descuento* en ${config.businessName}.${horarioInfo} Agenda tu cita ahora, solo es valido hoy! Responde para agendar.`;
         }
     }
 
     try {
         await evolutionClient.sendText(tenant.instanceName, cliente.celular, mensaje);
-        console.log(`[${tenant.instanceName}] Cumpleanos ${timing}: mensaje enviado a ${cliente.nombre} (${cliente.celular}) [tipo: ${cliente.tipo}]`);
+        console.log(`[${tenant.instanceName}] Cumpleanos ${timing}[${sendIndex+1}/${totalSends}]: enviado a ${cliente.nombre} (${cliente.celular}) [tipo: ${cliente.tipo}]`);
     } catch (err) {
         console.error(`[${tenant.instanceName}] Error enviando cumpleanos a ${cliente.celular}:`, err.message);
     }

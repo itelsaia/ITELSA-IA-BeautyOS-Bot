@@ -8,6 +8,20 @@ const { loadPendingAppointments } = require('../services/sheets');
 const { transcribeAudio } = require('../services/whisper');
 const api = require('../services/api'); // singleton — override webhookUrl por tenant
 
+// Helper: Parsea campo CUMPLE en formato "dd/mm" o "15 de marzo"
+const MESES_ES = { enero:'01', febrero:'02', marzo:'03', abril:'04', mayo:'05', junio:'06', julio:'07', agosto:'08', septiembre:'09', octubre:'10', noviembre:'11', diciembre:'12' };
+function parseCumpleDDMM(cumpleStr) {
+    if (!cumpleStr) return '';
+    const str = cumpleStr.toString().trim();
+    const slashParts = str.split('/');
+    if (slashParts.length >= 2 && !isNaN(slashParts[0]) && !isNaN(slashParts[1])) {
+        return slashParts[0].padStart(2, '0') + '/' + slashParts[1].padStart(2, '0');
+    }
+    const match = str.toLowerCase().match(/(\d{1,2})\s*de\s*(\w+)/);
+    if (match && MESES_ES[match[2]]) return match[1].padStart(2, '0') + '/' + MESES_ES[match[2]];
+    return '';
+}
+
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
 let evolutionClient = null;
 
@@ -837,8 +851,7 @@ router.post('/evolution', async (req, res) => {
                         const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
                         const ddNow = String(nowCol.getDate()).padStart(2, '0');
                         const mmNow = String(nowCol.getMonth() + 1).padStart(2, '0');
-                        const cumpleParts = clienteInfoBday.cumple.split('/');
-                        const cumpleDDMM = cumpleParts.length >= 2 ? cumpleParts[0].padStart(2, '0') + '/' + cumpleParts[1].padStart(2, '0') : '';
+                        const cumpleDDMM = parseCumpleDDMM(clienteInfoBday.cumple);
                         if (cumpleDDMM === `${ddNow}/${mmNow}`) {
                             const bdayDiscount = cumplePromoWh.valorDescuento || 20;
                             descuentoCumple = Math.round(citaData.precio_total * bdayDiscount / 100);

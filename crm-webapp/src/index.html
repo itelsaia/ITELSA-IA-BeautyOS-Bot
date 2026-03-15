@@ -396,6 +396,11 @@
               <label class="form-label fw-semibold">Valida Hasta</label>
               <input type="date" class="form-control" id="promoVence">
             </div>
+            <div class="col-md-6" id="promoHorasEnvioGroup" style="display:none;">
+              <label class="form-label fw-semibold"><i class="fas fa-clock me-1"></i> Horas de Envio</label>
+              <input type="text" class="form-control" id="promoHorasEnvio" placeholder="08:00,13:00,19:00" value="08:00,13:00,19:00">
+              <small class="text-muted">Horas separadas por coma (24h). Si el cliente agenda, se omiten los envios restantes.</small>
+            </div>
             <div class="col-md-6">
               <label class="form-label fw-semibold">Estado</label>
               <div class="form-check form-switch mt-2">
@@ -416,7 +421,7 @@
             </div>
             <div class="col-12" id="promoCumpleHint" style="display:none;">
               <div class="alert alert-info mb-0">
-                <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> Esta promocion es <strong>permanente</strong> (no vence). El bot enviara automaticamente un mensaje con el descuento el dia antes y el mismo dia del cumpleanos. La DESCRIPCION se usa como plantilla del mensaje (usa <code>{nombre}</code> para el nombre del cliente, <code>{negocio}</code> para tu negocio, <code>{descuento}</code> para el %). Activa o desactiva cuando quieras.
+                <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> Promocion <strong>permanente</strong> (no vence). El bot envia mensajes automaticamente a las horas configuradas:<br>- <strong>Dia anterior:</strong> 1 mensaje de aviso<br>- <strong>Dia del cumpleanos:</strong> multiples envios (1ro: felicitacion, intermedios: recordatorio, ultimo: "ultima oportunidad"). Si el cliente agenda, se dejan de enviar.<br>- <strong>El descuento solo aplica el dia del cumpleanos.</strong> Si no agenda, pierde la promocion.<br><strong>Plantilla (1er envio):</strong> <code>{nombre}</code> <code>{negocio}</code> <code>{descuento}</code> <code>{horario}</code> <code>{dia}</code>. Los siguientes son recordatorios automaticos.
               </div>
             </div>
           </div>
@@ -523,17 +528,18 @@ document.addEventListener('DOMContentLoaded', function() {
     var tipo = this.value;
     var diasGroup = document.getElementById('promoDiasCheck').closest('.col-md-6');
     var cumpleHint = document.getElementById('promoCumpleHint');
+    var horasGroup = document.getElementById('promoHorasEnvioGroup');
 
     if (tipo === 'PORCENTAJE') h.textContent = '% de descuento';
     else if (tipo === '2X1') h.textContent = 'Ej: 50 = 2do al 50%';
     else if (tipo === 'CUMPLEANOS') h.textContent = '% de descuento por cumpleanos';
     else h.textContent = '$ COP de descuento';
 
-    // Ocultar dias y fecha vencimiento para CUMPLEANOS (es permanente)
+    // CUMPLEANOS: ocultar dias/vence, mostrar horas de envio
     if (diasGroup) diasGroup.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
     var venceGroup = document.getElementById('promoVenceGroup');
     if (venceGroup) venceGroup.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
-    // Mostrar hint de cumpleanos y ocultar tip
+    if (horasGroup) horasGroup.style.display = tipo === 'CUMPLEANOS' ? '' : 'none';
     if (cumpleHint) cumpleHint.style.display = tipo === 'CUMPLEANOS' ? '' : 'none';
     var tipCumple = document.getElementById('promoTipCumple');
     if (tipCumple) tipCumple.style.display = tipo === 'CUMPLEANOS' ? 'none' : '';
@@ -1832,6 +1838,10 @@ function abrirModalPromoCrear() {
   if (diasGroup) diasGroup.style.display = '';
   var venceGroup = document.getElementById('promoVenceGroup');
   if (venceGroup) venceGroup.style.display = '';
+  // Reset horas de envio
+  var horasGroup = document.getElementById('promoHorasEnvioGroup');
+  if (horasGroup) horasGroup.style.display = 'none';
+  document.getElementById('promoHorasEnvio').value = '08:00,13:00,19:00';
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
 
@@ -1871,6 +1881,10 @@ function abrirModalPromoEditar(rowIndex) {
       else if (t === 'VIP') document.getElementById('tcVIP').checked = true;
     });
   }
+  // Poblar horas de envio si es CUMPLEANOS
+  if ((p.tipoPromo || '').toUpperCase() === 'CUMPLEANOS') {
+    document.getElementById('promoHorasEnvio').value = p.aplicaDia || '08:00,13:00,19:00';
+  }
   document.getElementById('promoTipo').dispatchEvent(new Event('change'));
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
@@ -1880,11 +1894,20 @@ function guardarPromocion() {
   if (!nombre) { toast('El nombre es obligatorio.', 'warning'); return; }
   var sel = document.getElementById('promoServicio'); var srvArr = [];
   for (var i = 0; i < sel.options.length; i++) { if (sel.options[i].selected) srvArr.push(sel.options[i].value); }
-  var diasArr = [];
-  document.querySelectorAll('#promoDiasCheck input:checked').forEach(function(cb) { diasArr.push(cb.value); });
+  var promoTipoVal = document.getElementById('promoTipo').value;
+  var aplicaDiaVal = '';
+  if (promoTipoVal === 'CUMPLEANOS') {
+    aplicaDiaVal = (document.getElementById('promoHorasEnvio').value || '08:00').trim();
+  } else {
+    var diasArr = [];
+    document.querySelectorAll('#promoDiasCheck input:checked').forEach(function(cb) { diasArr.push(cb.value); });
+    aplicaDiaVal = diasArr.join(',');
+  }
   var fechaVence = '';
-  var fInput = document.getElementById('promoVence').value;
-  if (fInput) { var pp = fInput.split('-'); fechaVence = pp[2] + '/' + pp[1] + '/' + pp[0]; }
+  if (promoTipoVal !== 'CUMPLEANOS') {
+    var fInput = document.getElementById('promoVence').value;
+    if (fInput) { var pp = fInput.split('-'); fechaVence = pp[2] + '/' + pp[1] + '/' + pp[0]; }
+  }
 
   // Recoger tipo de cliente
   var tipoClienteArr = [];
@@ -1899,9 +1922,9 @@ function guardarPromocion() {
 
   var data = {
     nombre: nombre, descripcion: document.getElementById('promoDescripcion').value.trim(),
-    tipoPromo: document.getElementById('promoTipo').value,
+    tipoPromo: promoTipoVal,
     valorDescuento: parseInt(document.getElementById('promoValor').value) || 0,
-    aplicaServicio: srvArr.join(','), aplicaDia: diasArr.join(','), vence: fechaVence,
+    aplicaServicio: srvArr.join(','), aplicaDia: aplicaDiaVal, vence: fechaVence,
     estado: document.getElementById('promoEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO',
     aplicaTipoCliente: tipoClienteArr.join(',')
   };
@@ -2636,10 +2659,18 @@ function badgeEstadoCita(estado) {
 
 function esCumpleHoy(cumpleStr) {
   if (!cumpleStr) return false;
-  var parts = cumpleStr.toString().split('/');
-  if (parts.length < 2) return false;
-  var dd = parseInt(parts[0], 10);
-  var mm = parseInt(parts[1], 10);
+  var str = cumpleStr.toString().trim();
+  var dd = 0, mm = 0;
+  var parts = str.split('/');
+  if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    dd = parseInt(parts[0], 10);
+    mm = parseInt(parts[1], 10);
+  } else {
+    var mesesEs = {enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+    var match = str.toLowerCase().match(/(\d{1,2})\s*de\s*(\w+)/);
+    if (match && mesesEs[match[2]]) { dd = parseInt(match[1], 10); mm = mesesEs[match[2]]; }
+  }
+  if (!dd || !mm) return false;
   var hoy = new Date();
   return hoy.getDate() === dd && (hoy.getMonth() + 1) === mm;
 }
