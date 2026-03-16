@@ -972,32 +972,61 @@ router.post('/evolution', async (req, res) => {
                     extraPaymentData.estadoPago = isExempt ? 'EXENTO' : (montoAnticipo > 0 ? 'PENDIENTE_PAGO' : 'EXENTO');
                 }
 
-                // ── Detectar si aplica promo (cumpleaños u otra vigente) ──
+                // ── Detectar si aplica promo (cumpleaños u otra vigente) y CALCULAR descuento en código ──
                 let promoFlag = descuentoCumple > 0 ? 'SI' : 'NO';
                 let tipoPromoFlag = descuentoCumple > 0 ? 'CUMPLEANOS' : '';
                 if (promoFlag === 'NO') {
-                    // Verificar promos normales vigentes hoy
+                    // Verificar promos normales vigentes para el DIA DE LA CITA
                     const weekDaysPromo = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-                    const nowPromo = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
-                    const hoyDiaPromo = weekDaysPromo[nowPromo.getDay()];
+                    // Parsear fecha de la cita para saber qué día es
+                    let citaDayName = '';
+                    if (citaData.fecha) {
+                        const fp = citaData.fecha.split('/');
+                        if (fp.length === 3) {
+                            const citaDate = new Date(fp[2], fp[1] - 1, fp[0]);
+                            citaDayName = weekDaysPromo[citaDate.getDay()];
+                        }
+                    }
+                    const srvNames = citaData.servicios.split(',').map(s => s.trim().toLowerCase());
                     const promosActivas = (tenant.promotionsCatalog || []).filter(p => {
                         if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
                         if (p.aplicaDia && p.aplicaDia.trim() !== '') {
                             const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
-                            if (!dias.includes(hoyDiaPromo)) return false;
+                            if (citaDayName && !dias.includes(citaDayName)) return false;
+                        }
+                        // Verificar que la promo aplica al servicio
+                        if (p.aplicaServicio && p.aplicaServicio !== 'TODOS') {
+                            const srvPromo = p.aplicaServicio.split(',').map(s => s.trim().toLowerCase());
+                            const matches = srvNames.some(sn => srvPromo.some(sp => sn.includes(sp) || sp.includes(sn)));
+                            if (!matches) return false;
                         }
                         return true;
                     });
-                    // Si hay promos activas y el precio guardado es menor al catálogo, marcar
+
                     if (promosActivas.length > 0) {
-                        const srvNames = citaData.servicios.split(',').map(s => s.trim());
+                        const bestPromo = promosActivas[0];
+                        promoFlag = 'SI';
+                        tipoPromoFlag = bestPromo.nombre || bestPromo.tipoPromo || 'DESCUENTO';
+
+                        // Calcular precio de catálogo
                         const catalogPrice = srvNames.reduce((sum, name) => {
-                            const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
+                            const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
                             return sum + (info ? info.price : 0);
                         }, 0);
-                        if (catalogPrice > 0 && citaData.precio_total < catalogPrice) {
-                            promoFlag = 'SI';
-                            tipoPromoFlag = promosActivas[0].nombre || promosActivas[0].tipoPromo || 'DESCUENTO';
+
+                        // FORZAR el precio con descuento (no confiar en la IA)
+                        if (catalogPrice > 0) {
+                            let precioFinal = catalogPrice;
+                            if (bestPromo.tipoPromo === 'PORCENTAJE') {
+                                precioFinal = Math.round(catalogPrice * (1 - bestPromo.valorDescuento / 100));
+                            } else if (bestPromo.tipoPromo === 'VALOR_FIJO') {
+                                precioFinal = Math.max(0, catalogPrice - bestPromo.valorDescuento);
+                            }
+                            // 2X1: no cambiar precio aquí (aplica a 2 servicios iguales)
+                            if (bestPromo.tipoPromo !== '2X1' && precioFinal !== catalogPrice) {
+                                console.log(`[${instanceName}] 🏷️ Promo "${bestPromo.nombre}" aplicada: $${catalogPrice} → $${precioFinal} (${bestPromo.tipoPromo} ${bestPromo.valorDescuento})`);
+                                citaData.precio_total = precioFinal;
+                            }
                         }
                     }
                 }
