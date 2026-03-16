@@ -760,7 +760,7 @@ router.post('/evolution', async (req, res) => {
         }
 
         // ── CONFIRMACIÓN DIRECTA: El código guarda/reagenda sin pasar por IA ──
-        const CONFIRM_REGEX = /^(si+p?|ok[i]?|okey|okay|dale|de una|de una vez|confirmo|confirmado|confirmar|perfecto|de acuerdo|claro|listo|vale|aprobado|bueno|esta bien|por supuesto|obvio|sep|sepi|sipi|hagale|hagamosle|hagalo|vamos|sale|hecho|ya|venga|adelante|correcto|exacto|asi es|procede|agendame|agendeme|reservame|genial|super|excelente|me parece bien|me parece|va|eso|todo bien|agende|por fa|porfa|por favor|simon|aja|ajap|oki doki|okis|dale dale|dale pues|dale si|va pues|pues si|pues dale|listo pues|listo si|listo dale|eso es|eso si|claro si|claro que si|bueno si|bueno dale|venga pues|venga dale|ya dale|perfecto dale|si claro|si dale|si por favor|si porfa|si por fa|si gracias|si senora|si senor|ok dale|ok si|ok perfecto|ok listo|dale gracias|va va|dale va|ta bien|ta bueno|joya|bien|sisas|metale|mandele|reserva|agenda|haga|parce si|of course|yes|yep|yeah|sure)$/;
+        const CONFIRM_REGEX = /^(si+p?|ok[i]?|okey|okay|dale|de una|de una vez|confirmo|confirmado|confirmar|perfecto|de acuerdo|claro|listo|vale|aprobado|bueno|esta bien|por supuesto|obvio|sep|sepi|sipi|hagale|hagamosle|hagalo|vamos|sale|hecho|ya|venga|adelante|correcto|exacto|asi es|procede|agendame|agendeme|reservame|genial|super|excelente|me parece bien|me parece|va|eso|todo bien|agende|por fa|porfa|por favor|simon|aja|ajap|oki doki|okis|dale dale|dale pues|dale si|va pues|pues si|pues dale|listo pues|listo si|listo dale|eso es|eso si|claro si|claro que si|bueno si|bueno dale|venga pues|venga dale|ya dale|perfecto dale|si claro|si dale|si por favor|si porfa|si por fa|si gracias|si senora|si senor|ok dale|ok si|ok perfecto|ok listo|dale gracias|va va|dale va|ta bien|ta bueno|joya|bien|sisas|metale|mandele|reserva|agenda|haga|parce si|of course|yes|yep|yeah|sure|si confirmo|si confirmado|si agenda|si agende|si reserva|si reservame|si agendame|confirmo si|confirmo la cita|confirmo cita|si listo|si hecho|si va|si eso|dale confirmo|listo confirmo|confirmar cita|si todo bien)$/;
         const DENY_REGEX = /^(no+|nop[e]?|nel|nah|nada|no gracias|no quiero|no thanks|mejor no|dejalo|dejemoslo|cancelar?|olvidalo|olvida|paso|noo+|ni modo|para nada|negativo|nunca|jamas|nel pastel|no va|no dale|no seas)$/;
 
         // ── REAGENDAMIENTO DETERMINISTA (code-level) ──
@@ -1145,13 +1145,50 @@ router.post('/evolution', async (req, res) => {
                 // No es confirmación ni rechazo → re-preguntar (mantener datos)
                 const cd = session.pendingConfirmation;
                 console.log(`[${instanceName}] Re-preguntando confirmación de cita. Mensaje no reconocido: "${messageText}"`);
+
+                // Calcular precio con descuento para mostrar en el re-ask
+                let reaskPrecio = cd.precio_total;
+                const weekDaysReask = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                let reaskDayName = '';
+                if (cd.fecha) {
+                    const fpR = cd.fecha.split('/');
+                    if (fpR.length === 3) {
+                        reaskDayName = weekDaysReask[new Date(fpR[2], fpR[1] - 1, fpR[0]).getDay()];
+                    }
+                }
+                const srvNamesReask = cd.servicios.split(',').map(s => s.trim().toLowerCase());
+                const promoReask = (tenant.promotionsCatalog || []).find(p => {
+                    if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
+                    if (p.aplicaDia && p.aplicaDia.trim() !== '') {
+                        const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                        if (reaskDayName && !dias.includes(reaskDayName)) return false;
+                    }
+                    if (p.aplicaServicio && p.aplicaServicio !== 'TODOS') {
+                        const srvPromo = p.aplicaServicio.split(',').map(s => s.trim().toLowerCase());
+                        if (!srvNamesReask.some(sn => srvPromo.some(sp => sn.includes(sp) || sp.includes(sn)))) return false;
+                    }
+                    return true;
+                });
+                if (promoReask) {
+                    const catalogPriceReask = srvNamesReask.reduce((sum, name) => {
+                        const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                        return sum + (info ? info.price : 0);
+                    }, 0);
+                    if (catalogPriceReask > 0 && promoReask.tipoPromo === 'PORCENTAJE') {
+                        reaskPrecio = Math.round(catalogPriceReask * (1 - promoReask.valorDescuento / 100));
+                    } else if (catalogPriceReask > 0 && promoReask.tipoPromo === 'VALOR_FIJO') {
+                        reaskPrecio = Math.max(0, catalogPriceReask - promoReask.valorDescuento);
+                    }
+                }
+
+                const promoReaskLabel = promoReask ? `\n· *Promo:* ${promoReask.nombre} 🎉` : '';
                 const reaskMsg = `¿Confirmas tu cita? 🤔\n\n` +
                     `📋 *Resumen:*\n` +
                     `· *Servicio:* ${cd.servicios}\n` +
                     `· *Fecha:* ${cd.fecha}\n` +
                     `· *Hora:* ${cd.hora_inicio} a ${cd.hora_fin}\n` +
                     `· *Profesional:* ${cd.profesional}\n` +
-                    `· *Precio:* $${Number(cd.precio_total).toLocaleString('es-CO')}\n\n` +
+                    `· *Precio:* $${Number(reaskPrecio).toLocaleString('es-CO')}${promoReaskLabel}\n\n` +
                     `Responde *sí* para confirmar o *no* para cancelar.`;
                 session.history.push({ role: 'user', content: messageText });
                 session.history.push({ role: 'assistant', content: reaskMsg });
