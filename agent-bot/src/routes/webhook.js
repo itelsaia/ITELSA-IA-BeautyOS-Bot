@@ -279,7 +279,17 @@ router.post('/evolution', async (req, res) => {
 
             session.history.push({ role: 'assistant', content: saludoPersonalizado });
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
-            return;
+
+            // Si el mensaje SOLO es un saludo corto, retornar. Si tiene contenido sustancial (ej: "Hola quiero agendar..."), continuar al procesamiento de IA.
+            const msgSinSaludo = messageText.toLowerCase()
+                .replace(/\b(hola|buenos?\s*(dias|tardes|noches)|hey|hi|buenas|saludos|que\s*tal|buen\s*dia)\b/gi, '')
+                .replace(/[^\w\sáéíóúñ]/g, '')
+                .trim();
+            if (msgSinSaludo.length < 10) {
+                return; // Solo un saludo, no hay contenido sustancial
+            }
+            // El mensaje tiene más contenido → continuar al procesamiento de IA
+            console.log(`[${instanceName}] Saludo + contenido detectado: "${msgSinSaludo.substring(0, 80)}". Continuando a IA.`);
         }
 
         // ── PROCESAMIENTO DE COMPROBANTES DE PAGO (imagen) ──
