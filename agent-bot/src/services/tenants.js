@@ -348,17 +348,17 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
             .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
             .replace(/\{dia\}/gi, diaLabel);
     } else if (timing === 'manana') {
-        mensaje = `🎂✨ ¡Hola *${cliente.nombre}*! ✨🎂\n\n¡Mañana es tu día especial! 🎉 En *${negocio}* queremos celebrar tu cumpleaños contigo y hacerte sentir increíble.\n\n🎁 Te tenemos preparado un regalo exclusivo: *${descuento}% de descuento* en el servicio que tú elijas.${horarioInfo}\n\n📲 Responde a este mensaje para agendar tu cita de cumpleaños y reservar tu espacio. ¡No te lo pierdas! 💖`;
+        mensaje = `🎂✨ ¡Hola *${cliente.nombre}*! ✨🎂\n\n¡Mañana es tu día especial! 🎉 En *${negocio}* queremos celebrar tu cumpleaños contigo y hacerte sentir increíble.\n\n🎁 Te tenemos preparado un regalo exclusivo: *${descuento}% de descuento* en el servicio que tú elijas.\n\n📌 *¿Cómo funciona?*\n1️⃣ Escríbenos *mañana* (el día de tu cumpleaños) para agendar tu cita\n2️⃣ Elige el servicio que más te guste\n3️⃣ El descuento del *${descuento}%* se aplica automáticamente al valor total de tu servicio\n\n⚠️ *Importante:* Esta promoción es válida *únicamente el día de tu cumpleaños*. ¡Agenda tu cita mañana para que no se te pase!${horarioInfo}\n\n📲 Mañana solo escríbenos y nosotros nos encargamos de todo. ¡Te esperamos! 💖`;
     } else {
         const isFirst = sendIndex === 0;
         const isLast = sendIndex === totalSends - 1 && totalSends > 1;
 
         if (isFirst) {
-            mensaje = `🎉🎂🥳 ¡¡FELIZ CUMPLEAÑOS *${cliente.nombre}*!! 🥳🎂🎉\n\n¡Hoy es tu gran día! 🌟 Todo el equipo de *${negocio}* te desea lo mejor y quiere celebrarlo contigo.\n\n🎁 *Tu regalo de cumpleaños:* ${descuento}% de descuento en el servicio que prefieras.${horarioInfo}\n\n✨ Este regalo es *exclusivo para hoy*. ¡Escríbenos ahora y agenda tu cita especial de cumpleaños! 📲💖`;
+            mensaje = `🎉🎂🥳 ¡¡FELIZ CUMPLEAÑOS *${cliente.nombre}*!! 🥳🎂🎉\n\n¡Hoy es tu gran día! 🌟 Todo el equipo de *${negocio}* te desea lo mejor y quiere celebrarlo contigo.\n\n🎁 *Tu regalo de cumpleaños:* ${descuento}% de descuento en el servicio que prefieras.\n\n📌 *¿Cómo usar tu descuento?*\n1️⃣ Escríbenos *hoy* y dinos qué servicio te gustaría\n2️⃣ Te ayudamos a agendar tu cita para hoy\n3️⃣ El *${descuento}%* se descuenta automáticamente del valor total de tu servicio\n\n⚠️ *Recuerda:* Este regalo es *exclusivo para hoy*, día de tu cumpleaños. Mañana ya no estará disponible.${horarioInfo}\n\n📲 ¡Escríbenos ahora y agenda tu cita especial! 💖✨`;
         } else if (isLast) {
-            mensaje = `⏰🎂 ¡*${cliente.nombre}*, última oportunidad! 🎂⏰\n\n¡Tu regalo de cumpleaños vence hoy a medianoche! 🕛\n\n🎁 Aún puedes aprovechar tu *${descuento}% de descuento* exclusivo en *${negocio}*.\n\n📲 ¡Responde ahora y agenda tu cita antes de que se acabe! No dejes pasar este regalo. 💖✨`;
+            mensaje = `⏰🎂 ¡*${cliente.nombre}*, última oportunidad! 🎂⏰\n\n¡Tu regalo de cumpleaños vence *hoy a medianoche*! 🕛\n\n🎁 Aún puedes aprovechar tu *${descuento}% de descuento* exclusivo en *${negocio}*.\n\n📌 Solo escríbenos, elige tu servicio favorito y el descuento se aplica automáticamente al valor total.\n\n📲 ¡Responde ahora y agenda tu cita antes de que se acabe! No dejes pasar este regalo. 💖✨`;
         } else {
-            mensaje = `✨🎂 ¡Hola *${cliente.nombre}*! 🎂✨\n\nRecuerda que hoy por tu cumpleaños tienes un *${descuento}% de descuento* exclusivo en *${negocio}*.${horarioInfo}\n\n🎁 ¡Aprovecha este regalo y agenda tu cita ahora! Solo es válido hoy. 📲💖`;
+            mensaje = `✨🎂 ¡Hola *${cliente.nombre}*! 🎂✨\n\nRecuerda que *hoy* por tu cumpleaños tienes un *${descuento}% de descuento* exclusivo en *${negocio}*.\n\n📌 Solo escríbenos, elige el servicio que quieras y el descuento se aplica directo al precio. ¡Es automático!${horarioInfo}\n\n⚠️ Válido *solo hoy*. ¡No te lo pierdas! 📲💖`;
         }
     }
 
