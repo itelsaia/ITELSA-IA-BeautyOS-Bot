@@ -49,7 +49,8 @@ class EvolutionClient {
             const body = { number, mediatype: mediaType, media: mediaUrl, caption };
             if (fileName) body.fileName = fileName;
             const response = await this.http.post(
-                `/message/sendMedia/${instanceName}`, body
+                `/message/sendMedia/${instanceName}`, body,
+                { timeout: 60000 }
             );
             return response.data;
         } catch (error) {
