@@ -196,9 +196,18 @@ async function syncTenantData(tenantId) {
 
         // ── Cumpleanos proactivos (multi-envio configurable desde PROMOCIONES) ──
         try {
-            const cumplePromo = (tenant.promotionsCatalog || []).find(p =>
+            // DEBUG: Listar todas las promos para diagnostico
+            const allPromos = tenant.promotionsCatalog || [];
+            console.log(`[${tenantId}] DEBUG-CUMPLE: totalPromos=${allPromos.length}`);
+            allPromos.forEach((p, i) => {
+                console.log(`[${tenantId}] DEBUG-CUMPLE: promo[${i}]: nombre="${p.nombre}" tipoPromo="${p.tipoPromo}" estado="${p.estado}" aplicaDia="${p.aplicaDia}" aplicaTipoCliente="${p.aplicaTipoCliente}" valorDescuento="${p.valorDescuento}"`);
+            });
+
+            const cumplePromo = allPromos.find(p =>
                 p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
             );
+
+            console.log(`[${tenantId}] DEBUG-CUMPLE: cumplePromo=${cumplePromo ? 'SI ('+cumplePromo.nombre+')' : 'NO'}, evolutionClient=${!!evolutionClient}`);
 
             if (cumplePromo && evolutionClient) {
                 const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
@@ -212,13 +221,15 @@ async function syncTenantData(tenantId) {
                     .map(h => { const [hh, mm] = h.split(':').map(Number); return { h: hh, m: mm, label: h }; });
                 if (sendHours.length === 0) sendHours.push({ h: 8, m: 0, label: '08:00' });
 
-                // Resetear tracking si cambio de dia
-                if (!tenant.birthdaySent || tenant.birthdaySent.date !== todayKey) {
-                    tenant.birthdaySent = { date: todayKey, manana: false, hoy: {} };
-                }
-
                 const nowH = today.getHours();
                 const nowM = today.getMinutes();
+                console.log(`[${tenantId}] DEBUG-CUMPLE: todayKey=${todayKey}, nowH=${nowH}, nowM=${nowM}, rawHours="${rawHours}", sendHours=${JSON.stringify(sendHours)}`);
+
+                // Resetear tracking si cambio de dia
+                if (!tenant.birthdaySent || tenant.birthdaySent.date !== todayKey) {
+                    console.log(`[${tenantId}] DEBUG-CUMPLE: Reseteando tracking (prev=${JSON.stringify(tenant.birthdaySent || null)})`);
+                    tenant.birthdaySent = { date: todayKey, manana: false, hoy: {} };
+                }
 
                 // Indices de horas que ya llegaron
                 const arrivedIndices = [];
@@ -227,6 +238,7 @@ async function syncTenantData(tenantId) {
                         arrivedIndices.push(i);
                     }
                 }
+                console.log(`[${tenantId}] DEBUG-CUMPLE: arrivedIndices=${JSON.stringify(arrivedIndices)}, birthdaySent=${JSON.stringify(tenant.birthdaySent)}`);
 
                 if (arrivedIndices.length > 0) {
                     const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
@@ -240,8 +252,10 @@ async function syncTenantData(tenantId) {
                     const dd2 = String(tomorrow.getDate()).padStart(2, '0');
                     const mm2 = String(tomorrow.getMonth() + 1).padStart(2, '0');
 
+                    console.log(`[${tenantId}] DEBUG-CUMPLE: Llamando getBirthdayClients(fechaHoy="${dd}/${mm}", fechaManana="${dd2}/${mm2}")`);
                     api.webhookUrl = tenant.webhookGasUrl;
                     const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
+                    console.log(`[${tenantId}] DEBUG-CUMPLE: bday.hoy=${JSON.stringify(bday.hoy)}, bday.manana=${JSON.stringify(bday.manana)}`);
 
                     let enviados = 0;
 
@@ -249,7 +263,10 @@ async function syncTenantData(tenantId) {
                     if (!tenant.birthdaySent.manana && bday.manana && bday.manana.length > 0) {
                         tenant.birthdaySent.manana = true;
                         for (const c of bday.manana) {
-                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) {
+                                console.log(`[${tenantId}] DEBUG-CUMPLE: manana SKIP ${c.nombre} tipo="${c.tipo}" no esta en allowedTypes=${JSON.stringify(allowedTypes)}`);
+                                continue;
+                            }
                             await sendBirthdayMessage(tenant, c, 'manana', cumplePromo, 0, sendHours.length);
                             enviados++;
                         }
@@ -258,13 +275,20 @@ async function syncTenantData(tenantId) {
                     // HOY: multi-envio por cliente, se detiene si ya agendo
                     if (bday.hoy && bday.hoy.length > 0) {
                         const todayDDMMYYYY = `${dd}/${mm}/${today.getFullYear()}`;
+                        console.log(`[${tenantId}] DEBUG-CUMPLE: Procesando HOY. todayDDMMYYYY="${todayDDMMYYYY}", allowedTypes=${JSON.stringify(allowedTypes)}`);
 
                         for (const c of bday.hoy) {
-                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
+                            console.log(`[${tenantId}] DEBUG-CUMPLE: Cliente HOY: ${c.nombre} cel=${c.celular} tipo="${c.tipo}"`);
+
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) {
+                                console.log(`[${tenantId}] DEBUG-CUMPLE: SKIP ${c.nombre} por tipo "${c.tipo}" no en allowedTypes`);
+                                continue;
+                            }
 
                             // Verificar si ya tiene cita para hoy → SKIP
                             const clientAppts = tenant.pendingAppointments[c.celular] || [];
                             const hasApptToday = clientAppts.some(a => a.fecha === todayDDMMYYYY);
+                            console.log(`[${tenantId}] DEBUG-CUMPLE: ${c.nombre} citas=${JSON.stringify(clientAppts)}, hasApptToday=${hasApptToday}`);
                             if (hasApptToday) {
                                 console.log(`[${tenantId}] Cumpleanos: ${c.nombre} ya tiene cita hoy, omitiendo envios.`);
                                 continue;
@@ -273,24 +297,32 @@ async function syncTenantData(tenantId) {
                             // Tracking per-client
                             if (!tenant.birthdaySent.hoy[c.celular]) tenant.birthdaySent.hoy[c.celular] = [];
                             const sentIndices = tenant.birthdaySent.hoy[c.celular];
+                            console.log(`[${tenantId}] DEBUG-CUMPLE: ${c.nombre} sentIndices=${JSON.stringify(sentIndices)}, arrivedIndices=${JSON.stringify(arrivedIndices)}`);
 
                             for (const idx of arrivedIndices) {
                                 if (!sentIndices.includes(idx)) {
+                                    console.log(`[${tenantId}] DEBUG-CUMPLE: ENVIANDO mensaje hoy[${idx}/${sendHours.length}] a ${c.nombre}`);
                                     await sendBirthdayMessage(tenant, c, 'hoy', cumplePromo, idx, sendHours.length);
                                     sentIndices.push(idx);
                                     enviados++;
+                                } else {
+                                    console.log(`[${tenantId}] DEBUG-CUMPLE: idx=${idx} ya enviado a ${c.nombre}`);
                                 }
                             }
                         }
+                    } else {
+                        console.log(`[${tenantId}] DEBUG-CUMPLE: bday.hoy esta vacio o undefined`);
                     }
 
                     if (enviados > 0) {
                         console.log(`[${tenantId}] Cumpleanos: ${enviados} mensaje(s) enviado(s) (horas: ${rawHours}, tipos: ${cumplePromo.aplicaTipoCliente})`);
                     }
+                } else {
+                    console.log(`[${tenantId}] DEBUG-CUMPLE: Ninguna hora ha llegado aun. Esperando...`);
                 }
             }
         } catch (bdayError) {
-            console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message);
+            console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message, bdayError.stack);
         }
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
