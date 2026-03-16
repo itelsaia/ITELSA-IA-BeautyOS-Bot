@@ -280,29 +280,47 @@ router.post('/evolution', async (req, res) => {
             });
 
             let promoTexto = '';
+            let promoCTA = '';
             if (promosHoy.length > 0) {
-                promoTexto = '\n\n🎉 *Promociones de hoy:*\n' +
-                    promosHoy.map(p => `• ${p.nombre}: ${p.descripcion}`).join('\n');
+                promoTexto = '\n\n🎉 *¡Promociones activas para hoy!*\n' +
+                    promosHoy.map(p => {
+                        let descLabel = '';
+                        if (p.tipoPromo === 'PORCENTAJE') descLabel = `${p.valorDescuento}% de descuento`;
+                        else if (p.tipoPromo === '2X1') descLabel = '2x1';
+                        else if (p.tipoPromo === 'VALOR_FIJO') descLabel = `$${Number(p.valorDescuento).toLocaleString('es-CO')} de descuento`;
+                        return `• *${p.nombre}*: ${descLabel} en ${p.aplicaServicio}`;
+                    }).join('\n');
+                promoCTA = '\n\n👇 *¿Te gustaría aprovechar alguna de estas promos y agendar tu cita?* 💖✨';
             }
 
-            const saludoPersonalizado = birthdayGreeting
-                ? `🎉🎂 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 🎂🎉 ¡Qué bueno verte en tu día especial!\n\n${complemento}${birthdayGreeting}${promoTexto}`
-                : `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complemento}${promoTexto}`;
+            let saludoPersonalizado;
+            if (birthdayGreeting) {
+                saludoPersonalizado = `🎉🎂 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 🎂🎉 ¡Qué bueno verte en tu día especial!\n\n${complemento}${birthdayGreeting}${promoTexto}`;
+            } else if (promosHoy.length > 0) {
+                // Cuando hay promos, el saludo se enfoca en ellas
+                const complementoSinGenerico = userPendingAppointments.length > 0 ? complemento + '\n' : '';
+                saludoPersonalizado = `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complementoSinGenerico}${promoTexto}${promoCTA}`;
+            } else {
+                saludoPersonalizado = `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complemento}`;
+            }
 
             session.history.push({ role: 'assistant', content: saludoPersonalizado });
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
 
             // Enviar media visual de promos del dia si tienen
             for (const p of promosHoy) {
+                console.log(`[${instanceName}] Promo "${p.nombre}" media: tipo=${p.tipoMediaPromo || 'NONE'}, url=${p.urlMediaPromo ? 'SI' : 'NO'}`);
                 if (p.tipoMediaPromo && p.urlMediaPromo) {
                     try {
                         const directUrl = convertDriveUrl(p.urlMediaPromo);
                         const mediaType = p.tipoMediaPromo === 'imagen' ? 'image' : p.tipoMediaPromo === 'video' ? 'video' : 'document';
                         const fileName = p.tipoMediaPromo === 'documento' ? (p.nombre.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
-                        await new Promise(r => setTimeout(r, 1000));
-                        await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, p.nombre, fileName);
+                        const caption = `🎉 *${p.nombre}* — ¡Aprovecha esta promo!`;
+                        await new Promise(r => setTimeout(r, 1500));
+                        await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+                        console.log(`[${instanceName}] ✅ Media promo "${p.nombre}" enviada a ${phoneNumber}`);
                     } catch (promoMediaErr) {
-                        console.error(`[${instanceName}] Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
+                        console.error(`[${instanceName}] ❌ Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
                     }
                 }
             }
