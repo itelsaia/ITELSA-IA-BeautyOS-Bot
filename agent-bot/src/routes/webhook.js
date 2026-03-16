@@ -917,6 +917,36 @@ router.post('/evolution', async (req, res) => {
                     extraPaymentData.estadoPago = isExempt ? 'EXENTO' : (montoAnticipo > 0 ? 'PENDIENTE_PAGO' : 'EXENTO');
                 }
 
+                // ── Detectar si aplica promo (cumpleaños u otra vigente) ──
+                let promoFlag = descuentoCumple > 0 ? 'SI' : 'NO';
+                let tipoPromoFlag = descuentoCumple > 0 ? 'CUMPLEANOS' : '';
+                if (promoFlag === 'NO') {
+                    // Verificar promos normales vigentes hoy
+                    const weekDaysPromo = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                    const nowPromo = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+                    const hoyDiaPromo = weekDaysPromo[nowPromo.getDay()];
+                    const promosActivas = (tenant.promotionsCatalog || []).filter(p => {
+                        if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
+                        if (p.aplicaDia && p.aplicaDia.trim() !== '') {
+                            const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                            if (!dias.includes(hoyDiaPromo)) return false;
+                        }
+                        return true;
+                    });
+                    // Si hay promos activas y el precio guardado es menor al catálogo, marcar
+                    if (promosActivas.length > 0) {
+                        const srvNames = citaData.servicios.split(',').map(s => s.trim());
+                        const catalogPrice = srvNames.reduce((sum, name) => {
+                            const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
+                            return sum + (info ? info.price : 0);
+                        }, 0);
+                        if (catalogPrice > 0 && citaData.precio_total < catalogPrice) {
+                            promoFlag = 'SI';
+                            tipoPromoFlag = promosActivas[0].tipoPromo || 'DESCUENTO';
+                        }
+                    }
+                }
+
                 const agendaId = await api.createAgenda({
                     fecha: citaData.fecha,
                     inicio: citaData.hora_inicio,
@@ -927,6 +957,8 @@ router.post('/evolution', async (req, res) => {
                     precio: citaData.precio_total,
                     profesional: citaData.profesional || 'Por asignar',
                     notas: citaData.notas_cumple || '',
+                    promo: promoFlag,
+                    tipoPromo: tipoPromoFlag,
                     ...extraPaymentData
                 });
 

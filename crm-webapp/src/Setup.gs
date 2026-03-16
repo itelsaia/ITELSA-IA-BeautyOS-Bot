@@ -68,7 +68,7 @@ function inicializarEntorno() {
   // 6. AGENDA
   let sheetAgenda = getOrCreateSheet(ss, "AGENDA");
   sheetAgenda.clear();
-  sheetAgenda.appendRow(["ID", "FECHA", "TIPO_DIA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS", "EXENTO_ANTICIPO", "MONTO_ANTICIPO", "MONTO_PAGADO", "SALDO_RESTANTE", "ESTADO_PAGO", "REF_COMPROBANTE", "FECHA_PAGO"]);
+  sheetAgenda.appendRow(["ID", "FECHA", "TIPO_DIA", "INICIO", "FIN", "CLIENTE", "CELULAR_CLIENTE", "SERVICIO", "PRECIO", "PROFESIONAL", "ESTADO", "NOTAS", "EXENTO_ANTICIPO", "MONTO_ANTICIPO", "MONTO_PAGADO", "SALDO_RESTANTE", "ESTADO_PAGO", "REF_COMPROBANTE", "FECHA_PAGO", "PROMO", "TIPO_PROMO"]);
   formatHeaders(sheetAgenda);
 
   // 6.1 LISTA_ESTADOS (Tabla de referencia para validación de datos)

@@ -197,6 +197,10 @@ function handleCreateAgenda(ss, payload) {
     saldoRestante = (payload.precio || 0) - montoPagado;
   }
 
+  // Campos de promocion (opcionales, columnas T-U)
+  var promo = payload.promo || "";
+  var tipoPromo = payload.tipoPromo || "";
+
   sheet.appendRow([
     agendaId,
     payload.fecha || "",
@@ -216,7 +220,9 @@ function handleCreateAgenda(ss, payload) {
     saldoRestante,
     estadoPago,
     refComprobante,
-    fechaPago
+    fechaPago,
+    promo,
+    tipoPromo
   ]);
 
   return { status: "Cita agendada exitosamente", id: agendaId };
@@ -247,7 +253,7 @@ function handleUpdateAgendaStatus(ss, payload) {
     if (data[i][ID_COL - 1].toString().trim() === payload.id.toString().trim()) {
       var fila = i + 1;
       // Limpiar validación obsoleta de la fila
-      sheet.getRange(fila, 1, 1, 19).clearDataValidations();
+      sheet.getRange(fila, 1, 1, 21).clearDataValidations();
       sheet.getRange(fila, ESTADO_COL).setValue(nuevoEstado);
       return { status: "Estado actualizado a " + nuevoEstado, id: payload.id };
     }
@@ -289,7 +295,7 @@ function handleRescheduleAgenda(ss, payload) {
       validarDisponibilidad(payload.nuevaFecha, payload.nuevoInicio, payload.nuevoFin, nuevoProfVal, payload.id);
 
       // ── Limpiar validación de datos obsoleta antes de escribir ──
-      sheet.getRange(fila, 1, 1, 19).clearDataValidations();
+      sheet.getRange(fila, 1, 1, 21).clearDataValidations();
 
       // Actualizar datos de la fila
       sheet.getRange(fila, 2).setValue(payload.nuevaFecha);
@@ -891,7 +897,9 @@ function getAgenda() {
     refComprobante: (row[17] || '').toString(),
     fechaPago: row[18] instanceof Date
       ? Utilities.formatDate(row[18], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm")
-      : (row[18] || '').toString()
+      : (row[18] || '').toString(),
+    promo: (row[19] || '').toString(),
+    tipoPromo: (row[20] || '').toString()
   }));
 }
 

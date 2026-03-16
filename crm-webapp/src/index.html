@@ -1038,7 +1038,7 @@ function renderAgenda() {
   html += '</div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table" id="tablaAgenda">';
-  html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th></tr></thead>';
+  html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th><th>Promo</th></tr></thead>';
   html += '<tbody id="tbodyAgenda">';
   html += renderAgendaRows(agenda);
   html += '</tbody></table></div></div>';
@@ -1046,14 +1046,20 @@ function renderAgenda() {
 }
 
 function renderAgendaRows(data) {
-  if (data.length === 0) return '<tr><td colspan="9" class="text-center text-muted py-4"><i class="fas fa-calendar fa-2x d-block mb-2"></i>No hay citas.</td></tr>';
+  if (data.length === 0) return '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fas fa-calendar fa-2x d-block mb-2"></i>No hay citas.</td></tr>';
   return data.map(function(a) {
+    var promoBadge = '';
+    if (a.promo === 'SI') {
+      var promoLabel = a.tipoPromo === 'CUMPLEANOS' ? '🎂 Cumple' : (a.tipoPromo || 'Promo');
+      promoBadge = '<span class="badge bg-warning text-dark">' + esc(promoLabel) + '</span>';
+    }
     return '<tr><td><small class="text-muted">' + esc(a.id) + '</small></td>' +
       '<td>' + esc(a.fecha) + '</td><td>' + esc(a.tipoDia) + '</td>' +
       '<td>' + esc(a.inicio) + ' - ' + esc(a.fin) + '</td>' +
       '<td>' + esc(a.cliente) + '</td><td>' + esc(a.servicio) + '</td>' +
       '<td>' + formatMoney(a.precio) + '</td><td>' + esc(a.profesional) + '</td>' +
-      '<td>' + badgeEstadoCita(a.estado) + '</td></tr>';
+      '<td>' + badgeEstadoCita(a.estado) + '</td>' +
+      '<td>' + promoBadge + '</td></tr>';
   }).join('');
 }
 

@@ -595,6 +595,7 @@ async function generateAIResponse(
 7. MULTIMEDIA: Envía el enlace URL exacto cuando sea persuasivo o el usuario lo pida. NUNCA inventes URLs.
 8. AGENDAMIENTO: Para agendar usa TIPO_SERVICIO_OFICIAL del catálogo como nombre del servicio guardado.
 9. CONFIRMACIÓN = ACCIÓN INMEDIATA: Antes de guardar, presenta el resumen y espera confirmación. Cuando el cliente responda con CUALQUIER expresión afirmativa — ejemplos: "Sí", "Si", "Dale", "Confirmo", "Confirmado", "OK", "Ok", "Perfecto", "De acuerdo", "Claro", "Listo", "Vale", "Aprobado", "Bueno", "Está bien", "Por supuesto", "Obvio", "Sip", "Sep", "Hagale", "Hagámosle", "Vamos", "Sale", "Hecho", "Ya", "Venga", "Adelante", "Correcto", "Exacto", "Así es", "Procede", "Agéndame", "Resérvame", "Genial", "Súper", "Excelente", "Me parece bien", "Va", "Eso", "Todo bien", "Agende", o CUALQUIER otra variante afirmativa — DEBES llamar INMEDIATAMENTE a la función 'agendar_cita' (o 'reagendar_cita'). NUNCA respondas solo con texto diciendo "confirmada" — EJECUTA la función. Sin ejecutar la función, la cita NO se guarda en el sistema.
+⚠️ ANTI-DOBLE CONFIRMACIÓN: Cuando la función 'agendar_cita' o 'reagendar_cita' retorne ✅ exitosamente, la cita YA ESTÁ GUARDADA. Tu respuesta debe ser SOLO un resumen de confirmación con el ID de la cita. NUNCA pidas "¿Confirmas?" después de que la función haya sido ejecutada con éxito. El cliente NO debe confirmar dos veces.
 10. REAGENDAMIENTO: Si el usuario quiere cambiar su cita:
    a) Si tiene MÚLTIPLES citas pendientes, PRIMERO pregúntale CUÁL cita quiere modificar (muéstralas con fecha, hora, servicio e ID para que elija).
    b) Una vez identificada la cita, pregúntale qué quiere cambiar: ¿la fecha/hora, el servicio, o ambos?
@@ -839,12 +840,36 @@ ${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
                     });
                     if (exito) {
                         const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
-                        toolResultText = `✅ Cita reagendada exitosamente. Cita (${session.reagendandoCitaId}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}`;
+                        toolResultText = `✅ Cita reagendada exitosamente. Cita (${session.reagendandoCitaId}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente y muéstrale el resumen. NO pidas confirmación adicional.`;
                         session._lastToolAction = 'cita_reagendada';
                     } else {
                         toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}. Verifica si el ID es correcto.`;
                     }
                 } else {
+                    // ── Detectar si aplica promo (cumpleaños u otra) ──
+                    let promoDetected = 'NO';
+                    let tipoPromoDetected = '';
+                    const cumplePromoCheck = promotionsCatalog.find(p => p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO');
+                    if (cumplePromoCheck && userData.cumple) {
+                        const cumpleDDMM = parseCumpleDDMM(userData.cumple);
+                        if (cumpleDDMM === `${dd}/${mm}`) {
+                            promoDetected = 'SI';
+                            tipoPromoDetected = 'CUMPLEANOS';
+                        }
+                    }
+                    if (promoDetected === 'NO' && activePromotions.length > 0) {
+                        // Verificar si el precio es menor al del catálogo (indica descuento aplicado)
+                        const srvNames = functionArgs.servicios.split(',').map(s => s.trim());
+                        const catalogPrice = srvNames.reduce((sum, name) => {
+                            const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
+                            return sum + (info ? info.price : 0);
+                        }, 0);
+                        if (catalogPrice > 0 && functionArgs.precio_total < catalogPrice) {
+                            promoDetected = 'SI';
+                            tipoPromoDetected = activePromotions[0].tipoPromo || 'DESCUENTO';
+                        }
+                    }
+
                     const agendaId = await api.createAgenda({
                         fecha: functionArgs.fecha,
                         inicio: functionArgs.hora_inicio,
@@ -854,12 +879,14 @@ ${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
                         servicio: functionArgs.servicios,
                         precio: functionArgs.precio_total,
                         profesional: functionArgs.profesional || "Por asignar",
-                        notas: functionArgs.notas || ""
+                        notas: functionArgs.notas || "",
+                        promo: promoDetected,
+                        tipoPromo: tipoPromoDetected
                     });
 
                     if (agendaId) {
                         const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
-                        toolResultText = `✅ Cita creada exitosamente. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}`;
+                        toolResultText = `✅ Cita GUARDADA exitosamente en el sistema. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE GUARDADA con ID ${agendaId}. Presenta el resumen de confirmación al cliente. NO pidas otra confirmación, la cita ya está registrada en el sistema.`;
                         if (session) session._lastToolAction = 'cita_creada';
                     } else {
                         toolResultText = "❌ Hubo un problema al registrar la cita en el sistema. Por favor intenta de nuevo.";
@@ -882,7 +909,7 @@ ${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
 
                 if (exito) {
                     const profLabel = functionArgs.nuevo_profesional && functionArgs.nuevo_profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.nuevo_profesional}.` : '';
-                    toolResultText = `✅ Cita reagendada exitosamente en el mismo registro. Cita (${functionArgs.id_cita_antigua}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.nueva_fecha} de ${functionArgs.nueva_hora_inicio} a ${functionArgs.nueva_hora_fin}. Servicios: ${functionArgs.nuevos_servicios}. Total: $${functionArgs.nuevo_precio_total.toLocaleString('es-CO')}.${profLabel}`;
+                    toolResultText = `✅ Cita reagendada exitosamente en el mismo registro. Cita (${functionArgs.id_cita_antigua}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.nueva_fecha} de ${functionArgs.nueva_hora_inicio} a ${functionArgs.nueva_hora_fin}. Servicios: ${functionArgs.nuevos_servicios}. Total: $${functionArgs.nuevo_precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente. NO pidas confirmación adicional.`;
                     if (session) session._lastToolAction = 'cita_reagendada';
                 } else {
                     toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}. Verifica si el ID es correcto.`;
