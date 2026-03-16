@@ -223,14 +223,31 @@ router.post('/evolution', async (req, res) => {
                 complemento = `Tienes *${userPendingAppointments.length} citas* pendientes 📅✨:\n${citasTexto}\n\n¿Deseas agendar algo nuevo o modificar alguna cita?`;
             }
 
+            // Detectar cumpleanos del cliente HOY
+            const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+            const ddNowSaludo = String(nowCol.getDate()).padStart(2, '0');
+            const mmNowSaludo = String(nowCol.getMonth() + 1).padStart(2, '0');
+            let birthdayGreeting = '';
+            const cumplePromoSaludo = (tenant.promotionsCatalog || []).find(p =>
+                p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
+            );
+            if (cumplePromoSaludo && session.datos && session.datos.cumple) {
+                const cumpleDDMM = parseCumpleDDMM(session.datos.cumple);
+                if (cumpleDDMM === `${ddNowSaludo}/${mmNowSaludo}`) {
+                    const descuentoBday = cumplePromoSaludo.valorDescuento || 20;
+                    const negocioName = tenant.config.businessName || 'nuestro negocio';
+                    const serviciosList = tenant.servicesCatalog.map(s => s.name).join(', ');
+                    birthdayGreeting = `\n\n🎉🎂 *¡FELIZ CUMPLEAÑOS!* 🎂🎉\nHoy en *${negocioName}* tienes un *${descuentoBday}% de descuento* en el servicio que prefieras como regalo de cumpleaños. Aplica para: ${serviciosList}.\n\n📲 ¡Escríbeme el servicio que quieres y te ayudo a agendar tu cita de cumpleaños!`;
+                }
+            }
+
             // Promociones proactivas en el saludo
             const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
-            const nowCol = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
             const hoyDia = weekDays[nowCol.getDay()];
             const clientTipoSaludo = (session.datos && session.datos.tipo) ? session.datos.tipo : 'Nuevo';
             const promosHoy = (tenant.promotionsCatalog || []).filter(p => {
                 if (p.estado !== 'ACTIVO') return false;
-                if (p.tipoPromo === 'CUMPLEANOS') return false; // Cumpleanos se maneja aparte
+                if (p.tipoPromo === 'CUMPLEANOS') return false;
                 if (p.vence) {
                     const parts = p.vence.split('/');
                     if (parts.length === 3) {
@@ -243,7 +260,6 @@ router.post('/evolution', async (req, res) => {
                     const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
                     if (!dias.includes(hoyDia)) return false;
                 }
-                // Filtrar por tipo de cliente
                 if (p.aplicaTipoCliente && p.aplicaTipoCliente !== 'TODOS') {
                     const allowed = p.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
                     if (!allowed.includes(clientTipoSaludo.toLowerCase())) return false;
@@ -257,7 +273,9 @@ router.post('/evolution', async (req, res) => {
                     promosHoy.map(p => `• ${p.nombre}: ${p.descripcion}`).join('\n');
             }
 
-            const saludoPersonalizado = `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complemento}${promoTexto}`;
+            const saludoPersonalizado = birthdayGreeting
+                ? `🎉🎂 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 🎂🎉 ¡Qué bueno verte en tu día especial!\n\n${complemento}${birthdayGreeting}${promoTexto}`
+                : `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complemento}${promoTexto}`;
 
             session.history.push({ role: 'assistant', content: saludoPersonalizado });
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
