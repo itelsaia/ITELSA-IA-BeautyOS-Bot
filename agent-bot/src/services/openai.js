@@ -18,6 +18,89 @@ function parseCumpleDDMM(cumpleStr) {
 }
 
 // ============================================================
+// Festivos Colombia — Ley 51 de 1983 (Ley Emiliani)
+// Calcula TODOS los festivos del año: fijos, Emiliani y Semana Santa
+// ============================================================
+function getColombianHolidays(year) {
+    // --- Easter (algoritmo de Gauss/Meeus) ---
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31); // 3=mar, 4=abr
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = new Date(year, month - 1, day);
+
+    function addDays(date, days) {
+        const d = new Date(date);
+        d.setDate(d.getDate() + days);
+        return d;
+    }
+
+    // Mover al lunes siguiente si no cae lunes (Ley Emiliani)
+    function nextMonday(date) {
+        const d = new Date(date);
+        const dow = d.getDay();
+        if (dow === 1) return d; // ya es lunes
+        if (dow === 0) { d.setDate(d.getDate() + 1); return d; }
+        d.setDate(d.getDate() + (8 - dow));
+        return d;
+    }
+
+    function fmt(date) {
+        return String(date.getDate()).padStart(2, '0') + '/' +
+               String(date.getMonth() + 1).padStart(2, '0') + '/' + date.getFullYear();
+    }
+
+    const holidays = [];
+    function add(date, name, emiliani) {
+        const final = emiliani ? nextMonday(date) : date;
+        holidays.push({ date: fmt(final), name, dateObj: final });
+    }
+
+    // 1. Festivos FIJOS (no se mueven)
+    add(new Date(year, 0, 1),  'Año Nuevo', false);
+    add(new Date(year, 4, 1),  'Día del Trabajo', false);
+    add(new Date(year, 6, 20), 'Grito de Independencia', false);
+    add(new Date(year, 7, 7),  'Batalla de Boyacá', false);
+    add(new Date(year, 11, 8), 'Inmaculada Concepción', false);
+    add(new Date(year, 11, 25),'Navidad', false);
+
+    // 2. Festivos EMILIANI (se mueven al lunes siguiente)
+    add(new Date(year, 0, 6),  'Reyes Magos', true);
+    add(new Date(year, 2, 19), 'San José', true);
+    add(new Date(year, 5, 29), 'San Pedro y San Pablo', true);
+    add(new Date(year, 7, 15), 'Asunción de la Virgen', true);
+    add(new Date(year, 9, 12), 'Día de la Raza', true);
+    add(new Date(year, 10, 1), 'Todos los Santos', true);
+    add(new Date(year, 10, 11),'Independencia de Cartagena', true);
+
+    // 3. Festivos basados en SEMANA SANTA / Pascua
+    add(addDays(easter, -3),  'Jueves Santo', false);
+    add(addDays(easter, -2),  'Viernes Santo', false);
+    add(addDays(easter, 43),  'Ascensión del Señor', true);
+    add(addDays(easter, 64),  'Corpus Christi', true);
+    add(addDays(easter, 71),  'Sagrado Corazón', true);
+
+    // Ordenar por fecha
+    holidays.sort((a, b) => a.dateObj - b.dateObj);
+    return holidays;
+}
+
+// Verifica si una fecha DD/MM/YYYY es festivo colombiano
+function isColombianHoliday(dateStr, holidays) {
+    return holidays.find(h => h.date === dateStr) || null;
+}
+
+// ============================================================
 // Definición de herramientas (Function Calling) para OpenAI
 // ============================================================
 const TOOLS = [
@@ -634,7 +717,18 @@ async function generateAIResponse(
         const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const todayDayName = weekDays[nowColombia.getDay()];
 
-        // 4b. Filtrar promociones activas para hoy (segmentadas por tipo de cliente + limite de uso)
+        // 4b. Calcular festivos colombianos del año actual y siguiente
+        const colombianHolidays = [
+            ...getColombianHolidays(parseInt(yyyy)),
+            ...getColombianHolidays(parseInt(yyyy) + 1)
+        ];
+
+        // Helper: formato fecha desde Date
+        function fmtDate(d) {
+            return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear();
+        }
+
+        // 4c. Filtrar promociones activas para hoy (segmentadas por tipo de cliente + limite de uso)
         const clientTipo = (userData.tipo || 'Nuevo');
         const clientCelular = (userData.celular || '').trim();
         const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo, clientCelular, promoUsage);
@@ -659,24 +753,53 @@ async function generateAIResponse(
                     // Calcular la FECHA EXACTA del próximo día de la promo
                     const dayMap = { 'lunes': 1, 'martes': 2, 'miércoles': 3, 'miercoles': 3, 'jueves': 4, 'viernes': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0 };
                     const targetDay = dayMap[diasArr[0].toLowerCase()] ?? -1;
-                    let fechaPromo = '';
+                    let fechaHoy = '';      // fecha de hoy si hoy es el día
+                    let fechaProxima = '';   // fecha de la próxima semana
+                    let fechaAUsar = '';     // la que la IA debe usar por defecto
+
                     if (targetDay >= 0) {
                         const hoyDay = nowColombia.getDay();
                         let diasHasta = targetDay - hoyDay;
                         if (diasHasta < 0) diasHasta += 7;
-                        // Si es HOY (diasHasta === 0), usar hoy (verificar_disponibilidad filtrará horas pasadas)
-                        // Si ya pasó esta semana, ir a la próxima
+
                         if (diasHasta === 0) {
-                            // Es hoy — la IA usará hoy y solo verá slots futuros
-                            fechaPromo = todayStr;
+                            // Hoy ES el día de la promo
+                            fechaHoy = todayStr;
+                            const nextWeek = new Date(nowColombia);
+                            nextWeek.setDate(nextWeek.getDate() + 7);
+                            fechaProxima = fmtDate(nextWeek);
+                            fechaAUsar = todayStr; // por defecto usar hoy
                         } else {
                             const nextDate = new Date(nowColombia);
                             nextDate.setDate(nextDate.getDate() + diasHasta);
-                            fechaPromo = String(nextDate.getDate()).padStart(2, '0') + '/' + String(nextDate.getMonth() + 1).padStart(2, '0') + '/' + nextDate.getFullYear();
+                            fechaProxima = fmtDate(nextDate);
+                            fechaAUsar = fechaProxima;
+                            // También calcular la semana siguiente por si la próxima es festivo
+                            const weekAfter = new Date(nextDate);
+                            weekAfter.setDate(weekAfter.getDate() + 7);
                         }
                     }
-                    const fechaLabel = fechaPromo ? ` FECHA A USAR: ${fechaPromo}.` : '';
-                    tipoTag = `🔒 DÍA FIJO — Solo agendable los ${p.aplicaDia} para ${p.aplicaServicio}.${fechaLabel} NO preguntes día ni servicio, solo HORA. Llama verificar_disponibilidad con fecha=${fechaPromo} y servicio=${p.aplicaServicio}.`;
+
+                    // Verificar festivos en las fechas calculadas
+                    let festivoHoy = fechaHoy ? isColombianHoliday(fechaHoy, colombianHolidays) : null;
+                    let festivoProxima = fechaProxima ? isColombianHoliday(fechaProxima, colombianHolidays) : null;
+
+                    // Construir label de fechas con info de festivos
+                    let fechasInfo = '';
+                    if (fechaHoy && fechaProxima) {
+                        // Hoy es el día de la promo — dar ambas opciones
+                        let hoyLabel = `HOY ${fechaHoy}`;
+                        if (festivoHoy) hoyLabel += ` ⚠️ FESTIVO: ${festivoHoy.name}`;
+                        let proxLabel = `PRÓXIMO: ${fechaProxima}`;
+                        if (festivoProxima) proxLabel += ` ⚠️ FESTIVO: ${festivoProxima.name}`;
+                        fechasInfo = ` FECHAS DISPONIBLES: ${hoyLabel} | ${proxLabel}.`;
+                    } else if (fechaAUsar) {
+                        let label = `FECHA A USAR: ${fechaAUsar}`;
+                        if (festivoProxima) label += ` ⚠️ FESTIVO: ${festivoProxima.name} — El negocio podría estar cerrado, verifica disponibilidad`;
+                        fechasInfo = ` ${label}.`;
+                    }
+
+                    tipoTag = `🔒 DÍA FIJO — Solo agendable los ${p.aplicaDia} para ${p.aplicaServicio}.${fechasInfo} NO preguntes día ni servicio, solo HORA. Llama verificar_disponibilidad con fecha=${fechaAUsar} y servicio=${p.aplicaServicio}.`;
                 } else {
                     tipoTag = `📅 FLEXIBLE — Aplica cualquier día dentro de su vigencia. El cliente elige fecha.`;
                 }
@@ -693,6 +816,13 @@ async function generateAIResponse(
 📅 HOY ES: ${todayStr} (${todayDayName})
 ⏰ HORA ACTUAL: ${nowTimeStr}
 ⚠️ REGLA CRÍTICA: Cuando el usuario diga "mañana", la fecha es ${(() => { const d = new Date(nowColombia); d.setDate(d.getDate() + 1); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); })()}. USA SIEMPRE formato DD/MM/YYYY. NUNCA uses fechas de años anteriores.
+
+🇨🇴 FESTIVOS COLOMBIA (próximos 30 días):
+${colombianHolidays.filter(h => {
+    const diff = (h.dateObj - nowColombia) / (1000 * 60 * 60 * 24);
+    return diff >= -1 && diff <= 30;
+}).map(h => `- ${h.date}: ${h.name}`).join('\n') || 'No hay festivos próximos.'}
+⚠️ REGLA FESTIVOS: Si un cliente pide agendar en un día FESTIVO, infórmale que es festivo y verifica disponibilidad normalmente (el negocio decide si abre o no). Ejemplo: "Ten en cuenta que el ${(() => { const next = colombianHolidays.find(h => h.dateObj >= nowColombia); return next ? next.date + ' es ' + next.name + ' (festivo)' : 'próximo festivo'; })()}, pero puedo verificar si hay disponibilidad."
 
 📋 REGLAS DE COMPORTAMIENTO:
 1. CONVERSACIÓN FLUIDA: Estás en WhatsApp. NUNCA saludes si el usuario está en medio de una conversación. Ve directo al grano.
@@ -726,13 +856,16 @@ async function generateAIResponse(
    🔒 DÍA FIJO (ej: "Lunes de Cejas", "Martes de Manicure"):
       - El DÍA y el SERVICIO son FIJOS. NO preguntes "¿para qué día?" ni "¿qué servicio?".
       - Cuando el cliente quiera esta promo, SOLO pregúntale la HORA.
-      - Llama a 'verificar_disponibilidad' con la FECHA A USAR indicada en la promo y el servicio de la promo automáticamente.
+      - Usa las FECHAS indicadas en la promo (puede haber fecha de HOY y de la PRÓXIMA semana).
+      - Si la fecha tiene ⚠️ FESTIVO, informa al cliente: "Ten en cuenta que el [fecha] es [nombre festivo], pero deja verifico si hay disponibilidad."
       - Estas promos existen para activar días con baja demanda. El cliente viene ESE día o no hay descuento.
       ⚠️ SI EL CLIENTE PIDE UN DÍA DIFERENTE AL DE LA PROMO:
-         Dile CLARAMENTE: "La promoción *[nombre promo]* NO aplica para el [día que pidió]. Esta promo es exclusiva de los *[día de la promo]*. El próximo [día] es el *[FECHA A USAR]*."
-         Luego INMEDIATAMENTE llama a 'verificar_disponibilidad' con la FECHA A USAR de la promo para mostrarle los horarios disponibles de mañana y tarde.
-         Presenta los horarios y pregunta: "¿Te gustaría agendar en alguno de estos horarios para aprovechar el descuento? 💖"
-         Si el cliente insiste en otro día, aclara que sería a precio normal sin descuento.
+         1. Dile CLARAMENTE: "La promoción *[nombre promo]* NO aplica para el [día que pidió]. Esta promo es exclusiva de los *[día de la promo]*."
+         2. Calcula la FECHA CORRECTA: Usa la fecha de la PRÓXIMA semana de la promo (no la de hoy si hoy ya pasó o el cliente pidió otro día).
+            Ejemplo: Si hoy es lunes 16/03 y el cliente pide "mañana" (martes), dile: "El próximo lunes es el *23/03/2026*."
+         3. INMEDIATAMENTE llama a 'verificar_disponibilidad' con esa fecha para mostrarle los horarios disponibles de mañana y tarde.
+         4. Presenta los horarios: "¿Te gustaría agendar en alguno de estos horarios para aprovechar el descuento? 💖"
+         5. Si el cliente insiste en otro día, aclara que sería a precio normal sin descuento.
    📅 FLEXIBLE (ej: "Día de la Mujer", "Semana de Aniversario"):
       - Aplica a cualquier fecha dentro de la vigencia. El cliente elige día y hora libremente.
       - Puede aplicar a varios servicios.
