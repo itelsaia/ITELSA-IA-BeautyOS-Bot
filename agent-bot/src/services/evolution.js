@@ -36,6 +36,29 @@ class EvolutionClient {
     }
 
     /**
+     * Envía un archivo multimedia (imagen, video, documento) a un número.
+     * @param {string} instanceName Nombre de la instancia
+     * @param {string} number Número destino con código de país
+     * @param {string} mediaType Tipo: "image" | "video" | "document"
+     * @param {string} mediaUrl URL pública del archivo (Google Drive, etc.)
+     * @param {string} caption Texto acompañante (opcional)
+     * @param {string} fileName Nombre del archivo para documentos (opcional)
+     */
+    async sendMedia(instanceName, number, mediaType, mediaUrl, caption = '', fileName = '') {
+        try {
+            const body = { number, mediatype: mediaType, media: mediaUrl, caption };
+            if (fileName) body.fileName = fileName;
+            const response = await this.http.post(
+                `/message/sendMedia/${instanceName}`, body
+            );
+            return response.data;
+        } catch (error) {
+            console.error(`[Evolution] Error enviando media a ${number}:`, error.response?.data || error.message);
+            throw error;
+        }
+    }
+
+    /**
      * Crea una nueva instancia de WhatsApp en Evolution API.
      * @param {string} instanceName Nombre único de la instancia
      */

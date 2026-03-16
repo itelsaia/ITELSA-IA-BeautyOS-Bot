@@ -415,7 +415,9 @@ function getPromociones() {
     aplicaDia: row[5] || '',
     vence: row[6] instanceof Date ? Utilities.formatDate(row[6], Session.getScriptTimeZone(), "dd/MM/yyyy") : (row[6] || ''),
     estado: row[7] || 'INACTIVO',
-    aplicaTipoCliente: row[8] || 'TODOS'
+    aplicaTipoCliente: row[8] || 'TODOS',
+    tipoMediaPromo: row[9] || '',
+    urlMediaPromo: row[10] || ''
   }));
 }
 
@@ -433,7 +435,9 @@ function savePromocion(data) {
     data.aplicaDia || '',
     data.vence || '',
     (data.estado || 'ACTIVO').toUpperCase(),
-    data.aplicaTipoCliente || 'TODOS'
+    data.aplicaTipoCliente || 'TODOS',
+    data.tipoMediaPromo || '',
+    data.urlMediaPromo || ''
   ]);
 
   return { status: "Promoción creada exitosamente", nombre: data.nombre };
@@ -456,6 +460,8 @@ function updatePromocion(data) {
   sheet.getRange(row, 7).setValue(data.vence || '');
   sheet.getRange(row, 8).setValue((data.estado || '').toUpperCase());
   sheet.getRange(row, 9).setValue(data.aplicaTipoCliente || 'TODOS');
+  sheet.getRange(row, 10).setValue(data.tipoMediaPromo || '');
+  sheet.getRange(row, 11).setValue(data.urlMediaPromo || '');
 
   return { status: "Promoción actualizada", nombre: data.nombre };
 }
@@ -990,6 +996,66 @@ function deleteServicio(rowIndex) {
   sheet.deleteRow(rowIndex);
 
   return { status: "Servicio eliminado" };
+}
+
+// ============================================
+// GALERIA DE SERVICIOS (Multimedia por servicio)
+// ============================================
+
+function getGaleria() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  return data.slice(1).map(function(row, i) {
+    return {
+      rowIndex: i + 2,
+      idServicio: row[0] || '',
+      tipoMedia: row[1] || '',
+      titulo: row[2] || '',
+      descripcion: row[3] || '',
+      urlMedia: row[4] || '',
+      orden: row[5] || 1
+    };
+  }).filter(function(g) { return g.idServicio !== ''; });
+}
+
+function saveGaleria(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
+  if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe. Ejecuta Setup primero.");
+  sheet.appendRow([
+    data.idServicio,
+    data.tipoMedia,
+    data.titulo,
+    data.descripcion,
+    data.urlMedia,
+    parseInt(data.orden) || 1
+  ]);
+  return { status: "Galeria item created" };
+}
+
+function updateGaleria(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
+  if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe.");
+  var row = data.rowIndex;
+  sheet.getRange(row, 1).setValue(data.idServicio);
+  sheet.getRange(row, 2).setValue(data.tipoMedia);
+  sheet.getRange(row, 3).setValue(data.titulo);
+  sheet.getRange(row, 4).setValue(data.descripcion);
+  sheet.getRange(row, 5).setValue(data.urlMedia);
+  sheet.getRange(row, 6).setValue(parseInt(data.orden) || 1);
+  return { status: "Galeria item updated" };
+}
+
+function deleteGaleria(rowIndex) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
+  if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe.");
+  if (rowIndex < 2) throw new Error("No se puede eliminar la fila de encabezados.");
+  sheet.deleteRow(rowIndex);
+  return { status: "Galeria item deleted" };
 }
 
 // ============================================

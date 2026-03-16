@@ -167,8 +167,56 @@ async function loadKnowledgeConfig(sheetId) {
 }
 
 /**
+ * Carga la galería multimedia vinculada a cada servicio (GALERIA_SERVICIOS).
+ * @param {string} sheetId
+ * @returns {Promise<Object>} Objeto agrupado por ID_SERVICIO: { "DIS-001": [{ type, title, description, url, order }] }
+ */
+async function loadServiceGallery(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['GALERIA_SERVICIOS'];
+        if (!sheet) return {};
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        const gallery = {};
+        rows.forEach(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+            const serviceId = (cleanData['ID_SERVICIO'] || '').toString().trim();
+            if (!serviceId) return;
+
+            if (!gallery[serviceId]) gallery[serviceId] = [];
+            gallery[serviceId].push({
+                type: (cleanData['TIPO_MEDIA'] || 'imagen').toLowerCase(),
+                title: cleanData['TITULO'] || '',
+                description: cleanData['DESCRIPCION'] || '',
+                url: cleanData['URL_MEDIA'] || '',
+                order: parseInt(cleanData['ORDEN']) || 1
+            });
+        });
+
+        // Ordenar por ORDEN dentro de cada servicio
+        for (let sid in gallery) {
+            gallery[sid].sort((a, b) => a.order - b.order);
+        }
+        return gallery;
+
+    } catch (e) {
+        console.error("⚠️ Error cargando galería de servicios:", e.message);
+        return {};
+    }
+}
+
+/**
  * Carga todo el CRM de clientes al arrancar para reconocer usuarios viejos si el bot se reinicia
- * @param {string} sheetId 
+ * @param {string} sheetId
  * @returns {Promise<Object>} Diccionario con { "57314...": { nombre: "Juan" } }
  */
 async function loadRegisteredClients(sheetId) {
@@ -310,7 +358,9 @@ async function loadPromotions(sheetId) {
                 aplicaDia: cleanData['APLICA_DIA'] || '',
                 vence: cleanData['VENCE'] || '',
                 estado: (cleanData['ESTADO'] || '').toUpperCase().trim(),
-                aplicaTipoCliente: (cleanData['APLICA_TIPO_CLIENTE'] || 'TODOS').trim()
+                aplicaTipoCliente: (cleanData['APLICA_TIPO_CLIENTE'] || 'TODOS').trim(),
+                tipoMediaPromo: (cleanData['TIPO_MEDIA_PROMO'] || '').toLowerCase().trim(),
+                urlMediaPromo: (cleanData['URL_MEDIA_PROMO'] || '').trim()
             };
         }).filter(item => item.nombre !== '');
 
@@ -473,4 +523,4 @@ async function loadExpiredAppointments(sheetId, minutesThreshold = 30) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments };
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments };

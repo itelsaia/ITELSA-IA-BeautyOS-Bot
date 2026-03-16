@@ -92,7 +92,7 @@ function inicializarEntorno() {
   // 7. PROMOCIONES (Motor de descuentos inteligente)
   let sheetPromociones = getOrCreateSheet(ss, "PROMOCIONES");
   sheetPromociones.clear();
-  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "TIPO_PROMO", "VALOR_DESCUENTO", "APLICA_SERVICIO", "APLICA_DIA", "VENCE", "ESTADO", "APLICA_TIPO_CLIENTE"]);
+  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "TIPO_PROMO", "VALOR_DESCUENTO", "APLICA_SERVICIO", "APLICA_DIA", "VENCE", "ESTADO", "APLICA_TIPO_CLIENTE", "TIPO_MEDIA_PROMO", "URL_MEDIA_PROMO"]);
   sheetPromociones.appendRow(["Martes de Uñas", "2x1 en manicure y pedicure los martes", "2X1", 50, "Manicure,Pedicure", "Martes", "31/03/2026", "ACTIVO", "TODOS"]);
   sheetPromociones.appendRow(["Cumpleanos Especial", "Feliz cumpleanos {nombre}! En {negocio} te regalamos un {descuento} de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!", "CUMPLEANOS", 20, "TODOS", "08:00,13:00,19:00", "", "ACTIVO", "Frecuente,VIP"]);
   formatHeaders(sheetPromociones);
@@ -140,6 +140,13 @@ function inicializarEntorno() {
       }
     });
   }
+
+  // 11. GALERIA_SERVICIOS (Multimedia por servicio: fotos antes/despues, videos, catalogos)
+  let sheetGaleria = getOrCreateSheet(ss, "GALERIA_SERVICIOS");
+  sheetGaleria.clear();
+  sheetGaleria.appendRow(["ID_SERVICIO", "TIPO_MEDIA", "TITULO", "DESCRIPCION", "URL_MEDIA", "ORDEN"]);
+  sheetGaleria.appendRow(["DIS-001", "imagen", "Antes y Despues", "Mira como queda el diseno de cejas con nuestras profesionales", "https://drive.google.com/...", 1]);
+  formatHeaders(sheetGaleria);
 
   Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");
 }

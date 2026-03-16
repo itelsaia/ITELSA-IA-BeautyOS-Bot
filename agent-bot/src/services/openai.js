@@ -156,6 +156,40 @@ const TOOLS = [
                 required: ["id_cita"]
             }
         }
+    },
+    {
+        type: "function",
+        function: {
+            name: "enviar_informacion_servicio",
+            description: "Envía fotos, videos o documentos informativos de un servicio al cliente por WhatsApp. Usa esta función cuando el cliente muestre interés, pida más información, tenga dudas sobre un servicio, o quieras mostrarle resultados (antes/después). NO la uses si no hay galería disponible para ese servicio.",
+            parameters: {
+                type: "object",
+                properties: {
+                    servicio: {
+                        type: "string",
+                        description: "Nombre del servicio usando TIPO_SERVICIO_OFICIAL del catálogo."
+                    }
+                },
+                required: ["servicio"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "enviar_media_promocion",
+            description: "Envía la imagen, video o documento visual asociado a una promoción al cliente por WhatsApp. Úsala cuando menciones una promoción que tenga contenido visual disponible, para que el cliente vea la promo de forma más atractiva. NO la uses si la promoción no tiene media.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nombre_promocion: {
+                        type: "string",
+                        description: "Nombre exacto de la promoción tal como aparece en la lista de promociones."
+                    }
+                },
+                required: ["nombre_promocion"]
+            }
+        }
     }
 ];
 
@@ -512,7 +546,8 @@ async function generateAIResponse(
     disponibilidadCatalog = [],
     colaboradoresCatalog = [],
     allPendingAppointments = [],
-    session = null
+    session = null,
+    serviceGallery = {}
 ) {
     if (!config.openApiKey || config.openApiKey === "sk-..." || config.openApiKey === "PEGAR_AQUI_API_KEY") {
         console.error("🔴 Bloqueo OpenAI: API Key no configurada.");
@@ -538,6 +573,18 @@ async function generateAIResponse(
         const knowledgeText = knowledgeCatalog.map(k =>
             `- Si preguntan por: "${k.intent}", responde: "${k.response}". Enlace ${k.mediaType}: ${k.url}`
         ).join('\n');
+
+        // 2b. Construir contexto de galería multimedia disponible
+        const galleryServiceIds = Object.keys(serviceGallery || {});
+        let galleryContext = '';
+        if (galleryServiceIds.length > 0) {
+            galleryContext = galleryServiceIds.map(sid => {
+                const svc = servicesCatalog.find(s => s.id === sid);
+                const items = serviceGallery[sid];
+                const svcName = svc ? svc.name : sid;
+                return `- ${svcName}: ${items.length} archivo(s) (${items.map(i => i.type).join(', ')})`;
+            }).join('\n');
+        }
 
         // 3. Construir contexto de citas PENDIENTES del usuario
         let pendingAppointmentsText = "El cliente no tiene citas activas registradas.";
@@ -572,7 +619,8 @@ async function generateAIResponse(
                 if (p.tipoPromo === 'PORCENTAJE') descuentoLabel = `${p.valorDescuento}% de descuento`;
                 else if (p.tipoPromo === '2X1') descuentoLabel = '2x1 (segundo gratis)';
                 else if (p.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${p.valorDescuento.toLocaleString('es-CO')} de descuento`;
-                return `- PROMO: ${p.nombre} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia} | Valida hasta: ${p.vence}`;
+                const mediaTag = (p.tipoMediaPromo && p.urlMediaPromo) ? ` | 📸 TIENE MEDIA VISUAL (${p.tipoMediaPromo})` : '';
+                return `- PROMO: ${p.nombre} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia} | Valida hasta: ${p.vence}${mediaTag}`;
             }).join('\n');
         }
 
@@ -605,7 +653,17 @@ async function generateAIResponse(
    f) Llama a 'reagendar_cita' con el ID de la cita antigua y los nuevos datos.
    ⚠️ CRÍTICO: Mientras estés en flujo de reagendamiento, TODO lo que diga el cliente (servicios, fechas, horas) es para MODIFICAR la cita existente. NUNCA llames a 'agendar_cita' durante un reagendamiento — SIEMPRE usa 'reagendar_cita'. Si el cliente menciona un servicio diferente, es porque quiere CAMBIAR el servicio de su cita, NO crear una nueva.
    ⚠️ GUÍA PASO A PASO: Lleva al cliente paso a paso. Si dice "ambos", primero pregunta "¿Qué servicio deseas ahora?" y luego "¿Para qué fecha y hora?". No intentes resolver todo en un solo paso.
-11. PROMOCIONES: Si hay promociones vigentes hoy, mencionalas brevemente en tu primer mensaje. Al agendar, aplica el descuento si corresponde y muestra el desglose (precio normal → descuento → precio final). Usa el precio CON descuento en precio_total al llamar a 'agendar_cita'.
+11. PROMOCIONES — ESTRATEGIA DE PERSUASIÓN ACTIVA:
+   ⚠️ Eres una asesora de ventas experta. Las promociones son tu herramienta principal para cerrar citas.
+   a) PRIMER CONTACTO: Si hay promos vigentes hoy, menciónalas con entusiasmo en tu primer mensaje: "¡Y tenemos una promo increíble hoy! 🎉"
+   b) CUANDO EL CLIENTE PREGUNTE POR PROMOS: Si pregunta "¿tienen promociones?", "¿hay descuentos?", "¿promos para hoy?", o cualquier variación → muéstrale TODAS las promos activas con detalle completo: nombre, descuento, servicios que aplican, días válidos y fecha de vencimiento. Sé entusiasta: "¡Claro que sí! Mira las promos que tenemos para ti 🎉✨"
+   c) DETECCIÓN PROACTIVA AL AGENDAR: Cuando el cliente pida agendar un servicio, CRUZA el servicio solicitado + el día de la cita con la lista de promos activas. Si hay coincidencia, NOTIFÍCALO ANTES de confirmar:
+      - Ejemplo: "¡Espera! 🎉 Recuerda que los martes tenemos un 20% de descuento en Pestañas, que es justo el servicio que estás agendando. ¡Tu precio sería de ~$50.000~ → *$40.000*! ¿Aprovechamos? 💖"
+      - Si el servicio aplica pero el DÍA no: "Este servicio tiene promo los [días], ¿te gustaría agendar en uno de esos días para aprovechar el descuento? 😉"
+   d) PERSUASIÓN NATURAL: No seas robótica. Usa frases persuasivas: "¡Estás de suerte!", "¡Justo hoy hay descuento para eso!", "¡Aprovecha que esta promo vence pronto!", "¡No te la puedes perder!"
+   e) CÁLCULO DE DESCUENTO: Al agendar con promo, SIEMPRE muestra el desglose (precio normal → descuento → precio final). Usa el precio CON descuento en precio_total al llamar a 'agendar_cita'.
+   f) MEDIA VISUAL: Si una promo tiene "📸 TIENE MEDIA VISUAL", llama 'enviar_media_promocion' con el nombre de la promo para enviarle el contenido visual al cliente. Hazlo cuando menciones la promo por primera vez o cuando el cliente pregunte por ella.
+   g) VENCIMIENTO: Si una promo vence pronto (esta semana), menciónalo con urgencia: "¡Ojo que esta promo vence el [fecha], no dejes pasar la oportunidad! ⏰"
 12. CANCELACIÓN DE CITAS: Si el usuario quiere cancelar una cita:
    a) Si tiene MÚLTIPLES citas pendientes, pregúntale CUÁL cita quiere cancelar (muéstralas con fecha, hora, servicio e ID).
    b) Si el cliente dice "ambas", "las dos", "todas", "las tres", o cualquier expresión que indique TODAS las citas, confirma: "¿Estás segura de que quieres cancelar TODAS tus citas pendientes?" y si confirma, llama a 'cancelar_cita' UNA VEZ POR CADA CITA (primero una, luego la otra).
@@ -668,6 +726,18 @@ ${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita
 📚 BASE DE CONOCIMIENTO / MULTIMEDIA:
 ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado."}
 
+${galleryContext ? `📸 GALERÍA MULTIMEDIA POR SERVICIO:
+Servicios con contenido visual disponible para enviar al cliente:
+${galleryContext}
+
+REGLAS DE USO DE LA GALERÍA:
+- Si el cliente pregunta por un servicio que TIENE galería, OFRECE enviarle fotos/videos de forma natural: "¡Tengo fotos de resultados de [servicio]! ¿Te las envío para que veas cómo quedan? 📸"
+- Si el cliente muestra duda o indecisión sobre un servicio con galería, usa la función 'enviar_informacion_servicio' para enviarle el contenido visual y ayudarlo a decidirse.
+- Si el cliente dice "sí" a ver fotos/videos, llama 'enviar_informacion_servicio' con el nombre del servicio.
+- NO menciones la galería si el servicio NO tiene contenido disponible.
+- Después de enviar media, pregunta si tiene alguna duda o si quiere agendar: "¿Qué te parecen los resultados? ¿Te animas a agendar? 💖"
+- NO envíes galería sin que el cliente lo pida o sin que haya un momento natural para ofrecerla.
+` : ''}
 ${config.hasAnyAnticipo ? `
 💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
 - Algunos servicios requieren anticipo. Revisa la columna ANTICIPO en el catálogo para ver cuáles y cuánto.
@@ -938,6 +1008,56 @@ PASO 5 — POST-CONFIRMACIÓN:
                     if (session) session._lastToolAction = 'cita_reagendada';
                 } else {
                     toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}. Verifica si el ID es correcto.`;
+                }
+            }
+
+            // ─── Herramienta: enviar_informacion_servicio ────────────────────
+            else if (functionName === "enviar_informacion_servicio") {
+                const serviceName = functionArgs.servicio;
+                const serviceInfo = servicesCatalog.find(s => normDay(s.name) === normDay(serviceName));
+
+                if (!serviceInfo || !serviceGallery[serviceInfo.id] || serviceGallery[serviceInfo.id].length === 0) {
+                    toolResultText = JSON.stringify({ enviado: false, motivo: "No hay contenido multimedia disponible para este servicio." });
+                } else {
+                    const items = serviceGallery[serviceInfo.id];
+                    // Guardar items en session para que webhook.js los envíe por WhatsApp
+                    if (session) {
+                        session._pendingGalleryMedia = {
+                            serviceId: serviceInfo.id,
+                            serviceName: serviceInfo.name,
+                            items: items
+                        };
+                    }
+                    toolResultText = JSON.stringify({
+                        enviado: true,
+                        cantidad: items.length,
+                        servicio: serviceInfo.name,
+                        mensaje: `Se enviaron ${items.length} archivo(s) multimedia de ${serviceInfo.name} al cliente: ${items.map(i => i.title + ' (' + i.type + ')').join(', ')}.`
+                    });
+                }
+            }
+
+            // ─── Herramienta: enviar_media_promocion ─────────────────────────
+            else if (functionName === "enviar_media_promocion") {
+                const promoName = functionArgs.nombre_promocion;
+                const promo = promotionsCatalog.find(p => normDay(p.nombre) === normDay(promoName));
+
+                if (!promo || !promo.tipoMediaPromo || !promo.urlMediaPromo) {
+                    toolResultText = JSON.stringify({ enviado: false, motivo: "Esta promoción no tiene contenido multimedia asociado." });
+                } else {
+                    if (session) {
+                        session._pendingPromoMedia = {
+                            promoName: promo.nombre,
+                            type: promo.tipoMediaPromo,
+                            url: promo.urlMediaPromo
+                        };
+                    }
+                    toolResultText = JSON.stringify({
+                        enviado: true,
+                        promocion: promo.nombre,
+                        tipo: promo.tipoMediaPromo,
+                        mensaje: `Se envió contenido visual (${promo.tipoMediaPromo}) de la promoción "${promo.nombre}" al cliente.`
+                    });
                 }
             }
 

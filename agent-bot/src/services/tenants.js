@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig,
+const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery,
         loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments } = require('./sheets');
 const api = require('./api');
 const { isValidLicense } = require('../utils/license');
@@ -12,6 +12,18 @@ const tenantStore = {};
 
 // Referencia al cliente de Evolution API (inyectado desde app.js)
 let evolutionClient = null;
+
+/**
+ * Convierte URL de Google Drive a formato descarga directa para Evolution API.
+ */
+function convertDriveUrl(url) {
+    if (!url) return url;
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+    const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match2) return `https://drive.google.com/uc?export=download&id=${match2[1]}`;
+    return url;
+}
 
 function setEvolutionClient(client) {
     evolutionClient = client;
@@ -53,7 +65,7 @@ async function initTenant(tenantId, tenantDef) {
     }
 
     // Cargar todos los datos en paralelo para acelerar el arranque
-    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog] =
+    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery] =
         await Promise.all([
             loadServicesConfig(sheetId),
             loadKnowledgeConfig(sheetId),
@@ -61,7 +73,8 @@ async function initTenant(tenantId, tenantDef) {
             loadPendingAppointments(sheetId),
             loadPromotions(sheetId),
             loadDisponibilidad(sheetId),
-            loadColaboradores(sheetId)
+            loadColaboradores(sheetId),
+            loadServiceGallery(sheetId)
         ]);
 
     // Computed flag: al menos un servicio tiene anticipo habilitado
@@ -77,6 +90,7 @@ async function initTenant(tenantId, tenantDef) {
         promotionsCatalog,
         disponibilidadCatalog,
         colaboradoresCatalog,
+        serviceGallery,
         userSessions: {},
         syncInterval: null,
         lastSync: new Date().toISOString()
@@ -94,7 +108,8 @@ async function initTenant(tenantId, tenantDef) {
     const promosActivas = promotionsCatalog.filter(p => p.estado === 'ACTIVO').length;
     const jornadasConfig = disponibilidadCatalog.filter(d => d.tipo === 'Jornada').length;
     const bloqueosConfig = disponibilidadCatalog.filter(d => d.tipo === 'Bloqueo').length;
-    console.log(`[${tenantId}] Listo. Licencia: ACTIVA | Negocio: ${config.businessName} | CRM: ${Object.keys(registeredClients).length} clientes | Citas pendientes: ${Object.keys(pendingAppointments).length} cliente(s) | Promos activas: ${promosActivas} | Jornadas: ${jornadasConfig} dias | Bloqueos: ${bloqueosConfig} | Colaboradores: ${colaboradoresCatalog.length}`);
+    const galeriaItems = Object.values(serviceGallery).reduce((sum, arr) => sum + arr.length, 0);
+    console.log(`[${tenantId}] Listo. Licencia: ACTIVA | Negocio: ${config.businessName} | CRM: ${Object.keys(registeredClients).length} clientes | Citas pendientes: ${Object.keys(pendingAppointments).length} cliente(s) | Promos activas: ${promosActivas} | Jornadas: ${jornadasConfig} dias | Bloqueos: ${bloqueosConfig} | Colaboradores: ${colaboradoresCatalog.length} | Galeria: ${galeriaItems} items en ${Object.keys(serviceGallery).length} servicios`);
     console.log(`[${tenantId}] ⏱️ Tiempos: Slots cada ${config.slotInterval || 15}min | Buffer entre citas: ${config.bufferTime || 15}min`);
     // Debug: mostrar competencias cargadas por colaborador
     if (colaboradoresCatalog.length > 0) {
@@ -116,7 +131,7 @@ async function syncTenantData(tenantId) {
         console.log(`[${tenantId}] Sincronizando datos desde Google Sheets...`);
         const { sheetId } = tenant;
 
-        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog] =
+        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery] =
             await Promise.all([
                 loadClientConfig(sheetId),
                 loadServicesConfig(sheetId),
@@ -125,7 +140,8 @@ async function syncTenantData(tenantId) {
                 loadPendingAppointments(sheetId),
                 loadPromotions(sheetId),
                 loadDisponibilidad(sheetId),
-                loadColaboradores(sheetId)
+                loadColaboradores(sheetId),
+                loadServiceGallery(sheetId)
             ]);
 
         tenant.config = config || tenant.config;
@@ -138,6 +154,7 @@ async function syncTenantData(tenantId) {
         tenant.promotionsCatalog = promotionsCatalog;
         tenant.disponibilidadCatalog = disponibilidadCatalog;
         tenant.colaboradoresCatalog = colaboradoresCatalog;
+        tenant.serviceGallery = serviceGallery;
         tenant.lastSync = new Date().toISOString();
 
         console.log(`[${tenantId}] Sincronizacion completa.`);
@@ -365,6 +382,20 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
     try {
         await evolutionClient.sendText(tenant.instanceName, cliente.celular, mensaje);
         console.log(`[${tenant.instanceName}] Cumpleanos ${timing}[${sendIndex+1}/${totalSends}]: enviado a ${cliente.nombre} (${cliente.celular}) [tipo: ${cliente.tipo}]`);
+
+        // Enviar media visual de la promo si tiene configurada
+        if (cumplePromo.tipoMediaPromo && cumplePromo.urlMediaPromo) {
+            try {
+                const directUrl = convertDriveUrl(cumplePromo.urlMediaPromo);
+                const mediaType = cumplePromo.tipoMediaPromo === 'imagen' ? 'image' : cumplePromo.tipoMediaPromo === 'video' ? 'video' : 'document';
+                const fileName = cumplePromo.tipoMediaPromo === 'documento' ? (cumplePromo.nombre.replace(/[^a-zA-Z0-9 ]/g, '') + '.pdf') : '';
+                await new Promise(r => setTimeout(r, 1000));
+                await evolutionClient.sendMedia(tenant.instanceName, cliente.celular, mediaType, directUrl, '', fileName);
+                console.log(`[${tenant.instanceName}] Cumpleanos media enviada a ${cliente.nombre}`);
+            } catch (mediaErr) {
+                console.error(`[${tenant.instanceName}] Error enviando media cumpleanos a ${cliente.celular}:`, mediaErr.message);
+            }
+        }
     } catch (err) {
         console.error(`[${tenant.instanceName}] Error enviando cumpleanos a ${cliente.celular}:`, err.message);
     }

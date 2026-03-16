@@ -22,6 +22,18 @@ function parseCumpleDDMM(cumpleStr) {
     return '';
 }
 
+// Helper: Convierte URLs de Google Drive a formato de descarga directa
+function convertDriveUrl(url) {
+    if (!url) return url;
+    // Formato: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) return `https://drive.google.com/uc?export=download&id=${match[1]}`;
+    // Formato: https://drive.google.com/open?id=FILE_ID
+    const match2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (match2) return `https://drive.google.com/uc?export=download&id=${match2[1]}`;
+    return url; // Ya es URL directa
+}
+
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
 let evolutionClient = null;
 
@@ -279,6 +291,21 @@ router.post('/evolution', async (req, res) => {
 
             session.history.push({ role: 'assistant', content: saludoPersonalizado });
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
+
+            // Enviar media visual de promos del dia si tienen
+            for (const p of promosHoy) {
+                if (p.tipoMediaPromo && p.urlMediaPromo) {
+                    try {
+                        const directUrl = convertDriveUrl(p.urlMediaPromo);
+                        const mediaType = p.tipoMediaPromo === 'imagen' ? 'image' : p.tipoMediaPromo === 'video' ? 'video' : 'document';
+                        const fileName = p.tipoMediaPromo === 'documento' ? (p.nombre.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
+                        await new Promise(r => setTimeout(r, 1000));
+                        await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, p.nombre, fileName);
+                    } catch (promoMediaErr) {
+                        console.error(`[${instanceName}] Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
+                    }
+                }
+            }
 
             // Si el mensaje SOLO es un saludo corto, retornar. Si tiene contenido sustancial (ej: "Hola quiero agendar..."), continuar al procesamiento de IA.
             const msgSinSaludo = messageText.toLowerCase()
@@ -1098,7 +1125,8 @@ router.post('/evolution', async (req, res) => {
             tenant.disponibilidadCatalog || [],
             tenant.colaboradoresCatalog || [],
             allPendingAppointments,
-            session
+            session,
+            tenant.serviceGallery || {}
         );
 
         // Actualizar historial de conversación
@@ -1112,6 +1140,48 @@ router.post('/evolution', async (req, res) => {
 
         // Enviar respuesta de IA vía Evolution API
         await evolutionClient.sendText(instanceName, phoneNumber, aiReply);
+
+        // ── Enviar galería multimedia si la IA lo solicitó ──
+        if (session._pendingGalleryMedia) {
+            const gallery = session._pendingGalleryMedia;
+            console.log(`[${instanceName}] 📸 Enviando galería: ${gallery.items.length} item(s) de ${gallery.serviceName}`);
+
+            for (const item of gallery.items) {
+                try {
+                    const directUrl = convertDriveUrl(item.url);
+                    const mediaType = item.type === 'imagen' ? 'image' : item.type === 'video' ? 'video' : 'document';
+                    const caption = item.title + (item.description ? '\n' + item.description : '');
+                    const fileName = item.type === 'documento' ? (item.title.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
+
+                    await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+
+                    // Delay entre envíos para no saturar
+                    if (gallery.items.length > 1) {
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                } catch (mediaErr) {
+                    console.error(`[${instanceName}] Error enviando media "${item.title}":`, mediaErr.message);
+                }
+            }
+
+            console.log(`[${instanceName}] ✅ Galería enviada: ${gallery.items.length} item(s) de ${gallery.serviceName}`);
+            delete session._pendingGalleryMedia;
+        }
+
+        // ── Enviar media de promoción si la IA lo solicitó ──
+        if (session._pendingPromoMedia) {
+            const promoMedia = session._pendingPromoMedia;
+            try {
+                const directUrl = convertDriveUrl(promoMedia.url);
+                const mediaType = promoMedia.type === 'imagen' ? 'image' : promoMedia.type === 'video' ? 'video' : 'document';
+                const fileName = promoMedia.type === 'documento' ? (promoMedia.promoName.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
+                await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, promoMedia.promoName, fileName);
+                console.log(`[${instanceName}] 📸 Media de promo "${promoMedia.promoName}" enviada`);
+            } catch (promoMediaErr) {
+                console.error(`[${instanceName}] Error enviando media promo "${promoMedia.promoName}":`, promoMediaErr.message);
+            }
+            delete session._pendingPromoMedia;
+        }
 
         // ── Capturar ID de cita de la respuesta IA (para reagendamiento/cancelación) ──
         if ((session.isReagendando || session.isCancelando) && !session.reagendandoCitaId) {

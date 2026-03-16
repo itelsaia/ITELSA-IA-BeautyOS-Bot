@@ -419,6 +419,21 @@
               </div>
               <small class="text-muted">Marca "Todos" o selecciona tipos especificos.</small>
             </div>
+            <div class="col-md-4" id="promoMediaGroup">
+              <label class="form-label fw-semibold"><i class="fas fa-photo-video me-1"></i> Media Visual</label>
+              <select class="form-select" id="promoTipoMedia">
+                <option value="">Sin media</option>
+                <option value="imagen">Imagen (foto/banner)</option>
+                <option value="video">Video corto</option>
+                <option value="documento">Documento (PDF)</option>
+              </select>
+              <small class="text-muted">Acompana la promo con contenido visual</small>
+            </div>
+            <div class="col-md-8" id="promoUrlMediaGroup" style="display:none;">
+              <label class="form-label fw-semibold">URL de Google Drive</label>
+              <input type="text" class="form-control" id="promoUrlMedia" placeholder="https://drive.google.com/file/d/.../view">
+              <small class="text-muted">Comparte el archivo como "Cualquiera con el enlace" y pega la URL aqui.</small>
+            </div>
             <div class="col-12" id="promoCumpleHint" style="display:none;">
               <div class="alert alert-info mb-0">
                 <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> Promocion <strong>permanente</strong> (no vence). El bot envia mensajes automaticamente a las horas configuradas:<br>- <strong>Dia anterior:</strong> 1 mensaje de aviso<br>- <strong>Dia del cumpleanos:</strong> multiples envios (1ro: felicitacion, intermedios: recordatorio, ultimo: "ultima oportunidad"). Si el cliente agenda, se dejan de enviar.<br>- <strong>El descuento solo aplica el dia del cumpleanos.</strong> Si no agenda, pierde la promocion.<br><strong>Plantilla (1er envio):</strong> <code>{nombre}</code> <code>{negocio}</code> <code>{descuento}</code> <code>{horario}</code> <code>{dia}</code>. Los siguientes son recordatorios automaticos.
@@ -481,6 +496,70 @@
   </div>
 </div>
 
+<!-- MODAL: Galeria del Servicio -->
+<div class="modal fade" id="modalGaleria" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header modal-header-brand">
+        <h5 class="modal-title" id="modalGaleriaTitulo"><i class="fas fa-images me-1"></i> Galeria</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Contenido multimedia que el bot puede enviar por WhatsApp cuando un cliente pregunte por este servicio.</p>
+        <div id="galeriaGrid" class="row g-3"></div>
+        <hr>
+        <button class="btn btn-brand btn-sm" onclick="abrirModalGaleriaItem()"><i class="fas fa-plus me-1"></i> Agregar Contenido</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Agregar/Editar item de galeria -->
+<div class="modal fade" id="modalGaleriaItem" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header modal-header-brand">
+        <h5 class="modal-title" id="modalGaleriaItemTitulo"><i class="fas fa-plus-circle me-1"></i> Agregar Contenido</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="galRowIndex">
+        <input type="hidden" id="galIdServicio">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Tipo de contenido *</label>
+          <select id="galTipoMedia" class="form-select">
+            <option value="imagen">Imagen (foto antes/despues)</option>
+            <option value="video">Video corto</option>
+            <option value="documento">Documento (catalogo PDF)</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Titulo *</label>
+          <input id="galTitulo" class="form-control" placeholder="Ej: Antes y Despues Tinte">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Descripcion (se envia como caption en WhatsApp)</label>
+          <textarea id="galDescripcion" class="form-control" rows="2" placeholder="Ej: Mira el resultado de nuestro tinte profesional"></textarea>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">URL de Google Drive *</label>
+          <input id="galUrlMedia" class="form-control" placeholder="https://drive.google.com/file/d/.../view">
+          <small class="text-muted">Sube el archivo a Google Drive, comparte con "Cualquiera con el enlace" y pega la URL aqui.</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Orden de envio</label>
+          <input id="galOrden" type="number" class="form-control" value="1" min="1">
+          <small class="text-muted">Cuando se envian multiples archivos, este numero define el orden.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-brand btn-sm" id="btnGuardarGaleria" onclick="guardarGaleriaItem()"><i class="fas fa-save me-1"></i> Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // =============================================
@@ -494,6 +573,7 @@ var promociones = [];
 var disponibilidad = [];
 var colaboradores = [];
 var serviciosNombres = [];
+var galeria = [];
 var analyticsData = null;
 var analyticsCharts = {};
 var currentPage = 'dashboard';
@@ -503,7 +583,7 @@ var pendingLoads = 0;
 // Inicializacion
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
-  pendingLoads = 7;
+  pendingLoads = 8;
   google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
   google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
   google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
@@ -511,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
   google.script.run.withSuccessHandler(onPromocionesLoaded).withFailureHandler(onLoadErr).getPromociones();
   google.script.run.withSuccessHandler(onDisponibilidadLoaded).withFailureHandler(onLoadErr).getDisponibilidad();
   google.script.run.withSuccessHandler(onColaboradoresLoaded).withFailureHandler(onLoadErr).getColaboradores();
+  google.script.run.withSuccessHandler(onGaleriaLoaded).withFailureHandler(onLoadErr).getGaleria();
 
   // Nav click
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
@@ -554,6 +635,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // Toggle URL media promo
+  document.getElementById('promoTipoMedia').addEventListener('change', function() {
+    var urlGroup = document.getElementById('promoUrlMediaGroup');
+    if (urlGroup) urlGroup.style.display = this.value ? '' : 'none';
+    if (!this.value) document.getElementById('promoUrlMedia').value = '';
+  });
+
   // Checkboxes tipo cliente: exclusion mutua TODOS vs individuales
   document.getElementById('tcTodos').addEventListener('change', function() {
     if (this.checked) {
@@ -590,6 +678,7 @@ function onServiciosLoaded(data) {
 function onPromocionesLoaded(data) { promociones = data || []; checkLoaded(); }
 function onDisponibilidadLoaded(data) { disponibilidad = data || []; checkBloqueosVencidos(); checkLoaded(); }
 function onColaboradoresLoaded(data) { colaboradores = data || []; checkLoaded(); }
+function onGaleriaLoaded(data) { galeria = data || []; checkLoaded(); }
 function onLoadErr(err) { console.error('Error carga:', err); checkLoaded(); }
 
 function checkLoaded() {
@@ -1226,6 +1315,9 @@ function renderServicios() {
         html += '<br><span class="badge bg-warning text-dark"><i class="fas fa-hand-holding-usd me-1"></i>Anticipo: ' + anticipoLabel + '</span>';
       }
       html += '<br><small class="text-muted">ID: ' + esc(s.idServicio) + '</small>';
+      var galeriaCount = galeria.filter(function(g) { return g.idServicio === s.idServicio; }).length;
+      html += '<div class="mt-2"><button class="btn btn-sm btn-outline-info" onclick="abrirGaleriaServicio(\'' + esc(s.idServicio) + '\', \'' + esc(s.tipoServicio) + '\')">';
+      html += '<i class="fas fa-images me-1"></i> Galeria (' + galeriaCount + ')</button></div>';
       html += '</div></div>';
     });
   }
@@ -1820,6 +1912,122 @@ function guardarServicio() {
 }
 
 // =============================================
+// GALERIA DE SERVICIOS CRUD
+// =============================================
+function abrirGaleriaServicio(idServicio, nombreServicio) {
+  document.getElementById('modalGaleriaTitulo').innerHTML = '<i class="fas fa-images me-1"></i> Galeria - ' + nombreServicio;
+  var items = galeria.filter(function(g) { return g.idServicio === idServicio; })
+    .sort(function(a, b) { return (a.orden || 1) - (b.orden || 1); });
+
+  var grid = document.getElementById('galeriaGrid');
+  if (items.length === 0) {
+    grid.innerHTML = '<div class="col-12"><div class="empty-state py-4"><i class="fas fa-photo-video fa-2x d-block mb-2 text-muted"></i><p class="text-muted">No hay contenido multimedia para este servicio.</p><small class="text-muted">Agrega fotos, videos o documentos que el bot enviara a tus clientes por WhatsApp.</small></div></div>';
+  } else {
+    grid.innerHTML = items.map(function(item) {
+      var icon = item.tipoMedia === 'video' ? 'fa-video text-danger' : item.tipoMedia === 'documento' ? 'fa-file-pdf text-warning' : 'fa-image text-primary';
+      var tipoLabel = item.tipoMedia === 'video' ? 'Video' : item.tipoMedia === 'documento' ? 'Documento' : 'Imagen';
+      return '<div class="col-md-4"><div class="card-custom p-3 text-center">' +
+        '<i class="fas ' + icon + ' fa-3x mb-2"></i>' +
+        '<h6 class="mb-1">' + esc(item.titulo) + '</h6>' +
+        '<span class="badge bg-light text-dark mb-1">' + tipoLabel + ' &bull; Orden: ' + item.orden + '</span>' +
+        '<p class="small text-muted mt-1 mb-2">' + esc((item.descripcion || '').substring(0, 100)) + '</p>' +
+        '<div class="btn-group btn-group-sm">' +
+        '<button class="btn btn-outline-primary btn-sm-icon" title="Editar" onclick="editarGaleriaItem(' + item.rowIndex + ')"><i class="fas fa-pencil-alt"></i></button>' +
+        '<button class="btn btn-outline-danger btn-sm-icon" title="Eliminar" onclick="eliminarGaleriaItem(' + item.rowIndex + ')"><i class="fas fa-trash"></i></button>' +
+        '</div></div></div>';
+    }).join('');
+  }
+
+  document.getElementById('galIdServicio').value = idServicio;
+  new bootstrap.Modal(document.getElementById('modalGaleria')).show();
+}
+
+function abrirModalGaleriaItem() {
+  document.getElementById('modalGaleriaItemTitulo').innerHTML = '<i class="fas fa-plus-circle me-1"></i> Agregar Contenido';
+  document.getElementById('galRowIndex').value = '';
+  document.getElementById('galTitulo').value = '';
+  document.getElementById('galDescripcion').value = '';
+  document.getElementById('galUrlMedia').value = '';
+  var currentSrv = document.getElementById('galIdServicio').value;
+  var currentCount = galeria.filter(function(g) { return g.idServicio === currentSrv; }).length;
+  document.getElementById('galOrden').value = currentCount + 1;
+  document.getElementById('galTipoMedia').value = 'imagen';
+  new bootstrap.Modal(document.getElementById('modalGaleriaItem')).show();
+}
+
+function editarGaleriaItem(rowIndex) {
+  var item = galeria.find(function(g) { return g.rowIndex === rowIndex; });
+  if (!item) return;
+  document.getElementById('modalGaleriaItemTitulo').innerHTML = '<i class="fas fa-pencil-alt me-1"></i> Editar Contenido';
+  document.getElementById('galRowIndex').value = rowIndex;
+  document.getElementById('galTipoMedia').value = item.tipoMedia || 'imagen';
+  document.getElementById('galTitulo').value = item.titulo || '';
+  document.getElementById('galDescripcion').value = item.descripcion || '';
+  document.getElementById('galUrlMedia').value = item.urlMedia || '';
+  document.getElementById('galOrden').value = item.orden || 1;
+  new bootstrap.Modal(document.getElementById('modalGaleriaItem')).show();
+}
+
+function guardarGaleriaItem() {
+  var data = {
+    idServicio: document.getElementById('galIdServicio').value,
+    tipoMedia: document.getElementById('galTipoMedia').value,
+    titulo: document.getElementById('galTitulo').value.trim(),
+    descripcion: document.getElementById('galDescripcion').value.trim(),
+    urlMedia: document.getElementById('galUrlMedia').value.trim(),
+    orden: parseInt(document.getElementById('galOrden').value) || 1
+  };
+  if (!data.titulo || !data.urlMedia) { toast('Titulo y URL son obligatorios.', 'warning'); return; }
+
+  var btn = document.getElementById('btnGuardarGaleria');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+  var rowIndex = document.getElementById('galRowIndex').value;
+  if (rowIndex) {
+    data.rowIndex = parseInt(rowIndex);
+    google.script.run
+      .withSuccessHandler(function() { reloadGaleria(data.idServicio); resetBtn(btn, '<i class="fas fa-save me-1"></i> Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, '<i class="fas fa-save me-1"></i> Guardar'); })
+      .updateGaleria(data);
+  } else {
+    google.script.run
+      .withSuccessHandler(function() { reloadGaleria(data.idServicio); resetBtn(btn, '<i class="fas fa-save me-1"></i> Guardar'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, '<i class="fas fa-save me-1"></i> Guardar'); })
+      .saveGaleria(data);
+  }
+}
+
+function eliminarGaleriaItem(rowIndex) {
+  if (!confirm('Eliminar este contenido multimedia?')) return;
+  var item = galeria.find(function(g) { return g.rowIndex === rowIndex; });
+  var srvId = item ? item.idServicio : document.getElementById('galIdServicio').value;
+  google.script.run
+    .withSuccessHandler(function() { reloadGaleria(srvId); toast('Contenido eliminado.', 'success'); })
+    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); })
+    .deleteGaleria(rowIndex);
+}
+
+function reloadGaleria(idServicio) {
+  google.script.run.withSuccessHandler(function(data) {
+    galeria = data || [];
+    // Cerrar modal de item
+    var itemModal = bootstrap.Modal.getInstance(document.getElementById('modalGaleriaItem'));
+    if (itemModal) itemModal.hide();
+    // Re-abrir galeria del servicio
+    if (idServicio) {
+      var srv = servicios.find(function(s) { return s.idServicio === idServicio; });
+      if (srv) {
+        // Cerrar y re-abrir para refrescar
+        var galModal = bootstrap.Modal.getInstance(document.getElementById('modalGaleria'));
+        if (galModal) galModal.hide();
+        setTimeout(function() { abrirGaleriaServicio(idServicio, srv.tipoServicio); }, 300);
+      }
+    }
+    toast('Galeria actualizada.', 'success');
+  }).getGaleria();
+}
+
+// =============================================
 // PROMOCIONES CRUD
 // =============================================
 function abrirModalPromoCrear() {
@@ -1848,6 +2056,10 @@ function abrirModalPromoCrear() {
   var horasGroup = document.getElementById('promoHorasEnvioGroup');
   if (horasGroup) horasGroup.style.display = 'none';
   document.getElementById('promoHorasEnvio').value = '08:00,13:00,19:00';
+  // Reset media fields
+  document.getElementById('promoTipoMedia').value = '';
+  document.getElementById('promoUrlMedia').value = '';
+  document.getElementById('promoUrlMediaGroup').style.display = 'none';
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
 
@@ -1891,6 +2103,10 @@ function abrirModalPromoEditar(rowIndex) {
   if ((p.tipoPromo || '').toUpperCase() === 'CUMPLEANOS') {
     document.getElementById('promoHorasEnvio').value = p.aplicaDia || '08:00,13:00,19:00';
   }
+  // Poblar media fields
+  document.getElementById('promoTipoMedia').value = p.tipoMediaPromo || '';
+  document.getElementById('promoUrlMedia').value = p.urlMediaPromo || '';
+  document.getElementById('promoUrlMediaGroup').style.display = p.tipoMediaPromo ? '' : 'none';
   document.getElementById('promoTipo').dispatchEvent(new Event('change'));
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
@@ -1932,7 +2148,9 @@ function guardarPromocion() {
     valorDescuento: parseInt(document.getElementById('promoValor').value) || 0,
     aplicaServicio: srvArr.join(','), aplicaDia: aplicaDiaVal, vence: fechaVence,
     estado: document.getElementById('promoEstadoSwitch').checked ? 'ACTIVO' : 'INACTIVO',
-    aplicaTipoCliente: tipoClienteArr.join(',')
+    aplicaTipoCliente: tipoClienteArr.join(','),
+    tipoMediaPromo: document.getElementById('promoTipoMedia').value || '',
+    urlMediaPromo: document.getElementById('promoUrlMedia').value.trim() || ''
   };
   var btn = document.getElementById('btnGuardarPromo');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
@@ -2626,6 +2844,7 @@ function filtrarBloqueos() {
 function reloadData(modulo) {
   if (modulo === 'servicios') {
     google.script.run.withSuccessHandler(function(d) { servicios = d || []; serviciosNombres = servicios.map(function(s){return s.tipoServicio;}).filter(Boolean); navigateTo('servicios'); }).getServicios();
+    google.script.run.withSuccessHandler(function(d) { galeria = d || []; }).getGaleria();
   } else if (modulo === 'promociones') {
     google.script.run.withSuccessHandler(function(d) { promociones = d || []; navigateTo('promociones'); }).getPromociones();
   } else if (modulo === 'equipo') {
