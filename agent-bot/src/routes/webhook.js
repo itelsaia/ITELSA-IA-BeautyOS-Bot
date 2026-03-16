@@ -766,8 +766,6 @@ router.post('/evolution', async (req, res) => {
         // ── REAGENDAMIENTO DETERMINISTA (code-level) ──
         if (session.pendingReagendamiento && CONFIRM_REGEX.test(msgNorm)) {
             const reagData = session.pendingReagendamiento;
-            session.pendingReagendamiento = null;
-            session.pendingConfirmation = null;
 
             let citaId = session.reagendandoCitaId;
 
@@ -775,11 +773,9 @@ router.post('/evolution', async (req, res) => {
             if (!citaId) {
                 const userAppts = tenant.pendingAppointments[phoneNumber] || [];
                 if (userAppts.length === 1) {
-                    // Solo tiene 1 cita → usar esa
                     citaId = userAppts[0].id;
                     console.log(`[${instanceName}] 🎯 Auto-resuelto citaId (única cita): ${citaId}`);
                 } else if (userAppts.length > 1) {
-                    // Buscar en el historial de conversación por AG-XXX
                     const historyText = session.history.map(h => h.content || '').join(' ');
                     const histIdMatch = historyText.match(/AG-[A-Z]+-\d{3}/i);
                     if (histIdMatch) {
@@ -789,6 +785,63 @@ router.post('/evolution', async (req, res) => {
                 }
                 if (citaId) session.reagendandoCitaId = citaId;
             }
+
+            // ── ADVERTENCIA DE PÉRDIDA DE PROMO (code-level) ──
+            if (citaId && !session.promoWarningShown) {
+                const userAppts = tenant.pendingAppointments[phoneNumber] || [];
+                const citaOriginal = userAppts.find(c => c.id === citaId);
+
+                if (citaOriginal && citaOriginal.promo === 'SI' && citaOriginal.tipoPromo) {
+                    // Buscar la promo en el catálogo
+                    const promoOriginal = (tenant.promotionsCatalog || []).find(p =>
+                        p.nombre && p.nombre.toLowerCase().trim() === citaOriginal.tipoPromo.toLowerCase().trim()
+                    );
+
+                    if (promoOriginal && promoOriginal.aplicaDia && promoOriginal.aplicaDia.trim() !== '') {
+                        // Es una promo de DÍA FIJO — verificar si la nueva fecha cumple
+                        const weekDaysWarn = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                        let nuevoDia = '';
+                        if (reagData.fecha) {
+                            const fpW = reagData.fecha.split('/');
+                            if (fpW.length === 3) {
+                                nuevoDia = weekDaysWarn[new Date(fpW[2], fpW[1] - 1, fpW[0]).getDay()];
+                            }
+                        }
+
+                        const diasPromo = promoOriginal.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                        const pierdePromo = nuevoDia && !diasPromo.includes(nuevoDia);
+
+                        if (pierdePromo) {
+                            // Calcular precio sin descuento
+                            const srvNames = reagData.servicios.split(',').map(s => s.trim().toLowerCase());
+                            const precioSinDescuento = srvNames.reduce((sum, name) => {
+                                const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                return sum + (info ? info.price : 0);
+                            }, 0);
+
+                            const warningMsg = `⚠️ *Importante antes de continuar:*\n\n` +
+                                `Tu cita actual tiene la promo *${citaOriginal.tipoPromo}* que aplica los *${promoOriginal.aplicaDia}*.\n\n` +
+                                `Si la cambias para el *${nuevoDia} ${reagData.fecha}*, perderías el beneficio de la promoción y el precio sería de *$${Number(precioSinDescuento).toLocaleString('es-CO')}* (precio normal sin descuento).\n\n` +
+                                `¿Deseas continuar con el reagendamiento de todas formas?\n` +
+                                `Responde *sí* para continuar o *no* para mantener tu cita actual con la promo. 💖`;
+
+                            session.promoWarningShown = true;
+                            // Actualizar el precio en los datos pendientes al precio sin descuento
+                            reagData.precio_total = precioSinDescuento;
+                            session.history.push({ role: 'user', content: messageText });
+                            session.history.push({ role: 'assistant', content: warningMsg });
+                            await evolutionClient.sendText(instanceName, phoneNumber, warningMsg);
+                            console.log(`[${instanceName}] ⚠️ Advertencia promo mostrada: ${citaOriginal.tipoPromo} → ${nuevoDia} pierde promo. Esperando re-confirmación.`);
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Limpiar flags de advertencia
+            session.promoWarningShown = false;
+            session.pendingReagendamiento = null;
+            session.pendingConfirmation = null;
 
             if (citaId) {
                 console.log(`✅ [${instanceName}] Reagendamiento directo: ${citaId} → ${reagData.fecha} ${reagData.hora_inicio}`);
@@ -858,10 +911,14 @@ router.post('/evolution', async (req, res) => {
             // ¿Es un rechazo explícito?
             if (DENY_REGEX.test(msgNorm)) {
                 console.log(`[${instanceName}] Reagendamiento RECHAZADO por usuario: "${messageText}"`);
+                const wasPromoWarning = session.promoWarningShown === true;
                 session.pendingReagendamiento = null;
                 session.isReagendando = false;
                 session.reagendandoCitaId = null;
-                const cancelMsg = `Entendido, no se reagendó ninguna cita. 😊\n\n¿En qué más te puedo ayudar?`;
+                session.promoWarningShown = false;
+                const cancelMsg = wasPromoWarning
+                    ? `¡Perfecto! Tu cita con la promoción se mantiene sin cambios. 💖✨\n\n¿Necesitas algo más?`
+                    : `Entendido, no se reagendó ninguna cita. 😊\n\n¿En qué más te puedo ayudar?`;
                 session.history.push({ role: 'user', content: messageText });
                 session.history.push({ role: 'assistant', content: cancelMsg });
                 await evolutionClient.sendText(instanceName, phoneNumber, cancelMsg);
