@@ -196,13 +196,21 @@ async function syncTenantData(tenantId) {
 
         // ── Cumpleanos proactivos (multi-envio configurable desde PROMOCIONES) ──
         try {
-            const cumplePromo = (tenant.promotionsCatalog || []).find(p =>
+            const allPromos = tenant.promotionsCatalog || [];
+            const cumplePromo = allPromos.find(p =>
                 p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
             );
+
+            // DEBUG: diagnóstico de cumpleaños
+            console.log(`[${tenantId}] DEBUG Cumpleanos: ${allPromos.length} promos cargadas, cumplePromo=${cumplePromo ? 'SI (' + cumplePromo.nombre + ')' : 'NO'}, evolutionClient=${!!evolutionClient}`);
+            if (allPromos.length > 0) {
+                allPromos.forEach(p => console.log(`[${tenantId}]   promo: "${p.nombre}" tipo="${p.tipoPromo}" estado="${p.estado}"`));
+            }
 
             if (cumplePromo && evolutionClient) {
                 const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
                 const todayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+                console.log(`[${tenantId}] DEBUG Cumpleanos: fecha=${todayKey}, horas="${cumplePromo.aplicaDia}", tipoCliente="${cumplePromo.aplicaTipoCliente}"`);
 
                 // Parsear horas de envio desde APLICA_DIA (ej: "08:00,13:00,19:00")
                 const rawHours = (cumplePromo.aplicaDia || '08:00').toString().trim();
@@ -228,6 +236,8 @@ async function syncTenantData(tenantId) {
                     }
                 }
 
+                console.log(`[${tenantId}] DEBUG Cumpleanos: hora=${nowH}:${String(nowM).padStart(2,'0')}, arrivedIndices=[${arrivedIndices.join(',')}], sendHours=[${sendHours.map(h=>h.label).join(',')}]`);
+
                 if (arrivedIndices.length > 0) {
                     const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
                         ? null
@@ -242,6 +252,7 @@ async function syncTenantData(tenantId) {
 
                     api.webhookUrl = tenant.webhookGasUrl;
                     const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
+                    console.log(`[${tenantId}] DEBUG Cumpleanos: fechaHoy=${dd}/${mm}, fechaManana=${dd2}/${mm2}, hoy=${JSON.stringify(bday.hoy)}, manana=${JSON.stringify(bday.manana)}`);
 
                     let enviados = 0;
 
