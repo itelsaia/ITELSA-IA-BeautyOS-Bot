@@ -303,6 +303,9 @@ async function loadPendingAppointments(sheetId) {
                         precio: data['PRECIO'] || 'N/A',
                         estado: estado,
                         profesional: data['PROFESIONAL'] || 'Por asignar',
+                        // Columnas de promo
+                        promo: (data['PROMO'] || '').toUpperCase().trim(),
+                        tipoPromo: (data['TIPO_PROMO'] || '').trim(),
                         // Columnas de anticipo/pago
                         exentoAnticipo: (data['EXENTO_ANTICIPO'] || '').toUpperCase() === 'SI',
                         montoAnticipo: parseInt(data['MONTO_ANTICIPO']) || 0,
