@@ -92,7 +92,7 @@ function inicializarEntorno() {
   // 7. PROMOCIONES (Motor de descuentos inteligente)
   let sheetPromociones = getOrCreateSheet(ss, "PROMOCIONES");
   sheetPromociones.clear();
-  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "TIPO_PROMO", "VALOR_DESCUENTO", "APLICA_SERVICIO", "APLICA_DIA", "VENCE", "ESTADO", "APLICA_TIPO_CLIENTE", "TIPO_MEDIA_PROMO", "URL_MEDIA_PROMO"]);
+  sheetPromociones.appendRow(["NOMBRE", "DESCRIPCION", "TIPO_PROMO", "VALOR_DESCUENTO", "APLICA_SERVICIO", "APLICA_DIA", "VENCE", "ESTADO", "APLICA_TIPO_CLIENTE", "TIPO_MEDIA_PROMO", "URL_MEDIA_PROMO", "MAX_USOS_CLIENTE"]);
   sheetPromociones.appendRow(["Martes de Uñas", "2x1 en manicure y pedicure los martes", "2X1", 50, "Manicure,Pedicure", "Martes", "31/03/2026", "ACTIVO", "TODOS"]);
   sheetPromociones.appendRow(["Cumpleanos Especial", "Feliz cumpleanos {nombre}! En {negocio} te regalamos un {descuento} de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!", "CUMPLEANOS", 20, "TODOS", "08:00,13:00,19:00", "", "ACTIVO", "Frecuente,VIP"]);
   formatHeaders(sheetPromociones);

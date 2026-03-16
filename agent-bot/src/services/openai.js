@@ -505,7 +505,7 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
 // ============================================================
 // Filtro de promociones vigentes para el día actual
 // ============================================================
-function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo) {
+function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo, clientCelular, promoUsage) {
     return promotionsCatalog.filter(p => {
         if (p.estado !== 'ACTIVO') return false;
         // Excluir CUMPLEANOS del listado general (se maneja como birthdayContext)
@@ -527,6 +527,12 @@ function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, cl
             const allowedTypes = p.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
             if (!allowedTypes.includes(clientTipo.toLowerCase())) return false;
         }
+        // Filtrar por limite de usos por cliente
+        if (p.maxUsosCliente > 0 && clientCelular && promoUsage) {
+            const clientUsage = promoUsage[clientCelular] || {};
+            const usedCount = clientUsage[p.nombre] || 0;
+            if (usedCount >= p.maxUsosCliente) return false;
+        }
         return true;
     });
 }
@@ -547,7 +553,8 @@ async function generateAIResponse(
     colaboradoresCatalog = [],
     allPendingAppointments = [],
     session = null,
-    serviceGallery = {}
+    serviceGallery = {},
+    promoUsage = {}
 ) {
     if (!config.openApiKey || config.openApiKey === "sk-..." || config.openApiKey === "PEGAR_AQUI_API_KEY") {
         console.error("🔴 Bloqueo OpenAI: API Key no configurada.");
@@ -609,9 +616,10 @@ async function generateAIResponse(
         const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const todayDayName = weekDays[nowColombia.getDay()];
 
-        // 4b. Filtrar promociones activas para hoy (segmentadas por tipo de cliente)
+        // 4b. Filtrar promociones activas para hoy (segmentadas por tipo de cliente + limite de uso)
         const clientTipo = (userData.tipo || 'Nuevo');
-        const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo);
+        const clientCelular = (userData.celular || '').trim();
+        const activePromotions = filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, clientTipo, clientCelular, promoUsage);
         let promotionsText = "No hay promociones activas para hoy.";
         if (activePromotions.length > 0) {
             promotionsText = activePromotions.map(p => {
@@ -619,8 +627,11 @@ async function generateAIResponse(
                 if (p.tipoPromo === 'PORCENTAJE') descuentoLabel = `${p.valorDescuento}% de descuento`;
                 else if (p.tipoPromo === '2X1') descuentoLabel = '2x1 (segundo gratis)';
                 else if (p.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${p.valorDescuento.toLocaleString('es-CO')} de descuento`;
-                const mediaTag = (p.tipoMediaPromo && p.urlMediaPromo) ? ` | 📸 TIENE MEDIA VISUAL (${p.tipoMediaPromo})` : '';
-                return `- PROMO: ${p.nombre} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia} | Valida hasta: ${p.vence}${mediaTag}`;
+                const mediaTag = (p.tipoMediaPromo && p.urlMediaPromo) ? ` | 📸 TIENE MEDIA VISUAL (${p.tipoMediaPromo}) → DEBES llamar 'enviar_media_promocion' al mencionarla` : '';
+                const usosInfo = p.maxUsosCliente > 0 ? ` | Limite: ${p.maxUsosCliente} uso(s) por cliente` : '';
+                const usedByClient = (promoUsage[clientCelular] || {})[p.nombre] || 0;
+                const usosRestantes = p.maxUsosCliente > 0 ? ` | Este cliente ha usado: ${usedByClient}/${p.maxUsosCliente}` : '';
+                return `- PROMO: ${p.nombre} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia} | Valida hasta: ${p.vence}${usosInfo}${usosRestantes}${mediaTag}`;
             }).join('\n');
         }
 

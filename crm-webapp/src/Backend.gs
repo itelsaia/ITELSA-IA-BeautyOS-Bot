@@ -417,7 +417,8 @@ function getPromociones() {
     estado: row[7] || 'INACTIVO',
     aplicaTipoCliente: row[8] || 'TODOS',
     tipoMediaPromo: row[9] || '',
-    urlMediaPromo: row[10] || ''
+    urlMediaPromo: row[10] || '',
+    maxUsosCliente: parseInt(row[11]) || 0
   }));
 }
 
@@ -437,7 +438,8 @@ function savePromocion(data) {
     (data.estado || 'ACTIVO').toUpperCase(),
     data.aplicaTipoCliente || 'TODOS',
     data.tipoMediaPromo || '',
-    data.urlMediaPromo || ''
+    data.urlMediaPromo || '',
+    parseInt(data.maxUsosCliente) || 0
   ]);
 
   return { status: "Promoción creada exitosamente", nombre: data.nombre };
@@ -462,6 +464,7 @@ function updatePromocion(data) {
   sheet.getRange(row, 9).setValue(data.aplicaTipoCliente || 'TODOS');
   sheet.getRange(row, 10).setValue(data.tipoMediaPromo || '');
   sheet.getRange(row, 11).setValue(data.urlMediaPromo || '');
+  sheet.getRange(row, 12).setValue(parseInt(data.maxUsosCliente) || 0);
 
   return { status: "Promoción actualizada", nombre: data.nombre };
 }
@@ -475,6 +478,35 @@ function deletePromocion(rowIndex) {
   sheet.deleteRow(rowIndex);
 
   return { status: "Promoción eliminada" };
+}
+
+/**
+ * Retorna conteo de uso de promociones por cliente desde AGENDA.
+ * Solo cuenta citas con ESTADO = PENDIENTE o EJECUTADO y PROMO = SI.
+ * @returns {Object} { "573001234567": { "Martes de Cejas": 2, "Promo Tinte": 1 }, ... }
+ */
+function getPromoUsage() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("AGENDA");
+  if (!sheet || sheet.getLastRow() <= 1) return {};
+
+  const data = sheet.getDataRange().getValues();
+  var usage = {};
+  // Columnas AGENDA: 0=ID, 1=FECHA, ..., 6=CELULAR_CLIENTE, ..., 10=ESTADO, ..., 19=PROMO, 20=TIPO_PROMO
+  for (var i = 1; i < data.length; i++) {
+    var estado = (data[i][10] || '').toString().toUpperCase();
+    var promo = (data[i][19] || '').toString().toUpperCase();
+    var tipoPromo = (data[i][20] || '').toString().trim();
+    var celular = (data[i][6] || '').toString().trim();
+
+    if (promo !== 'SI' || !tipoPromo || !celular) continue;
+    if (estado !== 'PENDIENTE' && estado !== 'EJECUTADO') continue;
+
+    if (!usage[celular]) usage[celular] = {};
+    if (!usage[celular][tipoPromo]) usage[celular][tipoPromo] = 0;
+    usage[celular][tipoPromo]++;
+  }
+  return usage;
 }
 
 function togglePromocionEstado(rowIndex, nuevoEstado, nuevaFechaVence) {

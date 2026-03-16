@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery,
-        loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments } = require('./sheets');
+        loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments, loadPromoUsage } = require('./sheets');
 const api = require('./api');
 const { isValidLicense } = require('../utils/license');
 
@@ -65,7 +65,7 @@ async function initTenant(tenantId, tenantDef) {
     }
 
     // Cargar todos los datos en paralelo para acelerar el arranque
-    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery] =
+    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery, promoUsage] =
         await Promise.all([
             loadServicesConfig(sheetId),
             loadKnowledgeConfig(sheetId),
@@ -74,7 +74,8 @@ async function initTenant(tenantId, tenantDef) {
             loadPromotions(sheetId),
             loadDisponibilidad(sheetId),
             loadColaboradores(sheetId),
-            loadServiceGallery(sheetId)
+            loadServiceGallery(sheetId),
+            loadPromoUsage(sheetId)
         ]);
 
     // Computed flag: al menos un servicio tiene anticipo habilitado
@@ -91,6 +92,7 @@ async function initTenant(tenantId, tenantDef) {
         disponibilidadCatalog,
         colaboradoresCatalog,
         serviceGallery,
+        promoUsage,
         userSessions: {},
         syncInterval: null,
         lastSync: new Date().toISOString()
@@ -131,7 +133,7 @@ async function syncTenantData(tenantId) {
         console.log(`[${tenantId}] Sincronizando datos desde Google Sheets...`);
         const { sheetId } = tenant;
 
-        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery] =
+        const [config, servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery, promoUsage] =
             await Promise.all([
                 loadClientConfig(sheetId),
                 loadServicesConfig(sheetId),
@@ -141,7 +143,8 @@ async function syncTenantData(tenantId) {
                 loadPromotions(sheetId),
                 loadDisponibilidad(sheetId),
                 loadColaboradores(sheetId),
-                loadServiceGallery(sheetId)
+                loadServiceGallery(sheetId),
+                loadPromoUsage(sheetId)
             ]);
 
         tenant.config = config || tenant.config;
@@ -155,6 +158,7 @@ async function syncTenantData(tenantId) {
         tenant.disponibilidadCatalog = disponibilidadCatalog;
         tenant.colaboradoresCatalog = colaboradoresCatalog;
         tenant.serviceGallery = serviceGallery;
+        tenant.promoUsage = promoUsage;
         tenant.lastSync = new Date().toISOString();
 
         console.log(`[${tenantId}] Sincronizacion completa.`);

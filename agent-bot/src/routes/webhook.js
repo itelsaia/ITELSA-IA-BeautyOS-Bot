@@ -979,7 +979,7 @@ router.post('/evolution', async (req, res) => {
                         }, 0);
                         if (catalogPrice > 0 && citaData.precio_total < catalogPrice) {
                             promoFlag = 'SI';
-                            tipoPromoFlag = promosActivas[0].tipoPromo || 'DESCUENTO';
+                            tipoPromoFlag = promosActivas[0].nombre || promosActivas[0].tipoPromo || 'DESCUENTO';
                         }
                     }
                 }
@@ -1126,7 +1126,8 @@ router.post('/evolution', async (req, res) => {
             tenant.colaboradoresCatalog || [],
             allPendingAppointments,
             session,
-            tenant.serviceGallery || {}
+            tenant.serviceGallery || {},
+            tenant.promoUsage || {}
         );
 
         // Actualizar historial de conversación

@@ -360,7 +360,8 @@ async function loadPromotions(sheetId) {
                 estado: (cleanData['ESTADO'] || '').toUpperCase().trim(),
                 aplicaTipoCliente: (cleanData['APLICA_TIPO_CLIENTE'] || 'TODOS').trim(),
                 tipoMediaPromo: (cleanData['TIPO_MEDIA_PROMO'] || '').toLowerCase().trim(),
-                urlMediaPromo: (cleanData['URL_MEDIA_PROMO'] || '').trim()
+                urlMediaPromo: (cleanData['URL_MEDIA_PROMO'] || '').trim(),
+                maxUsosCliente: parseInt(cleanData['MAX_USOS_CLIENTE'], 10) || 0
             };
         }).filter(item => item.nombre !== '');
 
@@ -523,4 +524,44 @@ async function loadExpiredAppointments(sheetId, minutesThreshold = 30) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments };
+/**
+ * Carga el conteo de uso de promos por cliente desde la hoja AGENDA.
+ * Solo cuenta citas con ESTADO PENDIENTE o EJECUTADO y PROMO = SI.
+ * @returns {Object} { "573001234567": { "Martes de Cejas": 2 }, ... }
+ */
+async function loadPromoUsage(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+        const sheet = doc.sheetsByTitle['AGENDA'];
+        if (!sheet) return {};
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        const usage = {};
+        rows.forEach(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+            const estado = (cleanData['ESTADO'] || '').toUpperCase().trim();
+            const promo = (cleanData['PROMO'] || '').toUpperCase().trim();
+            const tipoPromo = (cleanData['TIPO_PROMO'] || '').trim();
+            const celular = (cleanData['CELULAR_CLIENTE'] || '').trim();
+
+            if (promo !== 'SI' || !tipoPromo || !celular) return;
+            if (estado !== 'PENDIENTE' && estado !== 'EJECUTADO') return;
+
+            if (!usage[celular]) usage[celular] = {};
+            if (!usage[celular][tipoPromo]) usage[celular][tipoPromo] = 0;
+            usage[celular][tipoPromo]++;
+        });
+        return usage;
+    } catch (e) {
+        console.error("⚠️ Error cargando uso de promos:", e.message);
+        return {};
+    }
+}
+
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments, loadPromoUsage };
