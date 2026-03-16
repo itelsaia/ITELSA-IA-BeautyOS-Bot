@@ -653,9 +653,33 @@ async function generateAIResponse(
                 // Clasificar tipo de promo: DÍA FIJO vs RANGO FLEXIBLE
                 const diasArr = (p.aplicaDia || '').split(',').map(d => d.trim()).filter(Boolean);
                 const esDiaFijo = diasArr.length > 0 && diasArr.length <= 2 && p.aplicaServicio && p.aplicaServicio !== 'TODOS';
-                const tipoTag = esDiaFijo
-                    ? `🔒 DÍA FIJO — Solo agendable los ${p.aplicaDia} para ${p.aplicaServicio}. NO preguntes día ni servicio, solo HORA.`
-                    : `📅 FLEXIBLE — Aplica cualquier día dentro de su vigencia.`;
+
+                let tipoTag = '';
+                if (esDiaFijo) {
+                    // Calcular la FECHA EXACTA del próximo día de la promo
+                    const dayMap = { 'lunes': 1, 'martes': 2, 'miércoles': 3, 'miercoles': 3, 'jueves': 4, 'viernes': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0 };
+                    const targetDay = dayMap[diasArr[0].toLowerCase()] ?? -1;
+                    let fechaPromo = '';
+                    if (targetDay >= 0) {
+                        const hoyDay = nowColombia.getDay();
+                        let diasHasta = targetDay - hoyDay;
+                        if (diasHasta < 0) diasHasta += 7;
+                        // Si es HOY (diasHasta === 0), usar hoy (verificar_disponibilidad filtrará horas pasadas)
+                        // Si ya pasó esta semana, ir a la próxima
+                        if (diasHasta === 0) {
+                            // Es hoy — la IA usará hoy y solo verá slots futuros
+                            fechaPromo = todayStr;
+                        } else {
+                            const nextDate = new Date(nowColombia);
+                            nextDate.setDate(nextDate.getDate() + diasHasta);
+                            fechaPromo = String(nextDate.getDate()).padStart(2, '0') + '/' + String(nextDate.getMonth() + 1).padStart(2, '0') + '/' + nextDate.getFullYear();
+                        }
+                    }
+                    const fechaLabel = fechaPromo ? ` FECHA A USAR: ${fechaPromo}.` : '';
+                    tipoTag = `🔒 DÍA FIJO — Solo agendable los ${p.aplicaDia} para ${p.aplicaServicio}.${fechaLabel} NO preguntes día ni servicio, solo HORA. Llama verificar_disponibilidad con fecha=${fechaPromo} y servicio=${p.aplicaServicio}.`;
+                } else {
+                    tipoTag = `📅 FLEXIBLE — Aplica cualquier día dentro de su vigencia. El cliente elige fecha.`;
+                }
 
                 return `- PROMO: ${p.nombre} | ${tipoTag} | ${p.descripcion} | Descuento: ${descuentoLabel} | Aplica a: ${p.aplicaServicio} | Dias: ${p.aplicaDia || 'Todos'} | Valida hasta: ${p.vence}${usosInfo}${usosRestantes}${mediaTag}`;
             }).join('\n');
