@@ -572,6 +572,8 @@ async function generateAIResponse(
                     ? `${s.anticipoValue}% del precio`
                     : `$${Number(s.anticipoValue).toLocaleString('es-CO')} fijos`;
                 line += ` | ANTICIPO: ${label}`;
+            } else {
+                line += ` | ANTICIPO: No requiere`;
             }
             return line;
         }).join('\n');
@@ -751,7 +753,7 @@ REGLAS DE USO DE LA GALERÍA:
 ` : ''}
 ${config.hasAnyAnticipo ? `
 💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
-- Algunos servicios requieren anticipo. Revisa la columna ANTICIPO en el catálogo para ver cuáles y cuánto.
+- ⚠️ REGLA CRÍTICA: SOLO pide anticipo si el servicio dice "ANTICIPO: X% del precio" o "ANTICIPO: $X fijos" en el catálogo. Si dice "ANTICIPO: No requiere", NO menciones anticipo para ese servicio. NUNCA inventes montos de anticipo.
 - ESTADO DEL CLIENTE: ${userData.exentoAnticipo ? '✅ Este cliente está EXENTO de anticipo. NO le cobres anticipo ni menciones pagos. Flujo 100% normal.' : '⚠️ Este cliente NO está exento. DEBE cumplir con el anticipo si el servicio lo requiere.'}
 - Momento de pago: ${config.paymentMoment === 'ANTES' ? 'Paga ANTES de agendar (sin pago no hay cita).' : 'Se agenda primero y luego envía comprobante.'}
 - Datos de pago: ${config.paymentInstructions}
