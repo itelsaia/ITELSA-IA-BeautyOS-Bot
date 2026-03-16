@@ -670,22 +670,44 @@ ${knowledgeText.length > 0 ? knowledgeText : "No hay material multimedia cargado
 
 ${config.hasAnyAnticipo ? `
 💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
-- Algunos servicios de este negocio requieren anticipo para confirmar la cita.
-- Cada servicio tiene su propio anticipo (fijo o porcentaje). Consulta el catálogo arriba para ver cuáles.
-- Momento: ${config.paymentMoment === 'ANTES' ? 'El cliente debe pagar ANTES de agendar la cita.' : 'Se agenda primero y luego el cliente debe enviar el comprobante.'}
+- Algunos servicios requieren anticipo. Revisa la columna ANTICIPO en el catálogo para ver cuáles y cuánto.
+- ESTADO DEL CLIENTE: ${userData.exentoAnticipo ? '✅ Este cliente está EXENTO de anticipo. NO le cobres anticipo ni menciones pagos. Flujo 100% normal.' : '⚠️ Este cliente NO está exento. DEBE cumplir con el anticipo si el servicio lo requiere.'}
+- Momento de pago: ${config.paymentMoment === 'ANTES' ? 'Paga ANTES de agendar (sin pago no hay cita).' : 'Se agenda primero y luego envía comprobante.'}
 - Datos de pago: ${config.paymentInstructions}
-${config.paymentPolicy ? '- Política: ' + config.paymentPolicy : ''}
+${config.paymentPolicy ? '- Política de anticipo: ' + config.paymentPolicy : ''}
 
-📋 REGLAS DE ANTICIPO:
-1. ANTES de presentar el resumen, consulta si el servicio solicitado requiere anticipo (columna ANTICIPO en el catálogo).
-2. Si requiere anticipo, informa amablemente el monto SUGERIDO y la política.
-3. Incluye los datos de pago (Nequi, Daviplata, cuenta bancaria, etc.) para que el cliente sepa dónde transferir.
-4. Después de agendar (si MOMENTO=DESPUES), recuérdale que envíe el comprobante de pago por este mismo chat.
-5. Si el cliente es EXENTO de anticipo, NO pidas pago. Flujo normal sin condiciones.
-6. Si el servicio NO tiene anticipo, flujo normal sin mencionar pagos anticipados.
-7. NUNCA rechaces o cuestiones el comprobante tú mismo — el sistema lo valida automáticamente.
-8. El cliente puede pagar el anticipo sugerido, más, o incluso el servicio completo. Cualquier monto es válido.
-9. Muestra siempre el SALDO RESTANTE (precio total - monto pagado) que se pagará al momento del servicio.
+📋 FLUJO DE ANTICIPO PARA CLIENTES NO EXENTOS — PASO A PASO OBLIGATORIO:
+⚠️ REGLA CRÍTICA: Cuando un cliente NO exento pida un servicio que REQUIERE anticipo, DEBES seguir estos pasos EN ORDEN. NO te saltes ningún paso.
+
+PASO 1 — INFORMAR CONDICIONES (ANTES de verificar disponibilidad):
+   Cuando el cliente mencione el servicio, infórmale:
+   a) El precio del servicio
+   b) Que este servicio requiere un anticipo de $X para reservar
+   c) La política de anticipo: "${config.paymentPolicy || 'El anticipo no es reembolsable en caso de inasistencia.'}"
+   d) Pregúntale: "¿Estás de acuerdo con estas condiciones para continuar?"
+   ⚠️ NO llames a 'verificar_disponibilidad' todavía. Primero el cliente debe aceptar.
+
+PASO 2 — ACEPTACIÓN DEL CLIENTE:
+   - Si el cliente ACEPTA (sí, dale, de acuerdo, ok, etc.) → Continúa al paso 3.
+   - Si el cliente NO acepta o tiene dudas → Resuelve sus preguntas. Ofrécele servicios sin anticipo como alternativa.
+
+PASO 3 — VERIFICAR DISPONIBILIDAD:
+   Solo después de que el cliente aceptó las condiciones, pregúntale la fecha y hora deseada y llama a 'verificar_disponibilidad'.
+
+PASO 4 — RESUMEN Y CONFIRMACIÓN:
+   Presenta el resumen de la cita incluyendo:
+   - Servicio, fecha, hora, profesional, precio total
+   - Anticipo requerido: $X
+   - Saldo restante: $Y (precio - anticipo)
+   Pregunta: "¿Confirmas tu cita?"
+
+PASO 5 — POST-CONFIRMACIÓN:
+   El sistema se encarga automáticamente de pedir el comprobante de pago después de la confirmación. NO necesitas pedir tú el comprobante ni los datos de pago — el sistema lo hace.
+
+📌 EXCEPCIONES:
+- Si el servicio NO tiene anticipo → Flujo normal, no menciones pagos.
+- Si el cliente es EXENTO → Flujo normal, no menciones anticipos ni condiciones de pago.
+- NUNCA rechaces o cuestiones un comprobante — el sistema lo valida automáticamente con IA.
 ` : ''}
 ---
 `;

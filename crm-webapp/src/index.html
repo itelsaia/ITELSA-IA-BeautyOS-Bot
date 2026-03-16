@@ -1801,7 +1801,7 @@ function guardarServicio() {
     respuestaBase: document.getElementById('srvRespuesta').value.trim(),
     anticipoHabilitado: document.getElementById('srvAnticipoHabilitado').value,
     tipoAnticipo: document.getElementById('srvTipoAnticipo').value,
-    valorAnticipo: parseInt(document.getElementById('srvValorAnticipo').value) || 0
+    valorAnticipo: parseInt(document.getElementById('srvValorAnticipo').value.toString().replace(/[.,]/g, '')) || 0
   };
 
   var btn = document.getElementById('btnGuardarSrv');

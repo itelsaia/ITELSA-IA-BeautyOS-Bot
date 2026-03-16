@@ -923,7 +923,7 @@ function getServicios() {
     tipoServicio: (row[5] || '').toString(),
     anticipoHabilitado: (row[6] || 'NO').toString(),
     tipoAnticipo: (row[7] || 'FIJO').toString(),
-    valorAnticipo: row[8] || 0
+    valorAnticipo: parseInt(String(row[8] || '0').replace(/[.,]/g, '')) || 0
   }));
 }
 
@@ -955,7 +955,7 @@ function saveServicio(data) {
     data.tipoServicio || '',
     data.anticipoHabilitado || 'NO',
     data.tipoAnticipo || 'FIJO',
-    parseInt(data.valorAnticipo) || 0
+    parseInt(String(data.valorAnticipo).replace(/[.,]/g, '')) || 0
   ]);
 
   return { status: "Servicio creado exitosamente", id: newId };
@@ -976,7 +976,7 @@ function updateServicio(data) {
   sheet.getRange(row, 6).setValue(data.tipoServicio || '');
   sheet.getRange(row, 7).setValue(data.anticipoHabilitado || 'NO');
   sheet.getRange(row, 8).setValue(data.tipoAnticipo || 'FIJO');
-  sheet.getRange(row, 9).setValue(parseInt(data.valorAnticipo) || 0);
+  sheet.getRange(row, 9).setValue(parseInt(String(data.valorAnticipo).replace(/[.,]/g, '')) || 0);
 
   return { status: "Servicio actualizado", id: data.idServicio };
 }

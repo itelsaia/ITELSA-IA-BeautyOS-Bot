@@ -184,8 +184,8 @@ router.post('/evolution', async (req, res) => {
 
         // ── Datos del usuario para contexto de IA ──
         const userData = session.datos
-            ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo' }
-            : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo' };
+            ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true }
+            : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false };
 
         // ── Saludo cálido para clientes REGISTRADOS (primer mensaje de sesión) ──
         const esClienteRegistrado = session.estado === 'REGISTRADO';
