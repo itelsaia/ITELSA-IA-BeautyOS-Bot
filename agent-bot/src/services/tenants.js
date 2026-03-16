@@ -336,8 +336,18 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
 
     let mensaje = '';
     const negocio = config.businessName || 'nuestro negocio';
+    const plantilla = (cumplePromo.descripcion || '').trim();
 
-    if (timing === 'manana') {
+    // Si DESCRIPCION tiene texto, se usa como plantilla con variables {nombre}, {negocio}, {descuento}, {horario}, {dia}
+    // Si DESCRIPCION esta vacia, se usan mensajes predeterminados con emojis
+    if (plantilla) {
+        mensaje = plantilla
+            .replace(/\{nombre\}/gi, cliente.nombre)
+            .replace(/\{negocio\}/gi, negocio)
+            .replace(/\{descuento\}/gi, descuento + '%')
+            .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
+            .replace(/\{dia\}/gi, diaLabel);
+    } else if (timing === 'manana') {
         mensaje = `🎂✨ ¡Hola *${cliente.nombre}*! ✨🎂\n\n¡Mañana es tu día especial! 🎉 En *${negocio}* queremos celebrar tu cumpleaños contigo y hacerte sentir increíble.\n\n🎁 Te tenemos preparado un regalo exclusivo: *${descuento}% de descuento* en el servicio que tú elijas.${horarioInfo}\n\n📲 Responde a este mensaje para agendar tu cita de cumpleaños y reservar tu espacio. ¡No te lo pierdas! 💖`;
     } else {
         const isFirst = sendIndex === 0;
