@@ -196,18 +196,9 @@ async function syncTenantData(tenantId) {
 
         // ── Cumpleanos proactivos (multi-envio configurable desde PROMOCIONES) ──
         try {
-            // DEBUG: Listar todas las promos para diagnostico
-            const allPromos = tenant.promotionsCatalog || [];
-            console.log(`[${tenantId}] DEBUG-CUMPLE: totalPromos=${allPromos.length}`);
-            allPromos.forEach((p, i) => {
-                console.log(`[${tenantId}] DEBUG-CUMPLE: promo[${i}]: nombre="${p.nombre}" tipoPromo="${p.tipoPromo}" estado="${p.estado}" aplicaDia="${p.aplicaDia}" aplicaTipoCliente="${p.aplicaTipoCliente}" valorDescuento="${p.valorDescuento}"`);
-            });
-
-            const cumplePromo = allPromos.find(p =>
+            const cumplePromo = (tenant.promotionsCatalog || []).find(p =>
                 p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO'
             );
-
-            console.log(`[${tenantId}] DEBUG-CUMPLE: cumplePromo=${cumplePromo ? 'SI ('+cumplePromo.nombre+')' : 'NO'}, evolutionClient=${!!evolutionClient}`);
 
             if (cumplePromo && evolutionClient) {
                 const today = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
@@ -221,15 +212,13 @@ async function syncTenantData(tenantId) {
                     .map(h => { const [hh, mm] = h.split(':').map(Number); return { h: hh, m: mm, label: h }; });
                 if (sendHours.length === 0) sendHours.push({ h: 8, m: 0, label: '08:00' });
 
-                const nowH = today.getHours();
-                const nowM = today.getMinutes();
-                console.log(`[${tenantId}] DEBUG-CUMPLE: todayKey=${todayKey}, nowH=${nowH}, nowM=${nowM}, rawHours="${rawHours}", sendHours=${JSON.stringify(sendHours)}`);
-
                 // Resetear tracking si cambio de dia
                 if (!tenant.birthdaySent || tenant.birthdaySent.date !== todayKey) {
-                    console.log(`[${tenantId}] DEBUG-CUMPLE: Reseteando tracking (prev=${JSON.stringify(tenant.birthdaySent || null)})`);
                     tenant.birthdaySent = { date: todayKey, manana: false, hoy: {} };
                 }
+
+                const nowH = today.getHours();
+                const nowM = today.getMinutes();
 
                 // Indices de horas que ya llegaron
                 const arrivedIndices = [];
@@ -238,7 +227,6 @@ async function syncTenantData(tenantId) {
                         arrivedIndices.push(i);
                     }
                 }
-                console.log(`[${tenantId}] DEBUG-CUMPLE: arrivedIndices=${JSON.stringify(arrivedIndices)}, birthdaySent=${JSON.stringify(tenant.birthdaySent)}`);
 
                 if (arrivedIndices.length > 0) {
                     const allowedTypes = cumplePromo.aplicaTipoCliente === 'TODOS'
@@ -252,10 +240,20 @@ async function syncTenantData(tenantId) {
                     const dd2 = String(tomorrow.getDate()).padStart(2, '0');
                     const mm2 = String(tomorrow.getMonth() + 1).padStart(2, '0');
 
-                    console.log(`[${tenantId}] DEBUG-CUMPLE: Llamando getBirthdayClients(fechaHoy="${dd}/${mm}", fechaManana="${dd2}/${mm2}")`);
+                    // Llamar API con retry (1 reintento tras 5s si falla)
                     api.webhookUrl = tenant.webhookGasUrl;
-                    const bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
-                    console.log(`[${tenantId}] DEBUG-CUMPLE: bday.hoy=${JSON.stringify(bday.hoy)}, bday.manana=${JSON.stringify(bday.manana)}`);
+                    let bday = { hoy: [], manana: [] };
+                    try {
+                        bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
+                    } catch (apiErr) {
+                        console.log(`[${tenantId}] Cumpleanos: primer intento fallo (${apiErr.message}), reintentando en 5s...`);
+                        await new Promise(r => setTimeout(r, 5000));
+                        try {
+                            bday = await api.getBirthdayClients(`${dd}/${mm}`, `${dd2}/${mm2}`);
+                        } catch (retryErr) {
+                            console.error(`[${tenantId}] Cumpleanos: retry tambien fallo (${retryErr.message})`);
+                        }
+                    }
 
                     let enviados = 0;
 
@@ -263,10 +261,7 @@ async function syncTenantData(tenantId) {
                     if (!tenant.birthdaySent.manana && bday.manana && bday.manana.length > 0) {
                         tenant.birthdaySent.manana = true;
                         for (const c of bday.manana) {
-                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) {
-                                console.log(`[${tenantId}] DEBUG-CUMPLE: manana SKIP ${c.nombre} tipo="${c.tipo}" no esta en allowedTypes=${JSON.stringify(allowedTypes)}`);
-                                continue;
-                            }
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
                             await sendBirthdayMessage(tenant, c, 'manana', cumplePromo, 0, sendHours.length);
                             enviados++;
                         }
@@ -275,20 +270,13 @@ async function syncTenantData(tenantId) {
                     // HOY: multi-envio por cliente, se detiene si ya agendo
                     if (bday.hoy && bday.hoy.length > 0) {
                         const todayDDMMYYYY = `${dd}/${mm}/${today.getFullYear()}`;
-                        console.log(`[${tenantId}] DEBUG-CUMPLE: Procesando HOY. todayDDMMYYYY="${todayDDMMYYYY}", allowedTypes=${JSON.stringify(allowedTypes)}`);
 
                         for (const c of bday.hoy) {
-                            console.log(`[${tenantId}] DEBUG-CUMPLE: Cliente HOY: ${c.nombre} cel=${c.celular} tipo="${c.tipo}"`);
-
-                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) {
-                                console.log(`[${tenantId}] DEBUG-CUMPLE: SKIP ${c.nombre} por tipo "${c.tipo}" no en allowedTypes`);
-                                continue;
-                            }
+                            if (allowedTypes && !allowedTypes.includes((c.tipo || 'Nuevo').toLowerCase())) continue;
 
                             // Verificar si ya tiene cita para hoy → SKIP
                             const clientAppts = tenant.pendingAppointments[c.celular] || [];
                             const hasApptToday = clientAppts.some(a => a.fecha === todayDDMMYYYY);
-                            console.log(`[${tenantId}] DEBUG-CUMPLE: ${c.nombre} citas=${JSON.stringify(clientAppts)}, hasApptToday=${hasApptToday}`);
                             if (hasApptToday) {
                                 console.log(`[${tenantId}] Cumpleanos: ${c.nombre} ya tiene cita hoy, omitiendo envios.`);
                                 continue;
@@ -297,32 +285,24 @@ async function syncTenantData(tenantId) {
                             // Tracking per-client
                             if (!tenant.birthdaySent.hoy[c.celular]) tenant.birthdaySent.hoy[c.celular] = [];
                             const sentIndices = tenant.birthdaySent.hoy[c.celular];
-                            console.log(`[${tenantId}] DEBUG-CUMPLE: ${c.nombre} sentIndices=${JSON.stringify(sentIndices)}, arrivedIndices=${JSON.stringify(arrivedIndices)}`);
 
                             for (const idx of arrivedIndices) {
                                 if (!sentIndices.includes(idx)) {
-                                    console.log(`[${tenantId}] DEBUG-CUMPLE: ENVIANDO mensaje hoy[${idx}/${sendHours.length}] a ${c.nombre}`);
                                     await sendBirthdayMessage(tenant, c, 'hoy', cumplePromo, idx, sendHours.length);
                                     sentIndices.push(idx);
                                     enviados++;
-                                } else {
-                                    console.log(`[${tenantId}] DEBUG-CUMPLE: idx=${idx} ya enviado a ${c.nombre}`);
                                 }
                             }
                         }
-                    } else {
-                        console.log(`[${tenantId}] DEBUG-CUMPLE: bday.hoy esta vacio o undefined`);
                     }
 
                     if (enviados > 0) {
                         console.log(`[${tenantId}] Cumpleanos: ${enviados} mensaje(s) enviado(s) (horas: ${rawHours}, tipos: ${cumplePromo.aplicaTipoCliente})`);
                     }
-                } else {
-                    console.log(`[${tenantId}] DEBUG-CUMPLE: Ninguna hora ha llegado aun. Esperando...`);
                 }
             }
         } catch (bdayError) {
-            console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message, bdayError.stack);
+            console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message);
         }
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
@@ -355,41 +335,20 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
     const diaLabel = timing === 'manana' ? 'manana ' + diaNombre : 'hoy ' + diaNombre;
 
     let mensaje = '';
-    const plantilla = (cumplePromo.descripcion || '').trim();
+    const negocio = config.businessName || 'nuestro negocio';
 
     if (timing === 'manana') {
-        if (plantilla) {
-            mensaje = plantilla
-                .replace(/\{nombre\}/gi, cliente.nombre)
-                .replace(/\{negocio\}/gi, config.businessName || '')
-                .replace(/\{descuento\}/gi, descuento + '%')
-                .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
-                .replace(/\{dia\}/gi, diaLabel);
-            if (!plantilla.toLowerCase().includes('mañana') && !plantilla.toLowerCase().includes('manana')) {
-                mensaje = `🎂 ¡Hola *${cliente.nombre}*! Mañana va a ser un día muy especial para ti.\n\n` + mensaje;
-            }
-        } else {
-            mensaje = `🎂 ¡Hola *${cliente.nombre}*!\n\nMañana va a ser un día muy especial para ti y en *${config.businessName}* queremos celebrarlo contigo 🎉\n\nTe tenemos preparado un regalo: *${descuento}% de descuento* en el servicio que desees.${horarioInfo}\n\n💬 Responde a este mensaje para agendar tu cita de cumpleaños. ¡Te esperamos!`;
-        }
+        mensaje = `🎂✨ ¡Hola *${cliente.nombre}*! ✨🎂\n\n¡Mañana es tu día especial! 🎉 En *${negocio}* queremos celebrar tu cumpleaños contigo y hacerte sentir increíble.\n\n🎁 Te tenemos preparado un regalo exclusivo: *${descuento}% de descuento* en el servicio que tú elijas.${horarioInfo}\n\n📲 Responde a este mensaje para agendar tu cita de cumpleaños y reservar tu espacio. ¡No te lo pierdas! 💖`;
     } else {
         const isFirst = sendIndex === 0;
         const isLast = sendIndex === totalSends - 1 && totalSends > 1;
 
         if (isFirst) {
-            if (plantilla) {
-                mensaje = plantilla
-                    .replace(/\{nombre\}/gi, cliente.nombre)
-                    .replace(/\{negocio\}/gi, config.businessName || '')
-                    .replace(/\{descuento\}/gi, descuento + '%')
-                    .replace(/\{horario\}/gi, horarioTexto || 'nuestro horario habitual')
-                    .replace(/\{dia\}/gi, diaLabel);
-            } else {
-                mensaje = `🎉🎂 ¡Feliz cumpleaños *${cliente.nombre}*! 🎂🎉\n\nEn *${config.businessName}* queremos que este día sea aún más especial. Te regalamos un *${descuento}% de descuento* en el servicio que prefieras.${horarioInfo}\n\n🎁 Este regalo es solo por hoy. ¡Escríbenos ahora para agendar tu cita de cumpleaños!`;
-            }
+            mensaje = `🎉🎂🥳 ¡¡FELIZ CUMPLEAÑOS *${cliente.nombre}*!! 🥳🎂🎉\n\n¡Hoy es tu gran día! 🌟 Todo el equipo de *${negocio}* te desea lo mejor y quiere celebrarlo contigo.\n\n🎁 *Tu regalo de cumpleaños:* ${descuento}% de descuento en el servicio que prefieras.${horarioInfo}\n\n✨ Este regalo es *exclusivo para hoy*. ¡Escríbenos ahora y agenda tu cita especial de cumpleaños! 📲💖`;
         } else if (isLast) {
-            mensaje = `⏰ ¡*${cliente.nombre}*, última oportunidad!\n\nTu regalo de cumpleaños de *${descuento}% de descuento* en *${config.businessName}* vence hoy a medianoche 🎁\n\nNo dejes pasar esta oportunidad, ¡responde ahora para agendar tu cita! 💬`;
+            mensaje = `⏰🎂 ¡*${cliente.nombre}*, última oportunidad! 🎂⏰\n\n¡Tu regalo de cumpleaños vence hoy a medianoche! 🕛\n\n🎁 Aún puedes aprovechar tu *${descuento}% de descuento* exclusivo en *${negocio}*.\n\n📲 ¡Responde ahora y agenda tu cita antes de que se acabe! No dejes pasar este regalo. 💖✨`;
         } else {
-            mensaje = `✨ ¡Hola *${cliente.nombre}*! Recuerda que hoy por tu cumpleaños tienes un *${descuento}% de descuento* en *${config.businessName}* 🎂${horarioInfo}\n\n¡Agenda tu cita ahora, solo es válido hoy! 💬 Responde para agendar.`;
+            mensaje = `✨🎂 ¡Hola *${cliente.nombre}*! 🎂✨\n\nRecuerda que hoy por tu cumpleaños tienes un *${descuento}% de descuento* exclusivo en *${negocio}*.${horarioInfo}\n\n🎁 ¡Aprovecha este regalo y agenda tu cita ahora! Solo es válido hoy. 📲💖`;
         }
     }
 
