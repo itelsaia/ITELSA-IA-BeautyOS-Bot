@@ -700,6 +700,10 @@ ${promotionsText}
 - 2X1: Si pide 2 servicios iguales, cobra solo 1 (el segundo es gratis). Si pide 1 solo, NO aplica.
 - VALOR_FIJO: precio_original - valor_descuento. Ej: $25.000 con $5.000 off = $20.000
 - Al presentar el resumen, muestra: ~precio original~ → precio con descuento.
+⚠️ REGLA CRÍTICA DE PRECIO CON DESCUENTO:
+- Cuando llames a 'agendar_cita' y haya una promoción aplicable, el campo 'precio_total' DEBE ser el precio YA CON DESCUENTO, NO el precio original.
+- Ejemplo: Servicio $30.000 con 20% de descuento → precio_total = 24000 (NO 30000).
+- Si usas el precio original, el descuento NO se registrará. SIEMPRE calcula y usa el precio final con descuento.
 
 👥 EQUIPO DE TRABAJO:
 ${colaboradoresCatalog.length > 0 ? colaboradoresCatalog.map(c => `  - ${c.nombre} (${c.rol}) | Especialidades: ${c.competencias || 'Todos los servicios'}`).join('\n') : 'No hay colaboradores registrados.'}
