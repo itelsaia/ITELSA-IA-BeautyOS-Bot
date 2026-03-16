@@ -1134,6 +1134,32 @@ function validarDisponibilidad(fechaStr, horaIni, horaFin, profesional, excludeA
   }
   if (!diaSemana) return; // No se pudo determinar dia
 
+  // === CHEQUEO DE FESTIVO ===
+  var fechaChequeo = '';
+  if (fechaStr instanceof Date) {
+    fechaChequeo = Utilities.formatDate(fechaStr, Session.getScriptTimeZone(), "dd/MM/yyyy");
+  } else if (typeof fechaStr === 'string') {
+    fechaChequeo = fechaStr.trim();
+  }
+  if (fechaChequeo) {
+    var festivoSheet = ss.getSheetByName('FESTIVOS_CONFIG');
+    if (festivoSheet && festivoSheet.getLastRow() > 1) {
+      var festivoData = festivoSheet.getDataRange().getValues();
+      for (var fi = 1; fi < festivoData.length; fi++) {
+        var fFecha = festivoData[fi][1];
+        var fFechaStr = fFecha instanceof Date ? Utilities.formatDate(fFecha, Session.getScriptTimeZone(), "dd/MM/yyyy") : (fFecha || '').toString().trim();
+        if (fFechaStr === fechaChequeo) {
+          var trabaja = (festivoData[fi][3] || 'NO').toString().toUpperCase().trim();
+          if (trabaja !== 'SI') {
+            var nombreFestivo = (festivoData[fi][2] || 'festivo').toString();
+            throw new Error("El " + fechaChequeo + " es festivo (" + nombreFestivo + ") y el negocio no atiende. Por favor elige otro dia.");
+          }
+          break;
+        }
+      }
+    }
+  }
+
   const citaIniMin = horaAMinutos(horaIni);
   const citaFinMin = horaAMinutos(horaFin);
 
@@ -1331,6 +1357,163 @@ function calcularTipoDia(fechaStr) {
   }
 
   return '';
+}
+
+// ============================================
+// Festivos Colombia — Ley 51 de 1983 (Ley Emiliani)
+// ============================================
+
+/**
+ * Calcula TODOS los festivos colombianos de un año.
+ * Incluye festivos fijos, Ley Emiliani (mueven al lunes) y basados en Semana Santa.
+ */
+function getColombianHolidaysGAS(year) {
+  // Easter (algoritmo de Gauss/Meeus)
+  var a = year % 19;
+  var b = Math.floor(year / 100);
+  var c = year % 100;
+  var d = Math.floor(b / 4);
+  var e = b % 4;
+  var f = Math.floor((b + 8) / 25);
+  var g = Math.floor((b - f + 1) / 3);
+  var h = (19 * a + b - d - g + 15) % 30;
+  var i = Math.floor(c / 4);
+  var k = c % 4;
+  var l = (32 + 2 * e + 2 * i - h - k) % 7;
+  var m = Math.floor((a + 11 * h + 22 * l) / 451);
+  var month = Math.floor((h + l - 7 * m + 114) / 31);
+  var day = ((h + l - 7 * m + 114) % 31) + 1;
+  var easter = new Date(year, month - 1, day);
+
+  function addDays(date, days) {
+    var d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+
+  function nextMonday(date) {
+    var d = new Date(date);
+    var dow = d.getDay();
+    if (dow === 1) return d;
+    if (dow === 0) { d.setDate(d.getDate() + 1); return d; }
+    d.setDate(d.getDate() + (8 - dow));
+    return d;
+  }
+
+  function fmt(date) {
+    return String(date.getDate()).padStart(2, '0') + '/' +
+           String(date.getMonth() + 1).padStart(2, '0') + '/' + date.getFullYear();
+  }
+
+  var holidays = [];
+  function add(date, name, emiliani) {
+    var final = emiliani ? nextMonday(date) : date;
+    holidays.push({ date: fmt(final), name: name });
+  }
+
+  // Festivos FIJOS
+  add(new Date(year, 0, 1),  'Año Nuevo', false);
+  add(new Date(year, 4, 1),  'Dia del Trabajo', false);
+  add(new Date(year, 6, 20), 'Grito de Independencia', false);
+  add(new Date(year, 7, 7),  'Batalla de Boyaca', false);
+  add(new Date(year, 11, 8), 'Inmaculada Concepcion', false);
+  add(new Date(year, 11, 25),'Navidad', false);
+
+  // Festivos EMILIANI (se mueven al lunes siguiente)
+  add(new Date(year, 0, 6),  'Reyes Magos', true);
+  add(new Date(year, 2, 19), 'San Jose', true);
+  add(new Date(year, 5, 29), 'San Pedro y San Pablo', true);
+  add(new Date(year, 7, 15), 'Asuncion de la Virgen', true);
+  add(new Date(year, 9, 12), 'Dia de la Raza', true);
+  add(new Date(year, 10, 1), 'Todos los Santos', true);
+  add(new Date(year, 10, 11),'Independencia de Cartagena', true);
+
+  // Festivos basados en SEMANA SANTA / Pascua
+  add(addDays(easter, -3),  'Jueves Santo', false);
+  add(addDays(easter, -2),  'Viernes Santo', false);
+  add(addDays(easter, 43),  'Ascension del Senor', true);
+  add(addDays(easter, 64),  'Corpus Christi', true);
+  add(addDays(easter, 71),  'Sagrado Corazon', true);
+
+  return holidays;
+}
+
+/**
+ * Retorna la configuracion de festivos. Auto-genera festivos faltantes para año actual y siguiente.
+ */
+function getFestivosConfig() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('FESTIVOS_CONFIG');
+  if (!sheet) {
+    sheet = ss.insertSheet('FESTIVOS_CONFIG');
+    sheet.appendRow(['ANO', 'FECHA', 'NOMBRE', 'TRABAJA', 'GENERADO_AUTO']);
+    formatHeaders(sheet);
+  }
+
+  var now = new Date();
+  var currentYear = now.getFullYear();
+  var years = [currentYear, currentYear + 1];
+
+  // Leer datos existentes
+  var existingDates = {};
+  if (sheet.getLastRow() > 1) {
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var fecha = (data[i][1] || '').toString().trim();
+      if (fecha) existingDates[fecha] = true;
+    }
+  }
+
+  // Auto-generar festivos faltantes
+  var nuevos = 0;
+  years.forEach(function(year) {
+    var holidays = getColombianHolidaysGAS(year);
+    holidays.forEach(function(h) {
+      if (!existingDates[h.date]) {
+        sheet.appendRow([year, h.date, h.name, 'NO', 'SI']);
+        existingDates[h.date] = true;
+        nuevos++;
+      }
+    });
+  });
+
+  // Re-leer y retornar
+  var finalData = sheet.getDataRange().getValues();
+  return finalData.slice(1).map(function(row, i) {
+    var fechaVal = row[1];
+    var fechaStr = '';
+    if (fechaVal instanceof Date) {
+      fechaStr = Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
+    } else {
+      fechaStr = (fechaVal || '').toString().trim();
+    }
+    return {
+      rowIndex: i + 2,
+      ano: parseInt(row[0]) || 0,
+      fecha: fechaStr,
+      nombre: (row[2] || '').toString().trim(),
+      trabaja: (row[3] || 'NO').toString().toUpperCase().trim(),
+      generadoAuto: (row[4] || 'SI').toString().trim()
+    };
+  }).filter(function(r) {
+    return r.fecha !== '' && years.indexOf(r.ano) >= 0;
+  });
+}
+
+/**
+ * Actualiza el estado de un festivo (SI/NO trabaja).
+ */
+function saveFestivoConfig(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('FESTIVOS_CONFIG');
+  if (!sheet) throw new Error("La hoja FESTIVOS_CONFIG no existe. Ejecuta Setup.");
+
+  var row = data.rowIndex;
+  if (!row || row < 2) throw new Error("Fila invalida.");
+
+  sheet.getRange(row, 4).setValue(data.trabaja.toUpperCase());
+  sheet.getRange(row, 5).setValue('NO'); // Marca como configurado manualmente
+  return { status: "Festivo actualizado" };
 }
 
 // ============================================

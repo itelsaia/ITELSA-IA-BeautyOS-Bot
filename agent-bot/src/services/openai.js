@@ -417,7 +417,7 @@ function selectOptimalSlots(allSlots, serviceDuration, appointments, fecha, maxS
  * Procesa la función verificar_disponibilidad.
  * Retorna texto descriptivo para que la IA le responda al cliente.
  */
-function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatalog, disponibilidadCatalog, allPendingAppointments, todayStr, nowTimeStr, config, excludeAgendaId) {
+function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatalog, disponibilidadCatalog, allPendingAppointments, todayStr, nowTimeStr, config, excludeAgendaId, festivosConfig) {
     const { fecha, hora_deseada, servicio, profesional_preferido } = args;
     const slotInterval = (config && config.slotInterval) || 15;
     const bufferMin = (config && config.bufferTime) || 15;
@@ -438,6 +438,15 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
     const requestedDate = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     const dayName = dayNames[requestedDate.getDay()];
+
+    // === CHEQUEO DE FESTIVO ===
+    if (festivosConfig && festivosConfig.length > 0) {
+        const holidayMatch = festivosConfig.find(h => h.fecha === fecha);
+        if (holidayMatch && holidayMatch.trabaja !== 'SI') {
+            console.log(`🚫 Festivo bloqueado: ${fecha} es ${holidayMatch.nombre} (CERRADO)`);
+            return `❌ El ${fecha} es festivo en Colombia (${holidayMatch.nombre}) y el negocio no atiende ese día. Por favor elige otra fecha.`;
+        }
+    }
 
     // Filtrar profesionales por competencia
     let candidates = colaboradoresCatalog.filter(c => {
@@ -652,7 +661,8 @@ async function generateAIResponse(
     allPendingAppointments = [],
     session = null,
     serviceGallery = {},
-    promoUsage = {}
+    promoUsage = {},
+    festivosConfig = []
 ) {
     if (!config.openApiKey || config.openApiKey === "sk-..." || config.openApiKey === "PEGAR_AQUI_API_KEY") {
         console.error("🔴 Bloqueo OpenAI: API Key no configurada.");
@@ -821,8 +831,15 @@ async function generateAIResponse(
 ${colombianHolidays.filter(h => {
     const diff = (h.dateObj - nowColombia) / (1000 * 60 * 60 * 24);
     return diff >= -1 && diff <= 30;
-}).map(h => `- ${h.date}: ${h.name}`).join('\n') || 'No hay festivos próximos.'}
-⚠️ REGLA FESTIVOS: Si un cliente pide agendar en un día FESTIVO, infórmale que es festivo y verifica disponibilidad normalmente (el negocio decide si abre o no). Ejemplo: "Ten en cuenta que el ${(() => { const next = colombianHolidays.find(h => h.dateObj >= nowColombia); return next ? next.date + ' es ' + next.name + ' (festivo)' : 'próximo festivo'; })()}, pero puedo verificar si hay disponibilidad."
+}).map(h => {
+    const cfg = (festivosConfig || []).find(f => f.fecha === h.date);
+    const estado = (cfg && cfg.trabaja === 'SI') ? '✅ ABIERTO' : '🚫 CERRADO';
+    return `- ${h.date}: ${h.name} [${estado}]`;
+}).join('\n') || 'No hay festivos próximos.'}
+⚠️ REGLA FESTIVOS:
+- Si un festivo dice [🚫 CERRADO]: NO se puede agendar ese día. Informa al cliente: "El [fecha] es festivo ([nombre]) y no atendemos ese día." y sugiere otro día.
+- Si un festivo dice [✅ ABIERTO]: El negocio trabaja normalmente a pesar de ser festivo. Puedes agendar sin problema.
+- NUNCA intentes verificar disponibilidad en un festivo CERRADO, el sistema rechazará la solicitud.
 
 📋 REGLAS DE COMPORTAMIENTO:
 1. CONVERSACIÓN FLUIDA: Estás en WhatsApp. NUNCA saludes si el usuario está en medio de una conversación. Ve directo al grano.
@@ -1111,7 +1128,8 @@ PASO 5 — POST-CONFIRMACIÓN:
                     todayStr,
                     nowTimeStr,
                     config,
-                    excludeId
+                    excludeId,
+                    festivosConfig
                 );
 
                 // Si retornó objeto con confirmationData, guardar en session para confirmación directa

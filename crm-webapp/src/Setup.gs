@@ -148,6 +148,12 @@ function inicializarEntorno() {
   sheetGaleria.appendRow(["DIS-001", "imagen", "Antes y Despues", "Mira como queda el diseno de cejas con nuestras profesionales", "https://drive.google.com/...", 1]);
   formatHeaders(sheetGaleria);
 
+  // 12. FESTIVOS_CONFIG (Dias festivos colombianos - control de apertura)
+  let sheetFestivos = getOrCreateSheet(ss, "FESTIVOS_CONFIG");
+  sheetFestivos.clear();
+  sheetFestivos.appendRow(["ANO", "FECHA", "NOMBRE", "TRABAJA", "GENERADO_AUTO"]);
+  formatHeaders(sheetFestivos);
+
   Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");
 }
 

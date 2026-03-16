@@ -1282,7 +1282,8 @@ router.post('/evolution', async (req, res) => {
             allPendingAppointments,
             session,
             tenant.serviceGallery || {},
-            tenant.promoUsage || {}
+            tenant.promoUsage || {},
+            tenant.festivosConfig || []
         );
 
         // Actualizar historial de conversación

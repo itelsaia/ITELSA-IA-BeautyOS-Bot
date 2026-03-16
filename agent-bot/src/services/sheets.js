@@ -419,6 +419,46 @@ async function loadDisponibilidad(sheetId) {
 }
 
 /**
+ * Carga la configuracion de festivos colombianos desde FESTIVOS_CONFIG.
+ * @param {string} sheetId
+ * @returns {Promise<Array>} Arreglo de {ano, fecha, nombre, trabaja}
+ */
+async function loadFestivosConfig(sheetId) {
+    try {
+        const doc = new GoogleSpreadsheet(sheetId, serviceAccountAuth);
+        await doc.loadInfo();
+
+        const sheet = doc.sheetsByTitle['FESTIVOS_CONFIG'];
+        if (!sheet) {
+            console.warn("⚠️ La pestaña FESTIVOS_CONFIG no existe.");
+            return [];
+        }
+
+        await sheet.loadHeaderRow();
+        const rows = await sheet.getRows();
+
+        return rows.map(row => {
+            const rawData = row.toObject();
+            const cleanData = {};
+            for (let key in rawData) {
+                if (key) cleanData[key.trim().toUpperCase()] = rawData[key];
+            }
+
+            return {
+                ano: parseInt(cleanData['ANO']) || 0,
+                fecha: (cleanData['FECHA'] || '').trim(),
+                nombre: (cleanData['NOMBRE'] || '').trim(),
+                trabaja: (cleanData['TRABAJA'] || 'NO').toUpperCase().trim()
+            };
+        }).filter(item => item.fecha !== '');
+
+    } catch (e) {
+        console.error("❌ Error cargando FESTIVOS_CONFIG:", e.message);
+        return [];
+    }
+}
+
+/**
  * Carga los colaboradores activos desde la hoja COLABORADORES.
  * @param {string} sheetId
  * @returns {Promise<Array>} Arreglo de colaboradores
@@ -567,4 +607,4 @@ async function loadPromoUsage(sheetId) {
     }
 }
 
-module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments, loadPromoUsage };
+module.exports = { loadClientConfig, loadServicesConfig, loadKnowledgeConfig, loadServiceGallery, loadRegisteredClients, loadPendingAppointments, loadPromotions, loadDisponibilidad, loadColaboradores, loadExpiredAppointments, loadPromoUsage, loadFestivosConfig };
