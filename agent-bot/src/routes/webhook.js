@@ -308,6 +308,7 @@ router.post('/evolution', async (req, res) => {
             await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
 
             // Enviar media visual de promos del dia si tienen
+            const mediaEnviadaEnSaludo = [];
             for (const p of promosHoy) {
                 console.log(`[${instanceName}] Promo "${p.nombre}" media: tipo=${p.tipoMediaPromo || 'NONE'}, url=${p.urlMediaPromo ? 'SI' : 'NO'}`);
                 if (p.tipoMediaPromo && p.urlMediaPromo) {
@@ -318,6 +319,7 @@ router.post('/evolution', async (req, res) => {
                         const caption = `🎉 *${p.nombre}* — ¡Aprovecha esta promo!`;
                         await new Promise(r => setTimeout(r, 1500));
                         await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+                        mediaEnviadaEnSaludo.push(p.nombre);
                         console.log(`[${instanceName}] ✅ Media promo "${p.nombre}" enviada a ${phoneNumber}`);
                     } catch (promoMediaErr) {
                         console.error(`[${instanceName}] ❌ Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
@@ -325,11 +327,23 @@ router.post('/evolution', async (req, res) => {
                 }
             }
 
+            // Si se envió media de promos, registrarlo en el historial para que la IA lo sepa
+            if (mediaEnviadaEnSaludo.length > 0) {
+                session.history.push({ role: 'assistant', content: `[Ya se enviaron imágenes/videos de las promos: ${mediaEnviadaEnSaludo.join(', ')}. NO preguntar si quiere verlas ni volver a enviarlas.]` });
+            }
+
             // Si el mensaje SOLO es un saludo corto, retornar. Si tiene contenido sustancial (ej: "Hola quiero agendar..."), continuar al procesamiento de IA.
             const msgSinSaludo = messageText.toLowerCase()
                 .replace(/\b(hola|buenos?\s*(dias|tardes|noches)|hey|hi|buenas|saludos|que\s*tal|buen\s*dia)\b/gi, '')
                 .replace(/[^\w\sáéíóúñ]/g, '')
                 .trim();
+
+            // Si el usuario solo pregunta por promos y el saludo ya las mostró, no pasar a IA
+            if (promosHoy.length > 0 && /promo(cion|ciones)?|descuento|oferta/.test(msgSinSaludo) && msgSinSaludo.length < 50) {
+                console.log(`[${instanceName}] Pregunta de promos ya cubierta por el saludo. No se pasa a IA.`);
+                return;
+            }
+
             if (msgSinSaludo.length < 10) {
                 return; // Solo un saludo, no hay contenido sustancial
             }
