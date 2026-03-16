@@ -442,6 +442,17 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
         }
     }
 
+    // Info de anticipo para TODAS las respuestas de verificar_disponibilidad
+    let anticipoInfo = '';
+    if (serviceInfo && serviceInfo.anticipoEnabled) {
+        const anticipoLabel = serviceInfo.anticipoType === 'PORCENTAJE'
+            ? `${serviceInfo.anticipoValue}% del precio ($${Math.round(servicePrice * serviceInfo.anticipoValue / 100).toLocaleString('es-CO')})`
+            : `$${Number(serviceInfo.anticipoValue).toLocaleString('es-CO')} fijos`;
+        anticipoInfo = `\n💰 ANTICIPO REQUERIDO: ${anticipoLabel}`;
+    } else {
+        anticipoInfo = `\n✅ ANTICIPO: NO requiere. NO menciones anticipo ni pagos para este servicio.`;
+    }
+
     // Si pidió hora específica
     if (hora_deseada) {
         const requestedMin = toMin(hora_deseada);
@@ -450,12 +461,14 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
         if (match) {
             // ✅ HORA DISPONIBLE — retornar objeto con datos para confirmación directa
             console.log(`✅ DISPONIBLE: ${serviceName} ${fecha} ${match.hora_inicio}-${match.hora_fin} con ${match.profesional}`);
+
             const text = `✅ CONFIRMADO POR EL SISTEMA: La hora ${match.hora_inicio} ESTÁ DISPONIBLE.\n` +
                 `Profesional asignado: ${match.profesional}\n` +
                 `Servicio: ${serviceName}\n` +
                 `Fecha: ${fecha}\n` +
                 `Horario: ${match.hora_inicio} a ${match.hora_fin}\n` +
-                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}\n\n` +
+                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}` +
+                anticipoInfo + `\n\n` +
                 `→ Presenta este resumen al cliente y pregúntale si confirma para agendar.`;
             return {
                 text,
@@ -482,7 +495,8 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
             ).join('\n');
             return `❌ La hora ${hora_deseada} NO está disponible para ${serviceName} el ${fecha}.\n` +
                 `Horarios alternativos disponibles:\n${altText}\n` +
-                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}\n` +
+                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}` +
+                anticipoInfo + `\n` +
                 `→ Ofrécele estas opciones al cliente de forma amable.`;
         }
     } else {
@@ -497,7 +511,8 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
         ).join('\n');
         console.log(`📋 Slots óptimos para ${serviceName} ${fecha}: ${optimalSlots.map(s => s.hora_inicio).join(', ')}`);
         return `📋 Horarios disponibles para ${serviceName} el ${fecha}:\n${slotsText}\n` +
-            `Precio: $${Number(servicePrice).toLocaleString('es-CO')}\n` +
+            `Precio: $${Number(servicePrice).toLocaleString('es-CO')}` +
+            anticipoInfo + `\n` +
             `→ Ofrécele estas opciones al cliente y pregúntale cuál prefiere.`;
     }
 }
@@ -757,24 +772,26 @@ REGLAS DE USO DE LA GALERÍA:
 ` : ''}
 ${config.hasAnyAnticipo ? `
 💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
-- ⚠️ REGLA CRÍTICA: SOLO pide anticipo si el servicio dice "ANTICIPO: X% del precio" o "ANTICIPO: $X fijos" en el catálogo. Si dice "ANTICIPO: No requiere", NO menciones anticipo para ese servicio. NUNCA inventes montos de anticipo.
-- ESTADO DEL CLIENTE: ${userData.exentoAnticipo ? '✅ Este cliente está EXENTO de anticipo. NO le cobres anticipo ni menciones pagos. Flujo 100% normal.' : '⚠️ Este cliente NO está exento. DEBE cumplir con el anticipo si el servicio lo requiere.'}
+⚠️⚠️⚠️ REGLA #1 DE ANTICIPO — LEE PRIMERO:
+La MAYORÍA de servicios NO requieren anticipo. El campo "ANTICIPO" del catálogo te dice cuáles sí:
+- "ANTICIPO: No requiere" → NO menciones anticipo, NO menciones pagos. Flujo normal.
+- "ANTICIPO: X% del precio" → SÍ requiere. Sigue los pasos de abajo.
+- "ANTICIPO: $X fijos" → SÍ requiere. Sigue los pasos de abajo.
+TAMBIÉN: La función 'verificar_disponibilidad' te dirá explícitamente si el servicio requiere anticipo o no. OBEDECE esa instrucción.
+SI NO ESTÁS SEGURO → NO menciones anticipo. Es mejor omitirlo que pedirlo incorrectamente.
+
+- ESTADO DEL CLIENTE: ${userData.exentoAnticipo ? '✅ Este cliente está EXENTO de anticipo. NO le cobres anticipo ni menciones pagos. Flujo 100% normal.' : 'Este cliente NO está exento. Debe cumplir con el anticipo SOLO si el servicio lo requiere según el catálogo.'}
 - Momento de pago: ${config.paymentMoment === 'ANTES' ? 'Paga ANTES de agendar (sin pago no hay cita).' : 'Se agenda primero y luego envía comprobante.'}
 - Datos de pago: ${config.paymentInstructions}
 ${config.paymentPolicy ? '- Política de anticipo: ' + config.paymentPolicy : ''}
 
-📋 FLUJO DE ANTICIPO PARA CLIENTES NO EXENTOS — PASO A PASO OBLIGATORIO:
+📋 FLUJO DE ANTICIPO — SOLO PARA SERVICIOS QUE LO REQUIEREN:
+(Si el catálogo dice "No requiere" o 'verificar_disponibilidad' dijo "NO requiere", IGNORA todo este bloque)
 
-🚫 PASO 0 — VERIFICAR SI APLICA (OBLIGATORIO ANTES DE TODO):
-   Cuando el cliente mencione un servicio, PRIMERO busca ese servicio en el catálogo y lee su campo ANTICIPO.
-   - Si dice "ANTICIPO: No requiere" → NO MENCIONES ANTICIPO. Salta TODOS los pasos de anticipo. Ve directo a verificar disponibilidad con 'verificar_disponibilidad'. Flujo 100% normal sin pagos.
-   - Si dice "ANTICIPO: X% del precio" o "ANTICIPO: $X fijos" → Continúa con PASO 1.
-   ⚠️ NUNCA INVENTES montos de anticipo. Si el catálogo dice "No requiere", el servicio NO tiene anticipo.
-
-🎯 TONO: Sé cálida, empática y amable al hablar del anticipo. NO lo presentes como una traba o requisito frío. Preséntalo como algo normal y sencillo que ayuda a asegurar su espacio. Usa frases como "para separar tu espacio", "para garantizar tu cita", "es un proceso súper sencillo". Hazle sentir que es por su beneficio, no una imposición.
+🎯 TONO: Sé cálida, empática y amable al hablar del anticipo. Preséntalo como algo normal: "para separar tu espacio", "para garantizar tu cita". Hazle sentir que es por su beneficio.
 
 PASO 1 — INFORMAR CONDICIONES CON CALIDEZ (ANTES de verificar disponibilidad):
-   ⚠️ SOLO si el PASO 0 determinó que el servicio SÍ requiere anticipo.
+   ⚠️ SOLO si el catálogo dice que el servicio SÍ requiere anticipo.
    Cuando el cliente mencione el servicio, infórmale de forma amigable y natural:
    a) El precio del servicio con entusiasmo ("¡Excelente elección! El servicio de X tiene un valor de $Y")
    b) El anticipo como algo positivo: "Para separar tu espacio, manejamos un pequeño anticipo de $X, así te garantizamos tu cita 💖"
@@ -964,9 +981,12 @@ PASO 5 — POST-CONFIRMACIÓN:
                         toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}. Verifica si el ID es correcto.`;
                     }
                 } else {
-                    // ── Detectar si aplica promo (cumpleaños u otra) ──
+                    // ── Detectar si aplica promo (cumpleaños u otra) — MISMO ALGORITMO QUE webhook.js ──
                     let promoDetected = 'NO';
                     let tipoPromoDetected = '';
+                    let precioFinalConDescuento = functionArgs.precio_total;
+
+                    // 1. Verificar cumpleaños
                     const cumplePromoCheck = promotionsCatalog.find(p => p.tipoPromo === 'CUMPLEANOS' && p.estado === 'ACTIVO');
                     if (cumplePromoCheck && userData.cumple) {
                         const cumpleDDMM = parseCumpleDDMM(userData.cumple);
@@ -975,16 +995,55 @@ PASO 5 — POST-CONFIRMACIÓN:
                             tipoPromoDetected = 'CUMPLEANOS';
                         }
                     }
-                    if (promoDetected === 'NO' && activePromotions.length > 0) {
-                        // Verificar si el precio es menor al del catálogo (indica descuento aplicado)
-                        const srvNames = functionArgs.servicios.split(',').map(s => s.trim());
-                        const catalogPrice = srvNames.reduce((sum, name) => {
-                            const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name.toLowerCase().trim());
-                            return sum + (info ? info.price : 0);
-                        }, 0);
-                        if (catalogPrice > 0 && functionArgs.precio_total < catalogPrice) {
+
+                    // 2. Verificar promos normales por DIA DE LA CITA + SERVICIO
+                    if (promoDetected === 'NO') {
+                        const weekDaysPromo = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                        let citaDayName = '';
+                        if (functionArgs.fecha) {
+                            const fp = functionArgs.fecha.split('/');
+                            if (fp.length === 3) {
+                                const citaDate = new Date(fp[2], fp[1] - 1, fp[0]);
+                                citaDayName = weekDaysPromo[citaDate.getDay()];
+                            }
+                        }
+                        const srvNames = functionArgs.servicios.split(',').map(s => s.trim().toLowerCase());
+                        const promosParaCita = (promotionsCatalog || []).filter(p => {
+                            if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
+                            if (p.aplicaDia && p.aplicaDia.trim() !== '') {
+                                const dias = p.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                                if (citaDayName && !dias.includes(citaDayName)) return false;
+                            }
+                            if (p.aplicaServicio && p.aplicaServicio !== 'TODOS') {
+                                const srvPromo = p.aplicaServicio.split(',').map(s => s.trim().toLowerCase());
+                                const matches = srvNames.some(sn => srvPromo.some(sp => sn.includes(sp) || sp.includes(sn)));
+                                if (!matches) return false;
+                            }
+                            return true;
+                        });
+
+                        if (promosParaCita.length > 0) {
+                            const bestPromo = promosParaCita[0];
                             promoDetected = 'SI';
-                            tipoPromoDetected = activePromotions[0].tipoPromo || 'DESCUENTO';
+                            tipoPromoDetected = bestPromo.nombre || bestPromo.tipoPromo || 'DESCUENTO';
+
+                            // Calcular descuento programáticamente (no confiar en la IA)
+                            const catalogPrice = srvNames.reduce((sum, name) => {
+                                const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                return sum + (info ? info.price : 0);
+                            }, 0);
+                            if (catalogPrice > 0) {
+                                if (bestPromo.tipoPromo === 'PORCENTAJE') {
+                                    precioFinalConDescuento = Math.round(catalogPrice * (1 - bestPromo.valorDescuento / 100));
+                                } else if (bestPromo.tipoPromo === 'VALOR_FIJO') {
+                                    precioFinalConDescuento = Math.max(0, catalogPrice - bestPromo.valorDescuento);
+                                } else {
+                                    precioFinalConDescuento = functionArgs.precio_total;
+                                }
+                                if (precioFinalConDescuento !== catalogPrice && bestPromo.tipoPromo !== '2X1') {
+                                    console.log(`[openai] 🏷️ Promo "${bestPromo.nombre}" aplicada vía agendar_cita: $${catalogPrice} → $${precioFinalConDescuento}`);
+                                }
+                            }
                         }
                     }
 
@@ -995,7 +1054,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                         cliente: userName,
                         celularCliente: userData.celular || "",
                         servicio: functionArgs.servicios,
-                        precio: functionArgs.precio_total,
+                        precio: precioFinalConDescuento,
                         profesional: functionArgs.profesional || "Por asignar",
                         notas: functionArgs.notas || "",
                         promo: promoDetected,
@@ -1004,7 +1063,8 @@ PASO 5 — POST-CONFIRMACIÓN:
 
                     if (agendaId) {
                         const profLabel = functionArgs.profesional && functionArgs.profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.profesional}.` : '';
-                        toolResultText = `✅ Cita GUARDADA exitosamente en el sistema. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE GUARDADA con ID ${agendaId}. Presenta el resumen de confirmación al cliente. NO pidas otra confirmación, la cita ya está registrada en el sistema.`;
+                        const promoNote = promoDetected === 'SI' ? ` (Promo: ${tipoPromoDetected})` : '';
+                        toolResultText = `✅ Cita GUARDADA exitosamente en el sistema. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${precioFinalConDescuento.toLocaleString('es-CO')}${promoNote}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE GUARDADA con ID ${agendaId}. Presenta el resumen de confirmación al cliente con el precio $${precioFinalConDescuento.toLocaleString('es-CO')}. NO pidas otra confirmación, la cita ya está registrada en el sistema.`;
                         if (session) session._lastToolAction = 'cita_creada';
                     } else {
                         toolResultText = "❌ Hubo un problema al registrar la cita en el sistema. Por favor intenta de nuevo.";
