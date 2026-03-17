@@ -873,7 +873,11 @@ async function generateAIResponse(
         let ubicacionContext = '';
         if (config.businessAddress) {
             const encodedAddr = encodeURIComponent(config.businessAddress);
-            const mapsLink = config.locationLink || `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
+            // Siempre generar enlace completo (los cortos maps.app.goo.gl dan "Invalid Dynamic Link" en WhatsApp)
+            const fullMapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
+            // Solo usar enlace del usuario si es URL completa de google.com/maps (no enlaces cortos)
+            const userLink = config.locationLink || '';
+            const mapsLink = (userLink && userLink.includes('google.com/maps')) ? userLink : fullMapsLink;
             const wazeLink = `https://waze.com/ul?q=${encodedAddr}`;
             ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${config.businessAddress}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}`;
         }
