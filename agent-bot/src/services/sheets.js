@@ -57,6 +57,9 @@ async function loadClientConfig(sheetId) {
             classifyOcasional: parseInt(configRaw['UMBRAL_OCASIONAL']) || 1,
             classifyFrecuente: parseInt(configRaw['UMBRAL_FRECUENTE']) || 4,
             classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9,
+            // Ubicacion del negocio
+            businessAddress: configRaw['DIRECCION_NEGOCIO'] || '',
+            locationLink: configRaw['ENLACE_UBICACION'] || '',
             // Difusion de promos (broadcasting)
             broadcastEnabled: (configRaw['DIFUSION_PROMOS'] || 'SI').toUpperCase() === 'SI',
             broadcastMaxPerPromo: parseInt(configRaw['DIFUSION_MAX_POR_PROMO']) || 30

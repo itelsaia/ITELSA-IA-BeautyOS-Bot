@@ -1680,6 +1680,8 @@ function renderConfig() {
   html += configField('NOMBRE_AGENTE', 'Nombre del Agente IA', f.NOMBRE_AGENTE, 'text');
   html += '<div class="col-12"><label class="form-label">Saludo Base</label><textarea class="form-control config-input" data-key="SALUDO_BASE" rows="2">' + esc(f.SALUDO_BASE || '') + '</textarea></div>';
   html += configField('ENLACE_LOGO', 'URL del Logo', f.ENLACE_LOGO, 'url');
+  html += '<div class="col-12"><label class="form-label">Direccion del Negocio</label><input type="text" class="form-control config-input" data-key="DIRECCION_NEGOCIO" value="' + esc(f.DIRECCION_NEGOCIO || '') + '" placeholder="Ej: Calle 80 #45-20, Local 3, Bogota"></div>';
+  html += '<div class="col-12"><label class="form-label">Enlace Google Maps</label><input type="url" class="form-control config-input" data-key="ENLACE_UBICACION" value="' + esc(f.ENLACE_UBICACION || '') + '" placeholder="Pega aqui el enlace de Google Maps"><div class="form-text">Abre Google Maps, busca tu negocio, haz clic en "Compartir" y pega el enlace aqui. Si lo dejas vacio, se genera automaticamente desde la direccion.</div></div>';
   html += '<div class="col-md-4"><label class="form-label">Color de Marca</label><div class="d-flex gap-2"><input type="color" class="form-control form-control-color" id="colorPicker" value="' + (f.COLOR_MARCA || '#E91E63') + '" oninput="document.getElementById(\'colorText\').value=this.value"><input type="text" class="form-control config-input" data-key="COLOR_MARCA" id="colorText" value="' + esc(f.COLOR_MARCA || '#E91E63') + '" style="font-family:monospace;" oninput="document.getElementById(\'colorPicker\').value=this.value"></div></div>';
   html += '</div></div></div>';
 

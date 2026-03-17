@@ -831,7 +831,54 @@ async function generateAIResponse(
             }).join('\n');
         }
 
-        // 5. Prompt del sistema — ARQUITECTURA "BACKEND INTELIGENTE"
+        // 5a. Construir horario de atencion legible desde disponibilidad
+        const DIAS_ORDEN = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+        const jornadasMap = {};
+        (disponibilidadCatalog || []).filter(d => d.tipo === 'Jornada').forEach(d => {
+            const dia = d.fechaDia || '';
+            jornadasMap[dia] = `${d.horaIni || '?'} - ${d.horaFin || '?'}`;
+        });
+        // Agrupar dias con mismo horario
+        const horarioGroups = {};
+        DIAS_ORDEN.forEach(dia => {
+            const h = jornadasMap[dia];
+            if (h) {
+                if (!horarioGroups[h]) horarioGroups[h] = [];
+                horarioGroups[h].push(dia);
+            }
+        });
+        let horarioLegible = '';
+        if (Object.keys(horarioGroups).length > 0) {
+            const lines = [];
+            for (const [horario, dias] of Object.entries(horarioGroups)) {
+                if (dias.length >= 3) {
+                    // Detectar rango consecutivo
+                    const first = DIAS_ORDEN.indexOf(dias[0]);
+                    const last = DIAS_ORDEN.indexOf(dias[dias.length - 1]);
+                    const isConsecutive = dias.every((d, i) => DIAS_ORDEN.indexOf(d) === first + i);
+                    lines.push(`- ${isConsecutive ? dias[0] + ' a ' + dias[dias.length - 1] : dias.join(', ')}: ${horario}`);
+                } else {
+                    lines.push(`- ${dias.join(', ')}: ${horario}`);
+                }
+            }
+            // Agregar dias cerrados
+            const diasCerrados = DIAS_ORDEN.filter(d => !jornadasMap[d]);
+            if (diasCerrados.length > 0) lines.push(`- ${diasCerrados.join(', ')}: Cerrado`);
+            horarioLegible = lines.join('\n');
+        } else {
+            horarioLegible = 'No hay horarios configurados.';
+        }
+
+        // 5b. Construir info de ubicacion + enlaces Google Maps / Waze
+        let ubicacionContext = '';
+        if (config.businessAddress) {
+            const encodedAddr = encodeURIComponent(config.businessAddress);
+            const mapsLink = config.locationLink || `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
+            const wazeLink = `https://waze.com/ul?q=${encodedAddr}`;
+            ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${config.businessAddress}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}`;
+        }
+
+        // 5c. Prompt del sistema — ARQUITECTURA "BACKEND INTELIGENTE"
         // La IA NO calcula disponibilidad. Usa verificar_disponibilidad para que el código haga la matemática.
         const businessRules = `
 ---
@@ -853,6 +900,15 @@ ${colombianHolidays.filter(h => {
 - Si un festivo dice [🚫 CERRADO]: NO se puede agendar ese día. Informa al cliente: "El [fecha] es festivo ([nombre]) y no atendemos ese día." y sugiere otro día.
 - Si un festivo dice [✅ ABIERTO]: El negocio trabaja normalmente a pesar de ser festivo. Puedes agendar sin problema.
 - NUNCA intentes verificar disponibilidad en un festivo CERRADO, el sistema rechazará la solicitud.
+${ubicacionContext}
+
+🕐 HORARIO DE ATENCION AL PUBLICO:
+${horarioLegible}
+
+📌 REGLAS DE UBICACION Y HORARIOS:
+- Cuando pregunten "donde quedan", "direccion", "ubicacion", "como llego", "como los encuentro": Responde con la direccion y comparte el enlace de Google Maps y Waze.
+- Cuando pregunten "horarios", "a que hora abren", "a que hora cierran", "atienden hoy", "trabajan los sabados": Responde con el horario de atencion.
+- Si NO hay direccion configurada, di: "Aun no tenemos la direccion registrada, por favor comunicate directamente con nosotros."
 
 📋 REGLAS DE COMPORTAMIENTO:
 1. CONVERSACIÓN FLUIDA: Estás en WhatsApp. NUNCA saludes si el usuario está en medio de una conversación. Ve directo al grano.

@@ -27,6 +27,8 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["CORREO_DUEÑA", "admin@spa.com", "Reportes Email"]);
   sheetConfig.appendRow(["ENLACE_LOGO", "https://...", "Branding Automático"]);
   sheetConfig.appendRow(["COLOR_MARCA", "#E91E63", "UI Theme"]);
+  sheetConfig.appendRow(["DIRECCION_NEGOCIO", "", "Direccion fisica del establecimiento"]);
+  sheetConfig.appendRow(["ENLACE_UBICACION", "", "Enlace de Google Maps (copiar desde Compartir en Maps)"]);
   sheetConfig.appendRow(["INTERVALO_SLOTS_MIN", "15", "Intervalo en minutos entre opciones de horario (15, 20 o 30)"]);
   sheetConfig.appendRow(["TIEMPO_ENTRE_CITAS_MIN", "15", "Minutos de preparacion/limpieza entre citas"]);
   sheetConfig.appendRow(["MINUTOS_VENCIMIENTO_CITA", "30", "Minutos despues de vencida una cita para cambiar estado a RECHAZADO automaticamente y liberar agenda del profesional"]);
