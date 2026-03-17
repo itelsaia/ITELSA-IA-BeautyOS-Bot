@@ -440,11 +440,24 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
     const dayName = dayNames[requestedDate.getDay()];
 
     // === CHEQUEO DE FESTIVO ===
+    let efectiveDisponibilidad = disponibilidadCatalog;
     if (festivosConfig && festivosConfig.length > 0) {
         const holidayMatch = festivosConfig.find(h => h.fecha === fecha);
-        if (holidayMatch && holidayMatch.trabaja !== 'SI') {
-            console.log(`🚫 Festivo bloqueado: ${fecha} es ${holidayMatch.nombre} (CERRADO)`);
-            return `❌ El ${fecha} es festivo en Colombia (${holidayMatch.nombre}) y el negocio no atiende ese día. Por favor elige otra fecha.`;
+        if (holidayMatch) {
+            if (holidayMatch.trabaja !== 'SI') {
+                console.log(`🚫 Festivo bloqueado: ${fecha} es ${holidayMatch.nombre} (CERRADO)`);
+                return `❌ El ${fecha} es festivo en Colombia (${holidayMatch.nombre}) y el negocio no atiende ese día. Por favor elige otra fecha.`;
+            }
+            // Si tiene horario especial, reemplazar la jornada del día
+            if (holidayMatch.horaIni && holidayMatch.horaFin) {
+                console.log(`📅 Festivo ABIERTO con horario especial: ${fecha} ${holidayMatch.nombre} → ${holidayMatch.horaIni}-${holidayMatch.horaFin}`);
+                efectiveDisponibilidad = disponibilidadCatalog.map(d => {
+                    if (d.tipo === 'Jornada' && normDay(d.fechaDia) === normDay(dayName)) {
+                        return { ...d, horaIni: holidayMatch.horaIni, horaFin: holidayMatch.horaFin };
+                    }
+                    return d;
+                });
+            }
         }
     }
 
@@ -473,7 +486,7 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
     // Calcular slots disponibles por profesional
     const allAvailableSlots = [];
     candidates.forEach(prof => {
-        const freeRanges = computeFreeSlots(fecha, dayName, prof.nombre, prof.id, disponibilidadCatalog, allPendingAppointments, bufferMin, excludeAgendaId);
+        const freeRanges = computeFreeSlots(fecha, dayName, prof.nombre, prof.id, efectiveDisponibilidad, allPendingAppointments, bufferMin, excludeAgendaId);
         if (!freeRanges || freeRanges.length === 0) return;
 
         // Generar slots donde quepa el servicio completo (intervalo configurable)
@@ -508,7 +521,7 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
 
         const altSlots = [];
         otherCandidates.forEach(prof => {
-            const freeRanges = computeFreeSlots(fecha, dayName, prof.nombre, prof.id, disponibilidadCatalog, allPendingAppointments, bufferMin, excludeAgendaId);
+            const freeRanges = computeFreeSlots(fecha, dayName, prof.nombre, prof.id, efectiveDisponibilidad, allPendingAppointments, bufferMin, excludeAgendaId);
             if (!freeRanges || freeRanges.length === 0) return;
             freeRanges.forEach(([s, e]) => {
                 const alignedStart = Math.ceil(s / slotInterval) * slotInterval;

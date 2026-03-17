@@ -151,7 +151,7 @@ function inicializarEntorno() {
   // 12. FESTIVOS_CONFIG (Dias festivos colombianos - control de apertura)
   let sheetFestivos = getOrCreateSheet(ss, "FESTIVOS_CONFIG");
   sheetFestivos.clear();
-  sheetFestivos.appendRow(["ANO", "FECHA", "NOMBRE", "TRABAJA", "GENERADO_AUTO"]);
+  sheetFestivos.appendRow(["ANO", "FECHA", "NOMBRE", "TRABAJA", "GENERADO_AUTO", "HORA_INI", "HORA_FIN"]);
   formatHeaders(sheetFestivos);
 
   Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");

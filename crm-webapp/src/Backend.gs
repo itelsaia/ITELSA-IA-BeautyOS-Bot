@@ -1446,13 +1446,14 @@ function getFestivosConfig() {
   var sheet = ss.getSheetByName('FESTIVOS_CONFIG');
   if (!sheet) {
     sheet = ss.insertSheet('FESTIVOS_CONFIG');
-    sheet.appendRow(['ANO', 'FECHA', 'NOMBRE', 'TRABAJA', 'GENERADO_AUTO']);
+    sheet.appendRow(['ANO', 'FECHA', 'NOMBRE', 'TRABAJA', 'GENERADO_AUTO', 'HORA_INI', 'HORA_FIN']);
     formatHeaders(sheet);
   }
 
   var now = new Date();
   var currentYear = now.getFullYear();
   var years = [currentYear, currentYear + 1];
+  var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
   // Leer datos existentes
   var existingDates = {};
@@ -1465,19 +1466,17 @@ function getFestivosConfig() {
   }
 
   // Auto-generar festivos faltantes
-  var nuevos = 0;
   years.forEach(function(year) {
     var holidays = getColombianHolidaysGAS(year);
     holidays.forEach(function(h) {
       if (!existingDates[h.date]) {
-        sheet.appendRow([year, h.date, h.name, 'NO', 'SI']);
+        sheet.appendRow([year, h.date, h.name, 'NO', 'SI', '', '']);
         existingDates[h.date] = true;
-        nuevos++;
       }
     });
   });
 
-  // Re-leer y retornar
+  // Re-leer y retornar con dia de la semana calculado
   var finalData = sheet.getDataRange().getValues();
   return finalData.slice(1).map(function(row, i) {
     var fechaVal = row[1];
@@ -1487,13 +1486,39 @@ function getFestivosConfig() {
     } else {
       fechaStr = (fechaVal || '').toString().trim();
     }
+
+    // Calcular dia de la semana desde la fecha
+    var diaSemana = '';
+    if (fechaStr) {
+      var parts = fechaStr.split('/');
+      if (parts.length === 3) {
+        var d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        diaSemana = diasSemana[d.getDay()] || '';
+      }
+    }
+
+    // Leer horarios (columnas F y G, indices 5 y 6)
+    var horaIni = '';
+    var horaFin = '';
+    if (row.length > 5) {
+      var hi = row[5];
+      horaIni = hi instanceof Date ? Utilities.formatDate(hi, Session.getScriptTimeZone(), "HH:mm") : (hi || '').toString().trim();
+    }
+    if (row.length > 6) {
+      var hf = row[6];
+      horaFin = hf instanceof Date ? Utilities.formatDate(hf, Session.getScriptTimeZone(), "HH:mm") : (hf || '').toString().trim();
+    }
+
     return {
       rowIndex: i + 2,
       ano: parseInt(row[0]) || 0,
       fecha: fechaStr,
       nombre: (row[2] || '').toString().trim(),
       trabaja: (row[3] || 'NO').toString().toUpperCase().trim(),
-      generadoAuto: (row[4] || 'SI').toString().trim()
+      generadoAuto: (row[4] || 'SI').toString().trim(),
+      diaSemana: diaSemana,
+      horaIni: horaIni,
+      horaFin: horaFin
     };
   }).filter(function(r) {
     return r.fecha !== '' && years.indexOf(r.ano) >= 0;
@@ -1501,7 +1526,7 @@ function getFestivosConfig() {
 }
 
 /**
- * Actualiza el estado de un festivo (SI/NO trabaja).
+ * Actualiza el estado y horario de un festivo.
  */
 function saveFestivoConfig(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -1513,6 +1538,13 @@ function saveFestivoConfig(data) {
 
   sheet.getRange(row, 4).setValue(data.trabaja.toUpperCase());
   sheet.getRange(row, 5).setValue('NO'); // Marca como configurado manualmente
+
+  // Guardar horario especial si viene
+  if (data.horaIni !== undefined) {
+    sheet.getRange(row, 6).setValue(data.horaIni || '');
+    sheet.getRange(row, 7).setValue(data.horaFin || '');
+  }
+
   return { status: "Festivo actualizado" };
 }
 

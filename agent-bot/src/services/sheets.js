@@ -448,7 +448,9 @@ async function loadFestivosConfig(sheetId) {
                 ano: parseInt(cleanData['ANO']) || 0,
                 fecha: (cleanData['FECHA'] || '').trim(),
                 nombre: (cleanData['NOMBRE'] || '').trim(),
-                trabaja: (cleanData['TRABAJA'] || 'NO').toUpperCase().trim()
+                trabaja: (cleanData['TRABAJA'] || 'NO').toUpperCase().trim(),
+                horaIni: (cleanData['HORA_INI'] || '').trim(),
+                horaFin: (cleanData['HORA_FIN'] || '').trim()
             };
         }).filter(item => item.fecha !== '');
 

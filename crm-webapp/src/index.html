@@ -1654,6 +1654,7 @@ function renderHorarios() {
         var borderClass = trabaja ? 'border-success' : 'border-danger';
         var iconClass = trabaja ? 'fa-door-open text-success' : 'fa-door-closed text-danger';
         var labelText = trabaja ? 'Abierto' : 'Cerrado';
+        var dia = f.diaSemana || '';
 
         html += '<div class="col-lg-4 col-md-6">';
         html += '<div class="card h-100 ' + borderClass + '" style="border-width:2px;" id="cardFestivo-' + f.rowIndex + '">';
@@ -1662,13 +1663,26 @@ function renderHorarios() {
         html += '<div>';
         html += '<i class="fas ' + iconClass + ' me-2" id="iconFestivo-' + f.rowIndex + '"></i>';
         html += '<strong>' + esc(f.nombre) + '</strong>';
-        html += '<div class="text-muted small">' + esc(f.fecha) + '</div>';
+        html += '<div class="text-muted small">' + (dia ? dia + ' ' : '') + esc(f.fecha) + '</div>';
         html += '</div>';
         html += '<div class="form-check form-switch">';
         html += '<input class="form-check-input" type="checkbox" role="switch" id="toggleFestivo-' + f.rowIndex + '" ' + (trabaja ? 'checked' : '') + ' onchange="toggleFestivo(' + f.rowIndex + ')">';
         html += '<label class="form-check-label small" id="labelFestivo-' + f.rowIndex + '">' + labelText + '</label>';
         html += '</div>';
         html += '</div>';
+
+        // Campos de horario especial (visibles solo cuando Abierto)
+        html += '<div class="mt-2" id="horarioFestivo-' + f.rowIndex + '" style="display:' + (trabaja ? 'block' : 'none') + ';">';
+        html += '<div class="row g-1 align-items-center">';
+        html += '<div class="col-auto"><small class="text-muted">Horario:</small></div>';
+        html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaIniFestivo-' + f.rowIndex + '" value="' + (f.horaIni || '') + '" placeholder="Apertura"></div>';
+        html += '<div class="col-auto"><small>a</small></div>';
+        html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaFinFestivo-' + f.rowIndex + '" value="' + (f.horaFin || '') + '" placeholder="Cierre"></div>';
+        html += '<div class="col-auto"><button class="btn btn-sm btn-outline-success" onclick="guardarHorarioFestivo(' + f.rowIndex + ')" title="Guardar horario"><i class="fas fa-check"></i></button></div>';
+        html += '</div>';
+        html += '<small class="text-muted">Deja vacio para usar el horario normal del dia</small>';
+        html += '</div>';
+
         html += '</div></div></div>';
       });
       html += '</div>';
@@ -2397,16 +2411,19 @@ function toggleFestivo(rowIndex) {
   var card = document.getElementById('cardFestivo-' + rowIndex);
   var icon = document.getElementById('iconFestivo-' + rowIndex);
   var label = document.getElementById('labelFestivo-' + rowIndex);
+  var horarioPanel = document.getElementById('horarioFestivo-' + rowIndex);
 
   // Feedback visual inmediato
   if (nuevoEstado === 'SI') {
     card.className = card.className.replace('border-danger', 'border-success');
     icon.className = 'fas fa-door-open text-success me-2';
     label.textContent = 'Abierto';
+    if (horarioPanel) horarioPanel.style.display = 'block';
   } else {
     card.className = card.className.replace('border-success', 'border-danger');
     icon.className = 'fas fa-door-closed text-danger me-2';
     label.textContent = 'Cerrado';
+    if (horarioPanel) horarioPanel.style.display = 'none';
   }
 
   google.script.run
@@ -2421,6 +2438,30 @@ function toggleFestivo(rowIndex) {
       toggleFestivo(rowIndex);
     })
     .saveFestivoConfig({ rowIndex: rowIndex, trabaja: nuevoEstado });
+}
+
+function guardarHorarioFestivo(rowIndex) {
+  var horaIni = document.getElementById('horaIniFestivo-' + rowIndex).value;
+  var horaFin = document.getElementById('horaFinFestivo-' + rowIndex).value;
+
+  if (horaIni && horaFin && horaIni >= horaFin) {
+    toast('La hora de cierre debe ser mayor a la de apertura', 'danger');
+    return;
+  }
+
+  google.script.run
+    .withSuccessHandler(function() {
+      var festivo = festivosConfig.find(function(f) { return f.rowIndex === rowIndex; });
+      if (festivo) {
+        festivo.horaIni = horaIni;
+        festivo.horaFin = horaFin;
+      }
+      toast(horaIni && horaFin ? 'Horario festivo guardado: ' + horaIni + ' - ' + horaFin : 'Horario festivo: usara el horario normal del dia', 'success');
+    })
+    .withFailureHandler(function(err) {
+      toast('Error: ' + err.message, 'danger');
+    })
+    .saveFestivoConfig({ rowIndex: rowIndex, trabaja: 'SI', horaIni: horaIni, horaFin: horaFin });
 }
 
 function guardarHorarios() {
