@@ -872,14 +872,18 @@ async function generateAIResponse(
         // 5b. Construir info de ubicacion + enlaces Google Maps / Waze
         let ubicacionContext = '';
         if (config.businessAddress) {
-            const encodedAddr = encodeURIComponent(config.businessAddress);
-            // Siempre generar enlace completo (los cortos maps.app.goo.gl dan "Invalid Dynamic Link" en WhatsApp)
-            const fullMapsLink = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
-            // Solo usar enlace del usuario si es URL completa de google.com/maps (no enlaces cortos)
-            const userLink = config.locationLink || '';
-            const mapsLink = (userLink && userLink.includes('google.com/maps')) ? userLink : fullMapsLink;
+            // Asegurar que la direccion incluya Bogota Colombia para precision en mapas
+            const addr = config.businessAddress;
+            const addrLower = addr.toLowerCase();
+            const needsCity = !addrLower.includes('bogota') && !addrLower.includes('bogotá') && !addrLower.includes('medellin') && !addrLower.includes('medellín') && !addrLower.includes('cali') && !addrLower.includes('barranquilla') && !addrLower.includes('cartagena') && !addrLower.includes('colombia');
+            const fullAddr = needsCity ? `${addr}, Bogota, Colombia` : (addrLower.includes('colombia') ? addr : `${addr}, Colombia`);
+            const encodedAddr = encodeURIComponent(fullAddr);
+
+            // Usar enlace del usuario si lo configuro (cualquier formato), sino generar uno desde la direccion
+            const userLink = (config.locationLink || '').trim();
+            const mapsLink = userLink || `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
             const wazeLink = `https://waze.com/ul?q=${encodedAddr}`;
-            ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${config.businessAddress}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}`;
+            ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${addr}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}\n⚠️ IMPORTANTE: Comparte estos enlaces tal cual estan. NO modifiques ni acortes las URLs.`;
         }
 
         // 5c. Prompt del sistema — ARQUITECTURA "BACKEND INTELIGENTE"
