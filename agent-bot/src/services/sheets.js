@@ -56,7 +56,10 @@ async function loadClientConfig(sheetId) {
             // Clasificacion automatica de clientes
             classifyOcasional: parseInt(configRaw['UMBRAL_OCASIONAL']) || 1,
             classifyFrecuente: parseInt(configRaw['UMBRAL_FRECUENTE']) || 4,
-            classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9
+            classifyVip: parseInt(configRaw['UMBRAL_VIP']) || 9,
+            // Difusion de promos (broadcasting)
+            broadcastEnabled: (configRaw['DIFUSION_PROMOS'] || 'SI').toUpperCase() === 'SI',
+            broadcastMaxPerPromo: parseInt(configRaw['DIFUSION_MAX_POR_PROMO']) || 30
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);

@@ -96,6 +96,7 @@ async function initTenant(tenantId, tenantDef) {
         promoUsage,
         festivosConfig,
         userSessions: {},
+        promoBroadcastsSent: {},
         syncInterval: null,
         lastSync: new Date().toISOString()
     };
@@ -329,6 +330,13 @@ async function syncTenantData(tenantId) {
         } catch (bdayError) {
             console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message);
         }
+
+        // ── Difusion de promociones del dia ──
+        try {
+            await sendPromoBroadcasts(tenant, tenantId);
+        } catch (promoError) {
+            console.error(`[${tenantId}] Error en difusion promos:`, promoError.message);
+        }
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
     }
@@ -406,6 +414,134 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
         }
     } catch (err) {
         console.error(`[${tenant.instanceName}] Error enviando cumpleanos a ${cliente.celular}:`, err.message);
+    }
+}
+
+/**
+ * Envia difusion de promociones activas a clientes registrados.
+ * Solo envia durante los primeros 30 min despues del inicio de la jornada.
+ * Controles anti-bloqueo: delay 3-5s, max 30 msgs/promo, mensajes personalizados.
+ */
+async function sendPromoBroadcasts(tenant, tenantId) {
+    if (!evolutionClient) return;
+    if (tenant.config.broadcastEnabled === false) return;
+
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+    const todayName = DIAS_SEMANA[now.getDay()];
+    const normalize = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // Buscar jornada de hoy para obtener hora de apertura
+    const jornadas = (tenant.disponibilidadCatalog || []).filter(d =>
+        d.tipo === 'Jornada' && normalize(d.fechaDia) === normalize(todayName)
+    );
+    if (jornadas.length === 0) return; // Negocio cerrado hoy
+
+    const jornadaStart = jornadas[0].horaIni || '08:00';
+    const [startH, startM] = jornadaStart.split(':').map(Number);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const startMinutes = startH * 60 + (startM || 0);
+
+    // Solo enviar durante los primeros 30 min de la jornada
+    if (nowMinutes < startMinutes || nowMinutes > startMinutes + 30) return;
+
+    // Reset tracking si cambio el dia
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const todayKey = `${dd}/${mm}/${now.getFullYear()}`;
+
+    if (!tenant.promoBroadcastsSent || tenant.promoBroadcastsSent._date !== todayKey) {
+        tenant.promoBroadcastsSent = { _date: todayKey };
+    }
+
+    // Filtrar promos activas de hoy (no CUMPLEANOS, coincida APLICA_DIA)
+    const todayPromos = (tenant.promotionsCatalog || []).filter(p => {
+        if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
+        if (!p.aplicaDia || p.aplicaDia.trim() === '') return false;
+        const dias = p.aplicaDia.split(',').map(d => d.trim());
+        if (!dias.some(d => normalize(d) === normalize(todayName))) return false;
+        // Verificar vencimiento
+        if (p.vence) {
+            const parts = p.vence.split('/');
+            if (parts.length === 3) {
+                const venceDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]), 23, 59, 59);
+                if (venceDate < now) return false;
+            }
+        }
+        return true;
+    });
+
+    if (todayPromos.length === 0) return;
+
+    const maxPerPromo = tenant.config.broadcastMaxPerPromo || 30;
+    const negocio = tenant.config.businessName || 'nuestro negocio';
+    let totalEnviados = 0;
+
+    for (const promo of todayPromos) {
+        const trackingKey = `${todayKey}:${promo.nombre}`;
+
+        if (!tenant.promoBroadcastsSent[trackingKey]) {
+            tenant.promoBroadcastsSent[trackingKey] = {};
+        }
+        const sentMap = tenant.promoBroadcastsSent[trackingKey];
+
+        // Filtrar clientes elegibles
+        const allowedTypes = (!promo.aplicaTipoCliente || promo.aplicaTipoCliente === 'TODOS')
+            ? null
+            : promo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
+
+        const eligibleClients = Object.entries(tenant.registeredClients || {}).filter(([celular, client]) => {
+            if (sentMap[celular]) return false;
+            if (!client.nombre || client.nombre.trim() === '') return false;
+            if (allowedTypes && !allowedTypes.includes((client.tipo || 'Nuevo').toLowerCase())) return false;
+            return true;
+        });
+
+        const remaining = maxPerPromo - Object.keys(sentMap).length;
+        if (remaining <= 0) continue;
+
+        const batch = eligibleClients.slice(0, remaining);
+
+        for (const [celular, client] of batch) {
+            try {
+                // Construir mensaje personalizado
+                let descuentoLabel = '';
+                if (promo.tipoPromo === 'PORCENTAJE') descuentoLabel = `${promo.valorDescuento}% de descuento`;
+                else if (promo.tipoPromo === '2X1') descuentoLabel = '2x1';
+                else if (promo.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${(promo.valorDescuento || 0).toLocaleString('es-CO')} de descuento`;
+
+                const mensaje = `Hola *${client.nombre}*! Hoy es *${promo.nombre}* en *${negocio}*. ${promo.descripcion || ''}${descuentoLabel ? ' (' + descuentoLabel + ')' : ''}. Escribenos para agendar tu cita!`;
+
+                await evolutionClient.sendText(tenant.instanceName, celular, mensaje);
+                sentMap[celular] = true;
+                totalEnviados++;
+
+                // Enviar media si tiene
+                if (promo.tipoMediaPromo && promo.urlMediaPromo) {
+                    try {
+                        const directUrl = convertDriveUrl(promo.urlMediaPromo);
+                        const mediaType = promo.tipoMediaPromo === 'imagen' ? 'image'
+                            : promo.tipoMediaPromo === 'video' ? 'video' : 'document';
+                        const fileName = promo.tipoMediaPromo === 'documento'
+                            ? (promo.nombre.replace(/[^a-zA-Z0-9 ]/g, '') + '.pdf') : '';
+                        await new Promise(r => setTimeout(r, 1000));
+                        await evolutionClient.sendMedia(tenant.instanceName, celular, mediaType, directUrl, '', fileName);
+                    } catch (mediaErr) {
+                        console.error(`[${tenantId}] Difusion media error (${celular}):`, mediaErr.message);
+                    }
+                }
+
+                // Anti-bloqueo: delay aleatorio 3-5 segundos
+                const delay = 3000 + Math.floor(Math.random() * 2000);
+                await new Promise(r => setTimeout(r, delay));
+            } catch (sendErr) {
+                console.error(`[${tenantId}] Difusion error enviando a ${celular}:`, sendErr.message);
+            }
+        }
+    }
+
+    if (totalEnviados > 0) {
+        console.log(`[${tenantId}] Difusion promos: ${totalEnviados} mensaje(s) enviado(s)`);
     }
 }
 
