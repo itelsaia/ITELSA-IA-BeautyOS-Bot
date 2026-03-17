@@ -178,7 +178,7 @@ const TOOLS = [
         type: "function",
         function: {
             name: "reagendar_cita",
-            description: "Reagenda una cita EXISTENTE (PENDIENTE). Marca la cita antigua como REAGENDADO y crea una nueva. Usa esta función cuando el cliente pida cambiar su cita actual — ya sea la fecha, la hora o los servicios.",
+            description: "Reagenda una cita EXISTENTE (PENDIENTE). Marca la cita antigua como REAGENDADO y crea una nueva. IMPORTANTE: Si la cita tiene promo de DÍA FIJO y la nueva fecha es un día diferente, PRIMERO debes advertir al cliente que perderá el descuento y obtener su confirmación ANTES de llamar esta función con acepta_perder_descuento=true.",
             parameters: {
                 type: "object",
                 properties: {
@@ -213,6 +213,10 @@ const TOOLS = [
                     notas: {
                         type: "string",
                         description: "Notas adicionales opcionales."
+                    },
+                    acepta_perder_descuento: {
+                        type: "boolean",
+                        description: "OBLIGATORIO si la cita tiene promo DÍA FIJO y la nueva fecha NO es el día de la promo. true = el cliente YA FUE INFORMADO y ACEPTÓ pagar precio completo sin descuento. false o no enviado = el sistema BLOQUEARÁ el reagendamiento."
                     }
                 },
                 required: ["id_cita_antigua", "nueva_fecha", "nueva_hora_inicio", "nueva_hora_fin", "nuevos_servicios", "nuevo_precio_total", "nuevo_profesional"]
@@ -1406,32 +1410,30 @@ PASO 5 — POST-CONFIRMACIÓN:
                         const nuevaFechaCalifica = diasPromo.includes(nuevaFechaDayName);
 
                         if (!nuevaFechaCalifica) {
-                            // Verificar si el cliente ya fue advertido (session flag)
-                            if (session && session._promoLossConfirmed === functionArgs.id_cita_antigua) {
-                                // Cliente ya aceptó perder descuento — forzar precio completo
-                                delete session._promoLossConfirmed;
-                                const srvNames = functionArgs.nuevos_servicios.split(',').map(s => s.trim().toLowerCase());
-                                const precioCompleto = srvNames.reduce((sum, name) => {
-                                    const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
-                                    return sum + (info ? info.price : 0);
-                                }, 0);
+                            // Calcular precio completo sin descuento
+                            const srvNames = functionArgs.nuevos_servicios.split(',').map(s => s.trim().toLowerCase());
+                            const precioCompleto = srvNames.reduce((sum, name) => {
+                                const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                return sum + (info ? info.price : 0);
+                            }, 0);
+
+                            if (functionArgs.acepta_perder_descuento === true) {
+                                // Cliente aceptó explícitamente — forzar precio completo y proceder
                                 if (precioCompleto > 0) functionArgs.nuevo_precio_total = precioCompleto;
-                                console.log(`[openai] 🏷️ Reagendamiento sin promo: ${oldAppt.tipoPromo} perdida. Precio: $${oldAppt.precio} → $${functionArgs.nuevo_precio_total}`);
+                                console.log(`[openai] 🏷️ Reagendamiento sin promo aceptado: ${oldAppt.tipoPromo} perdida. Precio: $${oldAppt.precio} → $${functionArgs.nuevo_precio_total}`);
+                                // promoBlocked = false → continúa a la ejecución normal
                             } else {
-                                // BLOQUEAR — advertir a la IA para que informe al cliente
+                                // BLOQUEAR — el parámetro acepta_perder_descuento no fue enviado o es false
                                 promoBlocked = true;
-                                if (session) session._promoLossConfirmed = functionArgs.id_cita_antigua;
-                                const srvNames = functionArgs.nuevos_servicios.split(',').map(s => s.trim().toLowerCase());
-                                const precioCompleto = srvNames.reduce((sum, name) => {
-                                    const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
-                                    return sum + (info ? info.price : 0);
-                                }, 0);
-                                toolResultText = `⚠️ REAGENDAMIENTO BLOQUEADO POR PROMO: La cita ${functionArgs.id_cita_antigua} tiene la promo "${oldAppt.tipoPromo}" que solo aplica los ${promoOriginal.aplicaDia}. La nueva fecha ${functionArgs.nueva_fecha} (${nuevaFechaDayName}) NO califica para esta promo.\n\n` +
-                                    `PRECIO ACTUAL CON DESCUENTO: $${Number(oldAppt.precio).toLocaleString('es-CO')}\n` +
-                                    `PRECIO SIN DESCUENTO: $${precioCompleto.toLocaleString('es-CO')}\n\n` +
-                                    `⚠️ ACCIÓN OBLIGATORIA: NO reagendes la cita aún. DEBES informar al cliente: "Tu cita tiene la promo *${oldAppt.tipoPromo}* que solo aplica los *${promoOriginal.aplicaDia}*. Si la cambias al ${functionArgs.nueva_fecha}, el precio sería $${precioCompleto.toLocaleString('es-CO')} sin descuento. ¿Prefieres cambiar solo la hora dentro del día de promo, o aceptas el precio completo?"\n` +
-                                    `SOLO si el cliente confirma que acepta perder el descuento, llama de nuevo a 'reagendar_cita' con nuevo_precio_total=${precioCompleto}.`;
-                                console.log(`[openai] ⛔ Reagendamiento bloqueado: promo "${oldAppt.tipoPromo}" se perdería al mover de ${oldAppt.fecha} a ${functionArgs.nueva_fecha}`);
+                                toolResultText = `🚫 REAGENDAMIENTO PAUSADO — REQUIERE CONFIRMACIÓN DEL CLIENTE:\n\n` +
+                                    `La cita ${functionArgs.id_cita_antigua} tiene la promoción "${oldAppt.tipoPromo}" que SOLO aplica los ${promoOriginal.aplicaDia}.\n` +
+                                    `La nueva fecha solicitada (${functionArgs.nueva_fecha}, ${nuevaFechaDayName}) NO es día de promoción.\n\n` +
+                                    `💰 Precio ACTUAL con descuento: $${Number(oldAppt.precio).toLocaleString('es-CO')}\n` +
+                                    `💰 Precio SIN descuento: $${precioCompleto.toLocaleString('es-CO')}\n\n` +
+                                    `📋 INSTRUCCIÓN: Debes enviarle este mensaje al cliente:\n` +
+                                    `"Tu cita actual tiene la promo *${oldAppt.tipoPromo}* que solo aplica los *${promoOriginal.aplicaDia}*. Si la cambias al ${functionArgs.nueva_fecha}, el servicio quedaría a precio normal de *$${precioCompleto.toLocaleString('es-CO')}* sin descuento.\n\n¿Prefieres:\n1️⃣ Cambiar solo la *hora* dentro del día de promo para mantener tu descuento\n2️⃣ Reagendar al ${functionArgs.nueva_fecha} a precio completo de $${precioCompleto.toLocaleString('es-CO')}?"\n\n` +
+                                    `⚠️ SOLO si el cliente elige la opción 2 (acepta precio completo), llama de nuevo a 'reagendar_cita' con acepta_perder_descuento=true y nuevo_precio_total=${precioCompleto}.`;
+                                console.log(`[openai] ⛔ Reagendamiento bloqueado: promo "${oldAppt.tipoPromo}" se perdería. Esperando confirmación del cliente.`);
                             }
                         }
                     }
