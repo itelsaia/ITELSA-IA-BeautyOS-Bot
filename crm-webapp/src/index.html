@@ -2448,6 +2448,14 @@ function renderFestivosYear(year) {
     return fechaFestivo >= hoy;
   });
 
+  // Ordenar por fecha (mes, dia)
+  yearFestivos.sort(function(a, b) {
+    var pa = (a.fecha || '').split('/'), pb = (b.fecha || '').split('/');
+    var da = new Date(parseInt(pa[2]||0), parseInt(pa[1]||1)-1, parseInt(pa[0]||1));
+    var db = new Date(parseInt(pb[2]||0), parseInt(pb[1]||1)-1, parseInt(pb[0]||1));
+    return da - db;
+  });
+
   if (yearFestivos.length === 0) {
     container.innerHTML = '<p class="text-muted text-center py-3">No hay festivos pendientes para ' + year + '.</p>';
     return;
