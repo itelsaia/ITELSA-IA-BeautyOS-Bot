@@ -596,9 +596,18 @@ async function sendPromoBroadcasts(tenant, tenantId) {
                 }
 
                 // Guardar en historial de conversacion para que la IA tenga contexto si el cliente responde
-                if (tenant.userSessions && tenant.userSessions[celular]) {
+                // Crear sesion si no existe (despues de restart las sesiones estan vacias)
+                if (!tenant.userSessions) tenant.userSessions = {};
+                if (!tenant.userSessions[celular] && tenant.registeredClients && tenant.registeredClients[celular]) {
+                    tenant.userSessions[celular] = {
+                        history: [],
+                        estado: 'REGISTRADO',
+                        datos: tenant.registeredClients[celular]
+                    };
+                }
+                if (tenant.userSessions[celular]) {
                     const hist = tenant.userSessions[celular].history;
-                    const mediaNote = (promo.tipoMediaPromo && promo.urlMediaPromo) ? ` [Se envió imagen/video promocional de "${promo.nombre}"]` : '';
+                    const mediaNote = (promo.tipoMediaPromo && promo.urlMediaPromo) ? ` [Se envió imagen/video promocional de "${promo.nombre}". NO reenviar la imagen si el cliente responde.]` : '';
                     hist.push({ role: 'assistant', content: `[DIFUSION AUTOMATICA de promo "${promo.nombre}"] ${mensaje}${mediaNote}` });
                     // Mantener limite de 8 mensajes
                     if (hist.length > 8) hist.splice(0, 2);
