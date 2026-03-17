@@ -1384,23 +1384,78 @@ PASO 5 — POST-CONFIRMACIÓN:
 
             // ─── Herramienta: reagendar_cita ──────────────────────────────
             else if (functionName === "reagendar_cita") {
-                const exito = await api.rescheduleAgenda({
-                    id: functionArgs.id_cita_antigua,
-                    nuevaFecha: functionArgs.nueva_fecha,
-                    nuevoInicio: functionArgs.nueva_hora_inicio,
-                    nuevoFin: functionArgs.nueva_hora_fin,
-                    nuevosServicios: functionArgs.nuevos_servicios,
-                    nuevoPrecio: functionArgs.nuevo_precio_total,
-                    nuevoProfesional: functionArgs.nuevo_profesional || "Por asignar",
-                    notasAdicionales: functionArgs.notas || ""
-                });
+                // ── GUARDRAIL: Validar pérdida de promo DÍA FIJO ──
+                let promoBlocked = false;
+                const oldAppt = userPendingAppointments.find(c => c.id === functionArgs.id_cita_antigua);
+                if (oldAppt && oldAppt.promo === 'SI' && oldAppt.tipoPromo) {
+                    const promoOriginal = promotionsCatalog.find(p =>
+                        normDay(p.nombre) === normDay(oldAppt.tipoPromo)
+                    );
+                    if (promoOriginal && promoOriginal.aplicaDia && promoOriginal.aplicaDia.trim() !== '') {
+                        // Es promo DÍA FIJO — verificar si la nueva fecha califica
+                        const weekDaysCheck = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                        let nuevaFechaDayName = '';
+                        if (functionArgs.nueva_fecha) {
+                            const fp = functionArgs.nueva_fecha.split('/');
+                            if (fp.length === 3) {
+                                const nd = new Date(fp[2], fp[1] - 1, fp[0]);
+                                nuevaFechaDayName = weekDaysCheck[nd.getDay()];
+                            }
+                        }
+                        const diasPromo = promoOriginal.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                        const nuevaFechaCalifica = diasPromo.includes(nuevaFechaDayName);
 
-                if (exito) {
-                    const profLabel = functionArgs.nuevo_profesional && functionArgs.nuevo_profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.nuevo_profesional}.` : '';
-                    toolResultText = `✅ Cita reagendada exitosamente en el mismo registro. Cita (${functionArgs.id_cita_antigua}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.nueva_fecha} de ${functionArgs.nueva_hora_inicio} a ${functionArgs.nueva_hora_fin}. Servicios: ${functionArgs.nuevos_servicios}. Total: $${functionArgs.nuevo_precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente. NO pidas confirmación adicional.`;
-                    if (session) session._lastToolAction = 'cita_reagendada';
-                } else {
-                    toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}. Verifica si el ID es correcto.`;
+                        if (!nuevaFechaCalifica) {
+                            // Verificar si el cliente ya fue advertido (session flag)
+                            if (session && session._promoLossConfirmed === functionArgs.id_cita_antigua) {
+                                // Cliente ya aceptó perder descuento — forzar precio completo
+                                delete session._promoLossConfirmed;
+                                const srvNames = functionArgs.nuevos_servicios.split(',').map(s => s.trim().toLowerCase());
+                                const precioCompleto = srvNames.reduce((sum, name) => {
+                                    const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                    return sum + (info ? info.price : 0);
+                                }, 0);
+                                if (precioCompleto > 0) functionArgs.nuevo_precio_total = precioCompleto;
+                                console.log(`[openai] 🏷️ Reagendamiento sin promo: ${oldAppt.tipoPromo} perdida. Precio: $${oldAppt.precio} → $${functionArgs.nuevo_precio_total}`);
+                            } else {
+                                // BLOQUEAR — advertir a la IA para que informe al cliente
+                                promoBlocked = true;
+                                if (session) session._promoLossConfirmed = functionArgs.id_cita_antigua;
+                                const srvNames = functionArgs.nuevos_servicios.split(',').map(s => s.trim().toLowerCase());
+                                const precioCompleto = srvNames.reduce((sum, name) => {
+                                    const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                    return sum + (info ? info.price : 0);
+                                }, 0);
+                                toolResultText = `⚠️ REAGENDAMIENTO BLOQUEADO POR PROMO: La cita ${functionArgs.id_cita_antigua} tiene la promo "${oldAppt.tipoPromo}" que solo aplica los ${promoOriginal.aplicaDia}. La nueva fecha ${functionArgs.nueva_fecha} (${nuevaFechaDayName}) NO califica para esta promo.\n\n` +
+                                    `PRECIO ACTUAL CON DESCUENTO: $${Number(oldAppt.precio).toLocaleString('es-CO')}\n` +
+                                    `PRECIO SIN DESCUENTO: $${precioCompleto.toLocaleString('es-CO')}\n\n` +
+                                    `⚠️ ACCIÓN OBLIGATORIA: NO reagendes la cita aún. DEBES informar al cliente: "Tu cita tiene la promo *${oldAppt.tipoPromo}* que solo aplica los *${promoOriginal.aplicaDia}*. Si la cambias al ${functionArgs.nueva_fecha}, el precio sería $${precioCompleto.toLocaleString('es-CO')} sin descuento. ¿Prefieres cambiar solo la hora dentro del día de promo, o aceptas el precio completo?"\n` +
+                                    `SOLO si el cliente confirma que acepta perder el descuento, llama de nuevo a 'reagendar_cita' con nuevo_precio_total=${precioCompleto}.`;
+                                console.log(`[openai] ⛔ Reagendamiento bloqueado: promo "${oldAppt.tipoPromo}" se perdería al mover de ${oldAppt.fecha} a ${functionArgs.nueva_fecha}`);
+                            }
+                        }
+                    }
+                }
+
+                if (!promoBlocked) {
+                    const exito = await api.rescheduleAgenda({
+                        id: functionArgs.id_cita_antigua,
+                        nuevaFecha: functionArgs.nueva_fecha,
+                        nuevoInicio: functionArgs.nueva_hora_inicio,
+                        nuevoFin: functionArgs.nueva_hora_fin,
+                        nuevosServicios: functionArgs.nuevos_servicios,
+                        nuevoPrecio: functionArgs.nuevo_precio_total,
+                        nuevoProfesional: functionArgs.nuevo_profesional || "Por asignar",
+                        notasAdicionales: functionArgs.notas || ""
+                    });
+
+                    if (exito) {
+                        const profLabel = functionArgs.nuevo_profesional && functionArgs.nuevo_profesional !== 'Por asignar' ? ` Profesional: ${functionArgs.nuevo_profesional}.` : '';
+                        toolResultText = `✅ Cita reagendada exitosamente en el mismo registro. Cita (${functionArgs.id_cita_antigua}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.nueva_fecha} de ${functionArgs.nueva_hora_inicio} a ${functionArgs.nueva_hora_fin}. Servicios: ${functionArgs.nuevos_servicios}. Total: $${functionArgs.nuevo_precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente. NO pidas confirmación adicional.`;
+                        if (session) session._lastToolAction = 'cita_reagendada';
+                    } else {
+                        toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}. Verifica si el ID es correcto.`;
+                    }
                 }
             }
 
