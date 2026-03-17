@@ -872,16 +872,22 @@ async function generateAIResponse(
         // 5b. Construir info de ubicacion + enlaces Google Maps / Waze
         let ubicacionContext = '';
         if (config.businessAddress) {
-            // Asegurar que la direccion incluya Bogota Colombia para precision en mapas
             const addr = config.businessAddress;
             const addrLower = addr.toLowerCase();
-            const needsCity = !addrLower.includes('bogota') && !addrLower.includes('bogotá') && !addrLower.includes('medellin') && !addrLower.includes('medellín') && !addrLower.includes('cali') && !addrLower.includes('barranquilla') && !addrLower.includes('cartagena') && !addrLower.includes('colombia');
-            const fullAddr = needsCity ? `${addr}, Bogota, Colombia` : (addrLower.includes('colombia') ? addr : `${addr}, Colombia`);
-            const encodedAddr = encodeURIComponent(fullAddr);
 
-            // Usar enlace del usuario si lo configuro (cualquier formato), sino generar uno desde la direccion
+            // Limpiar direccion para navegacion: quitar interior/apartamento/piso (confunde a Waze y Maps)
+            const navAddr = addr.replace(/\s*(int(erior)?|apto|apartamento|apt|piso|oficina|ofc|local|torre|bloque|bl)\s*\.?\s*\d*\s*.*/i, '').trim();
+
+            // Asegurar que la direccion incluya ciudad Colombia para precision en mapas
+            const needsCity = !addrLower.includes('bogota') && !addrLower.includes('bogotá') && !addrLower.includes('medellin') && !addrLower.includes('medellín') && !addrLower.includes('cali') && !addrLower.includes('barranquilla') && !addrLower.includes('cartagena') && !addrLower.includes('colombia');
+            const fullNavAddr = needsCity ? `${navAddr}, Bogota, Colombia` : (addrLower.includes('colombia') ? navAddr : `${navAddr}, Colombia`);
+            const encodedAddr = encodeURIComponent(fullNavAddr);
+
+            // Solo usar enlace del usuario si es URL completa de Google Maps (NO enlaces cortos maps.app.goo.gl)
             const userLink = (config.locationLink || '').trim();
-            const mapsLink = userLink || `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
+            const isShortLink = userLink.includes('maps.app.goo.gl') || userLink.includes('goo.gl/maps');
+            const isValidMapsLink = userLink && !isShortLink && (userLink.includes('google.com/maps') || userLink.includes('google.com.co/maps'));
+            const mapsLink = isValidMapsLink ? userLink : `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
             const wazeLink = `https://waze.com/ul?q=${encodedAddr}`;
             ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${addr}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}\n⚠️ IMPORTANTE: Comparte estos enlaces tal cual estan. NO modifiques ni acortes las URLs.`;
         }
