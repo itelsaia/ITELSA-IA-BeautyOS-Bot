@@ -419,10 +419,10 @@ function getPromociones() {
     tipoMediaPromo: row[9] || '',
     urlMediaPromo: row[10] || '',
     maxUsosCliente: parseInt(row[11]) || 0,
-    difusion: (row[12] || 'NO').toString().toUpperCase(),
-    horaDifusion: row[13] || '',
+    difusion: String(row[12] || 'NO').toUpperCase(),
+    horaDifusion: row[13] instanceof Date ? Utilities.formatDate(row[13], Session.getScriptTimeZone(), "HH:mm") : String(row[13] || ''),
     maxEnviosDifusion: parseInt(row[14]) || 20,
-    mensajeDifusion: row[15] || ''
+    mensajeDifusion: String(row[15] || '')
   }));
 }
 
