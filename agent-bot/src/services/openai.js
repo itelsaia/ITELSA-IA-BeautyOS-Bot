@@ -814,9 +814,6 @@ async function generateAIResponse(
                             nextDate.setDate(nextDate.getDate() + diasHasta);
                             fechaProxima = fmtDate(nextDate);
                             fechaAUsar = fechaProxima;
-                            // También calcular la semana siguiente por si la próxima es festivo
-                            const weekAfter = new Date(nextDate);
-                            weekAfter.setDate(weekAfter.getDate() + 7);
                         }
                     }
 
@@ -966,14 +963,11 @@ ${horarioLegible}
    ⚠️ CRÍTICO: Mientras estés en flujo de reagendamiento, TODO lo que diga el cliente (servicios, fechas, horas) es para MODIFICAR la cita existente. NUNCA llames a 'agendar_cita' durante un reagendamiento — SIEMPRE usa 'reagendar_cita'. Si el cliente menciona un servicio diferente, es porque quiere CAMBIAR el servicio de su cita, NO crear una nueva.
    ⚠️ GUÍA PASO A PASO: Lleva al cliente paso a paso. Si dice "ambos", primero pregunta "¿Qué servicio deseas ahora?" y luego "¿Para qué fecha y hora?". No intentes resolver todo en un solo paso.
    g) REAGENDAMIENTO DE CITAS CON PROMOCIÓN:
-      Si la cita que el cliente quiere reagendar tiene "🏷️ PROMO:" en sus datos, busca esa promo en la lista de PROMOCIONES VIGENTES:
-      - Si la promo es "🔒 DÍA FIJO":
-        ⚠️ PASO 1 OBLIGATORIO: DETENTE antes de hacer cualquier cosa. NO llames a 'verificar_disponibilidad' ni a 'reagendar_cita' todavía.
-        ⚠️ PASO 2: Si el cliente pide SOLO cambiar la HORA (mismo día de promo): Procede normalmente, verifica disponibilidad y reagenda con el descuento.
-        ⚠️ PASO 3: Si el cliente pide un DÍA DIFERENTE al de la promo: ESTÁ PROHIBIDO llamar a 'verificar_disponibilidad' de inmediato. Primero DEBES advertirle: "Esa cita la tienes con la promo *[nombre]* que solo aplica los *[días]*. Si la cambias a otro día, el servicio quedaría a precio normal de $[precio completo] sin descuento. ¿Estás de acuerdo o prefieres solo cambiar la hora dentro del *[día de promo]*?"
-        ⚠️ PASO 4: SOLO si el cliente confirma que acepta perder el descuento, ahí sí llama a 'verificar_disponibilidad' para el nuevo día. Si prefiere mantener el descuento, ofrécele horarios del próximo día de promo.
-      - Si la promo es "📅 FLEXIBLE": Permite cambiar el día siempre que siga dentro de la vigencia. Advierte si se sale del rango.
-      - NUNCA reagendes silenciosamente una cita con promo a un día/servicio sin promo. Transparencia con el cliente es prioridad absoluta.
+      Si la cita tiene "🏷️ PROMO:" en sus datos y es tipo "🔒 DÍA FIJO":
+      - Si el cliente quiere cambiar a un DÍA DIFERENTE al de la promo, el sistema BLOQUEARÁ automáticamente la llamada a 'reagendar_cita' y te devolverá un mensaje con las opciones para el cliente. Transmite ese mensaje TAL CUAL al cliente y espera su respuesta.
+      - Si el cliente ACEPTA perder el descuento, llama de nuevo a 'reagendar_cita' con acepta_perder_descuento=true. El sistema calculará el precio completo automáticamente.
+      - Si el cliente prefiere mantener el descuento, ofrécele cambiar solo la HORA dentro del mismo día de promo.
+      - Si la promo es "📅 FLEXIBLE": Permite cambiar el día siempre que siga dentro de la vigencia.
 11. PROMOCIONES — ESTRATEGIA DE PERSUASIÓN ACTIVA:
    ⚠️ Eres una asesora de ventas experta. Las promociones son tu herramienta principal para cerrar citas.
 
