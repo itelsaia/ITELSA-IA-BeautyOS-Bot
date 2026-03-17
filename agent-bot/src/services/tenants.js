@@ -595,6 +595,15 @@ async function sendPromoBroadcasts(tenant, tenantId) {
                     }
                 }
 
+                // Guardar en historial de conversacion para que la IA tenga contexto si el cliente responde
+                if (tenant.userSessions && tenant.userSessions[celular]) {
+                    const hist = tenant.userSessions[celular].history;
+                    const mediaNote = (promo.tipoMediaPromo && promo.urlMediaPromo) ? ` [Se envió imagen/video promocional de "${promo.nombre}"]` : '';
+                    hist.push({ role: 'assistant', content: `[DIFUSION AUTOMATICA de promo "${promo.nombre}"] ${mensaje}${mediaNote}` });
+                    // Mantener limite de 8 mensajes
+                    if (hist.length > 8) hist.splice(0, 2);
+                }
+
                 // Regla 2: Delay aleatorio 5-8 segundos
                 const delay = DELAY_MIN + Math.floor(Math.random() * (DELAY_MAX - DELAY_MIN));
                 await new Promise(r => setTimeout(r, delay));
