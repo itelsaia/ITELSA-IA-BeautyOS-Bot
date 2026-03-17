@@ -1630,68 +1630,31 @@ function renderHorarios() {
   html += '</div>';
   html += '<div class="card-body">';
 
+  // Extraer años disponibles de los datos
+  var festYearsSet = {};
+  festivosConfig.forEach(function(f) { if (f.ano) festYearsSet[f.ano] = true; });
+  var festYears = Object.keys(festYearsSet).map(Number).sort();
   var currentYear = new Date().getFullYear();
-  var festYears = [currentYear, currentYear + 1];
+  var defaultYear = festYears.indexOf(currentYear) >= 0 ? currentYear : (festYears[0] || currentYear);
 
-  // Tabs por año
-  html += '<ul class="nav nav-tabs mb-3" role="tablist">';
-  festYears.forEach(function(year, idx) {
-    html += '<li class="nav-item"><a class="nav-link' + (idx === 0 ? ' active' : '') + '" data-bs-toggle="tab" href="#festivos-' + year + '">' + year + '</a></li>';
+  // Selector de año + botón agregar
+  html += '<div class="d-flex align-items-center gap-2 mb-3">';
+  html += '<select class="form-select form-select-sm" style="width:auto;" id="selectFestivoYear" onchange="renderFestivosYear(this.value)">';
+  festYears.forEach(function(year) {
+    html += '<option value="' + year + '"' + (year === defaultYear ? ' selected' : '') + '>' + year + '</option>';
   });
-  html += '</ul>';
+  html += '</select>';
+  html += '<button class="btn btn-sm btn-outline-primary" onclick="agregarAnoFestivo()" title="Generar festivos para un nuevo año"><i class="fas fa-plus me-1"></i>Agregar año</button>';
+  html += '<span class="text-muted small ms-2" id="festivoYearInfo">' + festYears.length + ' año(s) configurado(s)</span>';
+  html += '</div>';
 
-  html += '<div class="tab-content">';
-  festYears.forEach(function(year, idx) {
-    var yearFestivos = festivosConfig.filter(function(f) { return parseInt(f.ano) === year; });
-    html += '<div class="tab-pane fade' + (idx === 0 ? ' show active' : '') + '" id="festivos-' + year + '">';
+  // Contenedor donde se renderizan las cards del año seleccionado
+  html += '<div id="festivosYearContainer"></div>';
 
-    if (yearFestivos.length === 0) {
-      html += '<p class="text-muted text-center">No hay festivos configurados para ' + year + '. Los festivos se generan automaticamente al cargar esta seccion.</p>';
-    } else {
-      html += '<div class="row g-2">';
-      yearFestivos.forEach(function(f) {
-        var trabaja = f.trabaja === 'SI';
-        var borderClass = trabaja ? 'border-success' : 'border-danger';
-        var iconClass = trabaja ? 'fa-door-open text-success' : 'fa-door-closed text-danger';
-        var labelText = trabaja ? 'Abierto' : 'Cerrado';
-        var dia = f.diaSemana || '';
-
-        html += '<div class="col-lg-4 col-md-6">';
-        html += '<div class="card h-100 ' + borderClass + '" style="border-width:2px;" id="cardFestivo-' + f.rowIndex + '">';
-        html += '<div class="card-body p-3">';
-        html += '<div class="d-flex justify-content-between align-items-center">';
-        html += '<div>';
-        html += '<i class="fas ' + iconClass + ' me-2" id="iconFestivo-' + f.rowIndex + '"></i>';
-        html += '<strong>' + esc(f.nombre) + '</strong>';
-        html += '<div class="text-muted small">' + (dia ? dia + ' ' : '') + esc(f.fecha) + '</div>';
-        html += '</div>';
-        html += '<div class="form-check form-switch">';
-        html += '<input class="form-check-input" type="checkbox" role="switch" id="toggleFestivo-' + f.rowIndex + '" ' + (trabaja ? 'checked' : '') + ' onchange="toggleFestivo(' + f.rowIndex + ')">';
-        html += '<label class="form-check-label small" id="labelFestivo-' + f.rowIndex + '">' + labelText + '</label>';
-        html += '</div>';
-        html += '</div>';
-
-        // Campos de horario especial (visibles solo cuando Abierto)
-        html += '<div class="mt-2" id="horarioFestivo-' + f.rowIndex + '" style="display:' + (trabaja ? 'block' : 'none') + ';">';
-        html += '<div class="row g-1 align-items-center">';
-        html += '<div class="col-auto"><small class="text-muted">Horario:</small></div>';
-        html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaIniFestivo-' + f.rowIndex + '" value="' + (f.horaIni || '') + '" placeholder="Apertura"></div>';
-        html += '<div class="col-auto"><small>a</small></div>';
-        html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaFinFestivo-' + f.rowIndex + '" value="' + (f.horaFin || '') + '" placeholder="Cierre"></div>';
-        html += '<div class="col-auto"><button class="btn btn-sm btn-outline-success" onclick="guardarHorarioFestivo(' + f.rowIndex + ')" title="Guardar horario"><i class="fas fa-check"></i></button></div>';
-        html += '</div>';
-        html += '<small class="text-muted">Deja vacio para usar el horario normal del dia</small>';
-        html += '</div>';
-
-        html += '</div></div></div>';
-      });
-      html += '</div>';
-    }
-
-    html += '</div>';
-  });
-  html += '</div>'; // tab-content
   html += '</div></div>'; // card-body, card
+
+  // Renderizar año por defecto después de insertar el HTML
+  setTimeout(function() { renderFestivosYear(defaultYear); }, 0);
 
   return html;
 }
@@ -2462,6 +2425,111 @@ function guardarHorarioFestivo(rowIndex) {
       toast('Error: ' + err.message, 'danger');
     })
     .saveFestivoConfig({ rowIndex: rowIndex, trabaja: 'SI', horaIni: horaIni, horaFin: horaFin });
+}
+
+function renderFestivosYear(year) {
+  year = parseInt(year);
+  var container = document.getElementById('festivosYearContainer');
+  if (!container) return;
+  var yearFestivos = festivosConfig.filter(function(f) { return parseInt(f.ano) === year; });
+
+  if (yearFestivos.length === 0) {
+    container.innerHTML = '<p class="text-muted text-center py-3">No hay festivos configurados para ' + year + '.</p>';
+    return;
+  }
+
+  var html = '<div class="row g-2">';
+  yearFestivos.forEach(function(f) {
+    var trabaja = f.trabaja === 'SI';
+    var borderClass = trabaja ? 'border-success' : 'border-danger';
+    var iconClass = trabaja ? 'fa-door-open text-success' : 'fa-door-closed text-danger';
+    var labelText = trabaja ? 'Abierto' : 'Cerrado';
+    var dia = f.diaSemana || '';
+
+    html += '<div class="col-lg-4 col-md-6">';
+    html += '<div class="card h-100 ' + borderClass + '" style="border-width:2px;" id="cardFestivo-' + f.rowIndex + '">';
+    html += '<div class="card-body p-3">';
+    html += '<div class="d-flex justify-content-between align-items-center">';
+    html += '<div>';
+    html += '<i class="fas ' + iconClass + ' me-2" id="iconFestivo-' + f.rowIndex + '"></i>';
+    html += '<strong>' + esc(f.nombre) + '</strong>';
+    html += '<div class="text-muted small">' + (dia ? dia + ' ' : '') + esc(f.fecha) + '</div>';
+    html += '</div>';
+    html += '<div class="form-check form-switch">';
+    html += '<input class="form-check-input" type="checkbox" role="switch" id="toggleFestivo-' + f.rowIndex + '" ' + (trabaja ? 'checked' : '') + ' onchange="toggleFestivo(' + f.rowIndex + ')">';
+    html += '<label class="form-check-label small" id="labelFestivo-' + f.rowIndex + '">' + labelText + '</label>';
+    html += '</div>';
+    html += '</div>';
+
+    // Campos de horario especial (visibles solo cuando Abierto)
+    html += '<div class="mt-2" id="horarioFestivo-' + f.rowIndex + '" style="display:' + (trabaja ? 'block' : 'none') + ';">';
+    html += '<div class="row g-1 align-items-center">';
+    html += '<div class="col-auto"><small class="text-muted">Horario:</small></div>';
+    html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaIniFestivo-' + f.rowIndex + '" value="' + (f.horaIni || '') + '" placeholder="Apertura"></div>';
+    html += '<div class="col-auto"><small>a</small></div>';
+    html += '<div class="col"><input type="time" class="form-control form-control-sm" id="horaFinFestivo-' + f.rowIndex + '" value="' + (f.horaFin || '') + '" placeholder="Cierre"></div>';
+    html += '<div class="col-auto"><button class="btn btn-sm btn-outline-success" onclick="guardarHorarioFestivo(' + f.rowIndex + ')" title="Guardar horario"><i class="fas fa-check"></i></button></div>';
+    html += '</div>';
+    html += '<small class="text-muted">Deja vacio para usar el horario normal del dia</small>';
+    html += '</div>';
+
+    html += '</div></div></div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function agregarAnoFestivo() {
+  // Determinar siguiente año disponible
+  var existingYears = {};
+  festivosConfig.forEach(function(f) { if (f.ano) existingYears[f.ano] = true; });
+  var maxYear = 0;
+  for (var y in existingYears) { if (parseInt(y) > maxYear) maxYear = parseInt(y); }
+  var nextYear = maxYear > 0 ? maxYear + 1 : new Date().getFullYear() + 2;
+
+  if (nextYear > 2040) {
+    toast('No se pueden generar festivos mas alla de 2040', 'warning');
+    return;
+  }
+
+  var btn = event.target.closest('button');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Generando...';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-plus me-1"></i>Agregar año';
+      toast('Festivos de ' + result.year + ' generados (' + result.added + ' nuevos de ' + result.total + ' festivos)', 'success');
+      // Recargar festivos y refrescar UI
+      google.script.run.withSuccessHandler(function(data) {
+        festivosConfig = data || [];
+        // Agregar opción al select
+        var select = document.getElementById('selectFestivoYear');
+        if (select) {
+          var exists = false;
+          for (var i = 0; i < select.options.length; i++) { if (parseInt(select.options[i].value) === result.year) exists = true; }
+          if (!exists) {
+            var opt = document.createElement('option');
+            opt.value = result.year;
+            opt.textContent = result.year;
+            select.appendChild(opt);
+          }
+          select.value = result.year;
+        }
+        var info = document.getElementById('festivoYearInfo');
+        var yearsSet = {};
+        festivosConfig.forEach(function(f) { if (f.ano) yearsSet[f.ano] = true; });
+        if (info) info.textContent = Object.keys(yearsSet).length + ' año(s) configurado(s)';
+        renderFestivosYear(result.year);
+      }).getFestivosConfig();
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-plus me-1"></i>Agregar año';
+      toast('Error: ' + err.message, 'danger');
+    })
+    .generarFestivosAno(nextYear);
 }
 
 function guardarHorarios() {

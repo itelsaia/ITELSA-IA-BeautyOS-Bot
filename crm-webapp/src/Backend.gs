@@ -1465,7 +1465,7 @@ function getFestivosConfig() {
     }
   }
 
-  // Auto-generar festivos faltantes
+  // Auto-generar festivos faltantes (solo año actual y siguiente como base)
   years.forEach(function(year) {
     var holidays = getColombianHolidaysGAS(year);
     holidays.forEach(function(h) {
@@ -1476,7 +1476,7 @@ function getFestivosConfig() {
     });
   });
 
-  // Re-leer y retornar con dia de la semana calculado
+  // Re-leer y retornar TODOS los años existentes (no filtrar)
   var finalData = sheet.getDataRange().getValues();
   return finalData.slice(1).map(function(row, i) {
     var fechaVal = row[1];
@@ -1521,7 +1521,7 @@ function getFestivosConfig() {
       horaFin: horaFin
     };
   }).filter(function(r) {
-    return r.fecha !== '' && years.indexOf(r.ano) >= 0;
+    return r.fecha !== '' && r.ano > 0;
   });
 }
 
@@ -1546,6 +1546,40 @@ function saveFestivoConfig(data) {
   }
 
   return { status: "Festivo actualizado" };
+}
+
+/**
+ * Genera festivos colombianos para un año especifico.
+ * Retorna los festivos generados (sin duplicar existentes).
+ */
+function generarFestivosAno(year) {
+  year = parseInt(year);
+  if (!year || year < 2024 || year > 2040) throw new Error("Año invalido. Debe estar entre 2024 y 2040.");
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('FESTIVOS_CONFIG');
+  if (!sheet) throw new Error("La hoja FESTIVOS_CONFIG no existe.");
+
+  // Leer fechas existentes
+  var existingDates = {};
+  if (sheet.getLastRow() > 1) {
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var fecha = (data[i][1] || '').toString().trim();
+      if (fecha) existingDates[fecha] = true;
+    }
+  }
+
+  var holidays = getColombianHolidaysGAS(year);
+  var added = 0;
+  holidays.forEach(function(h) {
+    if (!existingDates[h.date]) {
+      sheet.appendRow([year, h.date, h.name, 'NO', 'SI', '', '']);
+      added++;
+    }
+  });
+
+  return { status: "ok", added: added, total: holidays.length, year: year };
 }
 
 // ============================================
