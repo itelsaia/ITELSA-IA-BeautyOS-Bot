@@ -1630,9 +1630,16 @@ function renderHorarios() {
   html += '</div>';
   html += '<div class="card-body">';
 
-  // Extraer años disponibles de los datos
+  // Extraer años que tengan al menos 1 festivo pendiente (hoy o futuro)
+  var hoyRender = new Date(); hoyRender.setHours(0,0,0,0);
   var festYearsSet = {};
-  festivosConfig.forEach(function(f) { if (f.ano) festYearsSet[f.ano] = true; });
+  festivosConfig.forEach(function(f) {
+    if (!f.ano) return;
+    var parts = (f.fecha || '').split('/');
+    if (parts.length !== 3) return;
+    var fechaF = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    if (fechaF >= hoyRender) festYearsSet[f.ano] = true;
+  });
   var festYears = Object.keys(festYearsSet).map(Number).sort();
   var currentYear = new Date().getFullYear();
   var defaultYear = festYears.indexOf(currentYear) >= 0 ? currentYear : (festYears[0] || currentYear);
@@ -2431,10 +2438,18 @@ function renderFestivosYear(year) {
   year = parseInt(year);
   var container = document.getElementById('festivosYearContainer');
   if (!container) return;
-  var yearFestivos = festivosConfig.filter(function(f) { return parseInt(f.ano) === year; });
+  // Filtrar por año y solo mostrar festivos de hoy en adelante
+  var hoy = new Date(); hoy.setHours(0,0,0,0);
+  var yearFestivos = festivosConfig.filter(function(f) {
+    if (parseInt(f.ano) !== year) return false;
+    var parts = (f.fecha || '').split('/');
+    if (parts.length !== 3) return false;
+    var fechaFestivo = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    return fechaFestivo >= hoy;
+  });
 
   if (yearFestivos.length === 0) {
-    container.innerHTML = '<p class="text-muted text-center py-3">No hay festivos configurados para ' + year + '.</p>';
+    container.innerHTML = '<p class="text-muted text-center py-3">No hay festivos pendientes para ' + year + '.</p>';
     return;
   }
 
