@@ -1455,12 +1455,38 @@ function getFestivosConfig() {
   var years = [currentYear, currentYear + 1];
   var diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
 
-  // Leer datos existentes
+  // Limpiar duplicados existentes (por fecha normalizada, conservar primera fila)
+  if (sheet.getLastRow() > 1) {
+    var allData = sheet.getDataRange().getValues();
+    var seenDates = {};
+    var rowsToDelete = [];
+    for (var r = 1; r < allData.length; r++) {
+      var fVal = allData[r][1];
+      var fNorm = fVal instanceof Date ? Utilities.formatDate(fVal, Session.getScriptTimeZone(), "dd/MM/yyyy") : (fVal || '').toString().trim();
+      if (seenDates[fNorm]) {
+        rowsToDelete.push(r + 1); // +1 porque getValues es 0-based, deleteRow es 1-based
+      } else {
+        seenDates[fNorm] = true;
+      }
+    }
+    // Borrar de abajo hacia arriba para no desplazar indices
+    for (var d = rowsToDelete.length - 1; d >= 0; d--) {
+      sheet.deleteRow(rowsToDelete[d]);
+    }
+  }
+
+  // Leer datos existentes (normalizar fechas Date -> DD/MM/YYYY)
   var existingDates = {};
   if (sheet.getLastRow() > 1) {
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
-      var fecha = (data[i][1] || '').toString().trim();
+      var fechaVal = data[i][1];
+      var fecha = '';
+      if (fechaVal instanceof Date) {
+        fecha = Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
+      } else {
+        fecha = (fechaVal || '').toString().trim();
+      }
       if (fecha) existingDates[fecha] = true;
     }
   }
@@ -1560,12 +1586,18 @@ function generarFestivosAno(year) {
   var sheet = ss.getSheetByName('FESTIVOS_CONFIG');
   if (!sheet) throw new Error("La hoja FESTIVOS_CONFIG no existe.");
 
-  // Leer fechas existentes
+  // Leer fechas existentes (normalizar fechas Date -> DD/MM/YYYY)
   var existingDates = {};
   if (sheet.getLastRow() > 1) {
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
-      var fecha = (data[i][1] || '').toString().trim();
+      var fechaVal = data[i][1];
+      var fecha = '';
+      if (fechaVal instanceof Date) {
+        fecha = Utilities.formatDate(fechaVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
+      } else {
+        fecha = (fechaVal || '').toString().trim();
+      }
       if (fecha) existingDates[fecha] = true;
     }
   }
