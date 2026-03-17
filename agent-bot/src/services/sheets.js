@@ -60,9 +60,7 @@ async function loadClientConfig(sheetId) {
             // Ubicacion del negocio
             businessAddress: configRaw['DIRECCION_NEGOCIO'] || '',
             locationLink: configRaw['ENLACE_UBICACION'] || '',
-            // Difusion de promos (broadcasting)
-            broadcastEnabled: (configRaw['DIFUSION_PROMOS'] || 'SI').toUpperCase() === 'SI',
-            broadcastMaxPerPromo: parseInt(configRaw['DIFUSION_MAX_POR_PROMO']) || 30
+            // Difusion de promos — ahora se configura POR PROMO en hoja PROMOCIONES
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -370,7 +368,12 @@ async function loadPromotions(sheetId) {
                 aplicaTipoCliente: (cleanData['APLICA_TIPO_CLIENTE'] || 'TODOS').trim(),
                 tipoMediaPromo: (cleanData['TIPO_MEDIA_PROMO'] || '').toLowerCase().trim(),
                 urlMediaPromo: (cleanData['URL_MEDIA_PROMO'] || '').trim(),
-                maxUsosCliente: parseInt(cleanData['MAX_USOS_CLIENTE'], 10) || 0
+                maxUsosCliente: parseInt(cleanData['MAX_USOS_CLIENTE'], 10) || 0,
+                // Difusion automatica por promo
+                difusionEnabled: (cleanData['DIFUSION'] || 'NO').toUpperCase() === 'SI',
+                horaDifusion: (cleanData['HORA_DIFUSION'] || '').trim(),
+                maxEnviosDifusion: Math.min(parseInt(cleanData['MAX_ENVIOS_DIFUSION'], 10) || 20, 50),
+                mensajeDifusion: (cleanData['MENSAJE_DIFUSION'] || '').trim()
             };
         }).filter(item => item.nombre !== '');
 

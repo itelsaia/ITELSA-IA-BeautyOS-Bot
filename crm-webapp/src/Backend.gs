@@ -418,7 +418,11 @@ function getPromociones() {
     aplicaTipoCliente: row[8] || 'TODOS',
     tipoMediaPromo: row[9] || '',
     urlMediaPromo: row[10] || '',
-    maxUsosCliente: parseInt(row[11]) || 0
+    maxUsosCliente: parseInt(row[11]) || 0,
+    difusion: (row[12] || 'NO').toString().toUpperCase(),
+    horaDifusion: row[13] || '',
+    maxEnviosDifusion: parseInt(row[14]) || 20,
+    mensajeDifusion: row[15] || ''
   }));
 }
 
@@ -439,7 +443,11 @@ function savePromocion(data) {
     data.aplicaTipoCliente || 'TODOS',
     data.tipoMediaPromo || '',
     data.urlMediaPromo || '',
-    parseInt(data.maxUsosCliente) || 0
+    parseInt(data.maxUsosCliente) || 0,
+    (data.difusion || 'NO').toUpperCase(),
+    data.horaDifusion || '',
+    Math.min(parseInt(data.maxEnviosDifusion) || 20, 50),
+    data.mensajeDifusion || ''
   ]);
 
   return { status: "Promoción creada exitosamente", nombre: data.nombre };
@@ -465,6 +473,10 @@ function updatePromocion(data) {
   sheet.getRange(row, 10).setValue(data.tipoMediaPromo || '');
   sheet.getRange(row, 11).setValue(data.urlMediaPromo || '');
   sheet.getRange(row, 12).setValue(parseInt(data.maxUsosCliente) || 0);
+  sheet.getRange(row, 13).setValue((data.difusion || 'NO').toUpperCase());
+  sheet.getRange(row, 14).setValue(data.horaDifusion || '');
+  sheet.getRange(row, 15).setValue(Math.min(parseInt(data.maxEnviosDifusion) || 20, 50));
+  sheet.getRange(row, 16).setValue(data.mensajeDifusion || '');
 
   return { status: "Promoción actualizada", nombre: data.nombre };
 }
@@ -478,6 +490,66 @@ function deletePromocion(rowIndex) {
   sheet.deleteRow(rowIndex);
 
   return { status: "Promoción eliminada" };
+}
+
+/**
+ * Genera un mensaje de difusion persuasivo usando OpenAI.
+ * Llamado via google.script.run desde el CRM.
+ * @param {Object} promoData - Datos de la promo (nombre, descripcion, descuento, tipoCliente, negocio)
+ * @returns {string} Mensaje generado
+ */
+function generarMensajeDifusion(promoData) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetConfig = ss.getSheetByName("CONFIGURACION");
+  if (!sheetConfig) throw new Error("No se encontró la hoja CONFIGURACION");
+
+  // Leer API key de OpenAI
+  var configData = sheetConfig.getDataRange().getValues();
+  var apiKey = '';
+  for (var i = 1; i < configData.length; i++) {
+    if (configData[i][0] === 'CLAVE_OPENAI') { apiKey = configData[i][1]; break; }
+  }
+  if (!apiKey) throw new Error("No hay API Key de OpenAI configurada");
+
+  var descuentoTexto = '';
+  if (promoData.tipoPromo === 'PORCENTAJE') descuentoTexto = promoData.valorDescuento + '% de descuento';
+  else if (promoData.tipoPromo === '2X1') descuentoTexto = '2x1';
+  else if (promoData.tipoPromo === 'VALOR_FIJO') descuentoTexto = '$' + (promoData.valorDescuento || 0) + ' de descuento';
+
+  var tipoCliente = promoData.aplicaTipoCliente || 'TODOS';
+
+  var prompt = 'Genera UN mensaje corto de WhatsApp (maximo 280 caracteres) para difundir esta promocion de un salon de belleza.\n\n'
+    + '- Promo: ' + (promoData.nombre || '') + '\n'
+    + '- Descripcion: ' + (promoData.descripcion || '') + '\n'
+    + '- Descuento: ' + descuentoTexto + '\n'
+    + '- Dirigido a clientes tipo: ' + tipoCliente + '\n'
+    + '- Negocio: ' + (promoData.negocio || '') + '\n\n'
+    + 'Reglas ESTRICTAS:\n'
+    + '- Usa {nombre} EXACTAMENTE asi donde va el nombre del cliente (sera reemplazado automaticamente)\n'
+    + '- Tono calido, cercano, femenino, profesional\n'
+    + '- Incluye 2-3 emojis de belleza (💅💇‍♀️💆‍♀️✨🌸💖)\n'
+    + '- NO incluyas enlaces, URLs, ni numeros de telefono\n'
+    + '- Termina con un call-to-action breve para que escriban y agenden\n'
+    + '- Si el tipo de cliente es VIP o Frecuente, incluye un tono de agradecimiento por su fidelidad\n'
+    + '- SOLO devuelve el mensaje, sin comillas ni explicaciones';
+
+  var response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + apiKey },
+    payload: JSON.stringify({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 200,
+      temperature: 0.8
+    }),
+    muteHttpExceptions: true
+  });
+
+  var json = JSON.parse(response.getContentText());
+  if (json.error) throw new Error('OpenAI: ' + json.error.message);
+
+  return (json.choices[0].message.content || '').trim();
 }
 
 /**

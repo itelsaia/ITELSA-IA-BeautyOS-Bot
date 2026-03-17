@@ -419,31 +419,44 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
 
 /**
  * Envia difusion de promociones activas a clientes registrados.
- * Solo envia durante los primeros 30 min despues del inicio de la jornada.
- * Controles anti-bloqueo: delay 3-5s, max 30 msgs/promo, mensajes personalizados.
+ * Configurable POR PROMO: cada promo define si se difunde, a que hora y cuantos.
+ *
+ * REGLAS ANTI-BLOQUEO WHATSAPP (10 reglas hardcodeadas, NO configurables):
+ * 1. Max 50 mensajes de difusion por dia por instancia
+ * 2. Delay aleatorio 5-8 segundos entre mensajes
+ * 3. Solo clientes registrados con nombre (interaccion previa)
+ * 4. Una sola difusion por promo por dia
+ * 5. Max 2 promos con difusion activa por dia
+ * 6. Ventana de envio de 30 min desde HORA_DIFUSION
+ * 7. Cooldown de 10 min entre promos
+ * 8. Max 1 mensaje de difusion por cliente por dia
+ * 9. Max configurable por promo (default 20, tope absoluto 50)
+ * 10. Auto-stop si 3 errores consecutivos por promo
  */
 async function sendPromoBroadcasts(tenant, tenantId) {
     if (!evolutionClient) return;
-    if (tenant.config.broadcastEnabled === false) return;
+
+    const LIMITE_DIARIO_INSTANCIA = 50;  // Regla 1
+    const DELAY_MIN = 5000;              // Regla 2
+    const DELAY_MAX = 8000;              // Regla 2
+    const MAX_PROMOS_DIA = 2;            // Regla 5
+    const VENTANA_MINUTOS = 30;          // Regla 6
+    const COOLDOWN_ENTRE_PROMOS = 10 * 60 * 1000; // Regla 7: 10 min en ms
+    const MAX_ERRORES_CONSECUTIVOS = 3;  // Regla 10
 
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
     const DIAS_SEMANA = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
     const todayName = DIAS_SEMANA[now.getDay()];
     const normalize = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-    // Buscar jornada de hoy para obtener hora de apertura
+    // Verificar que hoy hay jornada (negocio abierto)
     const jornadas = (tenant.disponibilidadCatalog || []).filter(d =>
         d.tipo === 'Jornada' && normalize(d.fechaDia) === normalize(todayName)
     );
-    if (jornadas.length === 0) return; // Negocio cerrado hoy
+    if (jornadas.length === 0) return;
 
     const jornadaStart = jornadas[0].horaIni || '08:00';
-    const [startH, startM] = jornadaStart.split(':').map(Number);
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    const startMinutes = startH * 60 + (startM || 0);
-
-    // Solo enviar durante los primeros 30 min de la jornada
-    if (nowMinutes < startMinutes || nowMinutes > startMinutes + 30) return;
 
     // Reset tracking si cambio el dia
     const dd = String(now.getDate()).padStart(2, '0');
@@ -451,11 +464,15 @@ async function sendPromoBroadcasts(tenant, tenantId) {
     const todayKey = `${dd}/${mm}/${now.getFullYear()}`;
 
     if (!tenant.promoBroadcastsSent || tenant.promoBroadcastsSent._date !== todayKey) {
-        tenant.promoBroadcastsSent = { _date: todayKey };
+        tenant.promoBroadcastsSent = { _date: todayKey, _clientesHoy: {}, _totalHoy: 0 };
     }
 
-    // Filtrar promos activas de hoy (no CUMPLEANOS, coincida APLICA_DIA)
+    // Regla 1: Limite diario absoluto
+    if ((tenant.promoBroadcastsSent._totalHoy || 0) >= LIMITE_DIARIO_INSTANCIA) return;
+
+    // Filtrar promos con difusion habilitada, activas, no CUMPLEANOS, dia de hoy
     const todayPromos = (tenant.promotionsCatalog || []).filter(p => {
+        if (!p.difusionEnabled) return false;                    // Solo promos con DIFUSION=SI
         if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
         if (!p.aplicaDia || p.aplicaDia.trim() === '') return false;
         const dias = p.aplicaDia.split(',').map(d => d.trim());
@@ -473,48 +490,95 @@ async function sendPromoBroadcasts(tenant, tenantId) {
 
     if (todayPromos.length === 0) return;
 
-    const maxPerPromo = tenant.config.broadcastMaxPerPromo || 30;
+    // Regla 5: Max 2 promos con difusion por dia
+    const promosAProcesar = todayPromos.slice(0, MAX_PROMOS_DIA);
+
     const negocio = tenant.config.businessName || 'nuestro negocio';
     let totalEnviados = 0;
+    let promoIndex = 0;
 
-    for (const promo of todayPromos) {
+    for (const promo of promosAProcesar) {
+        // Regla 6: Ventana de envio — usar HORA_DIFUSION de la promo o fallback a hora apertura
+        const horaEnvio = promo.horaDifusion || jornadaStart;
+        const [envH, envM] = horaEnvio.split(':').map(Number);
+        const envioMinutes = (envH || 0) * 60 + (envM || 0);
+        if (nowMinutes < envioMinutes || nowMinutes > envioMinutes + VENTANA_MINUTOS) continue;
+
+        // Regla 4: Una sola difusion por promo por dia
         const trackingKey = `${todayKey}:${promo.nombre}`;
+        if (tenant.promoBroadcastsSent[trackingKey] && Object.keys(tenant.promoBroadcastsSent[trackingKey]).length > 0) continue;
 
         if (!tenant.promoBroadcastsSent[trackingKey]) {
             tenant.promoBroadcastsSent[trackingKey] = {};
         }
         const sentMap = tenant.promoBroadcastsSent[trackingKey];
 
+        // Regla 7: Cooldown entre promos (si no es la primera)
+        if (promoIndex > 0) {
+            console.log(`[${tenantId}] Difusion: cooldown 10 min antes de promo "${promo.nombre}"`);
+            await new Promise(r => setTimeout(r, COOLDOWN_ENTRE_PROMOS));
+        }
+
         // Filtrar clientes elegibles
         const allowedTypes = (!promo.aplicaTipoCliente || promo.aplicaTipoCliente === 'TODOS')
             ? null
             : promo.aplicaTipoCliente.split(',').map(t => t.trim().toLowerCase());
 
+        const clientesHoy = tenant.promoBroadcastsSent._clientesHoy || {};
+
         const eligibleClients = Object.entries(tenant.registeredClients || {}).filter(([celular, client]) => {
-            if (sentMap[celular]) return false;
-            if (!client.nombre || client.nombre.trim() === '') return false;
+            if (sentMap[celular]) return false;                   // Ya recibio esta promo hoy
+            if (!client.nombre || client.nombre.trim() === '') return false; // Regla 3: debe tener nombre
+            if (clientesHoy[celular]) return false;               // Regla 8: max 1 difusion/cliente/dia
             if (allowedTypes && !allowedTypes.includes((client.tipo || 'Nuevo').toLowerCase())) return false;
             return true;
         });
 
-        const remaining = maxPerPromo - Object.keys(sentMap).length;
-        if (remaining <= 0) continue;
+        // Regla 9: Max por promo (ya viene limitado a 50 desde sheets.js)
+        const maxPromo = promo.maxEnviosDifusion || 20;
+        const limiteRestante = LIMITE_DIARIO_INSTANCIA - (tenant.promoBroadcastsSent._totalHoy || 0);
+        const batch = eligibleClients.slice(0, Math.min(maxPromo, limiteRestante));
 
-        const batch = eligibleClients.slice(0, remaining);
+        if (batch.length === 0) { promoIndex++; continue; }
+
+        console.log(`[${tenantId}] Difusion: iniciando "${promo.nombre}" → ${batch.length} cliente(s)`);
+        let erroresConsecutivos = 0;
 
         for (const [celular, client] of batch) {
-            try {
-                // Construir mensaje personalizado
-                let descuentoLabel = '';
-                if (promo.tipoPromo === 'PORCENTAJE') descuentoLabel = `${promo.valorDescuento}% de descuento`;
-                else if (promo.tipoPromo === '2X1') descuentoLabel = '2x1';
-                else if (promo.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${(promo.valorDescuento || 0).toLocaleString('es-CO')} de descuento`;
+            // Regla 10: Auto-stop si 3 errores consecutivos
+            if (erroresConsecutivos >= MAX_ERRORES_CONSECUTIVOS) {
+                console.error(`[${tenantId}] Difusion DETENIDA: ${MAX_ERRORES_CONSECUTIVOS} errores consecutivos en "${promo.nombre}". Posible bloqueo.`);
+                break;
+            }
 
-                const mensaje = `Hola *${client.nombre}*! Hoy es *${promo.nombre}* en *${negocio}*. ${promo.descripcion || ''}${descuentoLabel ? ' (' + descuentoLabel + ')' : ''}. Escribenos para agendar tu cita!`;
+            // Regla 1: Verificar limite diario antes de cada envio
+            if ((tenant.promoBroadcastsSent._totalHoy || 0) >= LIMITE_DIARIO_INSTANCIA) {
+                console.warn(`[${tenantId}] Difusion DETENIDA: limite diario de ${LIMITE_DIARIO_INSTANCIA} mensajes alcanzado.`);
+                break;
+            }
+
+            try {
+                // Construir mensaje: usar personalizado si existe, sino generico
+                let mensaje;
+                if (promo.mensajeDifusion && promo.mensajeDifusion.trim() !== '') {
+                    mensaje = promo.mensajeDifusion.replace(/\{nombre\}/gi, client.nombre);
+                } else {
+                    let descuentoLabel = '';
+                    if (promo.tipoPromo === 'PORCENTAJE') descuentoLabel = `${promo.valorDescuento}% de descuento`;
+                    else if (promo.tipoPromo === '2X1') descuentoLabel = '2x1';
+                    else if (promo.tipoPromo === 'VALOR_FIJO') descuentoLabel = `$${(promo.valorDescuento || 0).toLocaleString('es-CO')} de descuento`;
+                    mensaje = `Hola *${client.nombre}*! Hoy es *${promo.nombre}* en *${negocio}*. ${promo.descripcion || ''}${descuentoLabel ? ' (' + descuentoLabel + ')' : ''}. Escribenos para agendar tu cita!`;
+                }
 
                 await evolutionClient.sendText(tenant.instanceName, celular, mensaje);
                 sentMap[celular] = true;
+                clientesHoy[celular] = true;
+                tenant.promoBroadcastsSent._totalHoy = (tenant.promoBroadcastsSent._totalHoy || 0) + 1;
                 totalEnviados++;
+                erroresConsecutivos = 0; // Reset errores
+
+                // Regla 10: Log detallado
+                console.log(`[${tenantId}] Difusion OK: "${promo.nombre}" → ${celular} (${client.nombre})`);
 
                 // Enviar media si tiene
                 if (promo.tipoMediaPromo && promo.urlMediaPromo) {
@@ -524,24 +588,27 @@ async function sendPromoBroadcasts(tenant, tenantId) {
                             : promo.tipoMediaPromo === 'video' ? 'video' : 'document';
                         const fileName = promo.tipoMediaPromo === 'documento'
                             ? (promo.nombre.replace(/[^a-zA-Z0-9 ]/g, '') + '.pdf') : '';
-                        await new Promise(r => setTimeout(r, 1000));
+                        await new Promise(r => setTimeout(r, 1500));
                         await evolutionClient.sendMedia(tenant.instanceName, celular, mediaType, directUrl, '', fileName);
                     } catch (mediaErr) {
                         console.error(`[${tenantId}] Difusion media error (${celular}):`, mediaErr.message);
                     }
                 }
 
-                // Anti-bloqueo: delay aleatorio 3-5 segundos
-                const delay = 3000 + Math.floor(Math.random() * 2000);
+                // Regla 2: Delay aleatorio 5-8 segundos
+                const delay = DELAY_MIN + Math.floor(Math.random() * (DELAY_MAX - DELAY_MIN));
                 await new Promise(r => setTimeout(r, delay));
             } catch (sendErr) {
-                console.error(`[${tenantId}] Difusion error enviando a ${celular}:`, sendErr.message);
+                erroresConsecutivos++;
+                console.error(`[${tenantId}] Difusion error #${erroresConsecutivos} enviando a ${celular}:`, sendErr.message);
             }
         }
+
+        promoIndex++;
     }
 
     if (totalEnviados > 0) {
-        console.log(`[${tenantId}] Difusion promos: ${totalEnviados} mensaje(s) enviado(s)`);
+        console.log(`[${tenantId}] Difusion promos completada: ${totalEnviados} mensaje(s) enviado(s) hoy`);
     }
 }
 

@@ -439,6 +439,43 @@
               <input type="text" class="form-control" id="promoUrlMedia" placeholder="https://drive.google.com/file/d/.../view">
               <small class="text-muted">Comparte el archivo como "Cualquiera con el enlace" y pega la URL aqui.</small>
             </div>
+            <!-- ── Seccion Difusion Automatica ── -->
+            <div class="col-12" id="promoDifusionSection">
+              <hr class="my-2">
+              <label class="form-label fw-semibold"><i class="fas fa-bullhorn me-1" style="color:#ff9800;"></i> Difusion Automatica por WhatsApp</label>
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="promoDifusionSwitch" style="transform:scale(1.3);" onchange="toggleDifusionFields()">
+                <label class="form-check-label ms-2" id="promoDifusionLabel">NO (solo se muestra si el cliente pregunta)</label>
+              </div>
+              <div id="promoDifusionFields" style="display:none;">
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label">Hora de envio</label>
+                    <input type="time" class="form-control" id="promoHoraDifusion" value="08:00">
+                    <small class="text-muted">Hora a la que se envian los mensajes</small>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Max clientes por dia</label>
+                    <input type="number" class="form-control" id="promoMaxEnvios" min="1" max="50" value="20">
+                    <small class="text-muted">Maximo 50 por seguridad anti-bloqueo</small>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Mensaje de difusion</label>
+                    <textarea class="form-control" id="promoMensajeDifusion" rows="3" maxlength="300" placeholder="Ej: Hola {nombre}! Hoy tenemos una promo especial para ti..."></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-1">
+                      <small class="text-muted">Usa <code>{nombre}</code> para personalizar. Si lo dejas vacio se genera uno generico.</small>
+                      <small id="promoDifusionCharCount" class="text-muted">0/300</small>
+                    </div>
+                    <button type="button" class="btn btn-outline-warning btn-sm mt-2" onclick="generarMensajeIA()" id="btnGenerarIA">
+                      <i class="fas fa-magic me-1"></i> Generar con IA
+                    </button>
+                  </div>
+                </div>
+                <div class="alert alert-warning small mt-2 mb-0">
+                  <i class="fas fa-shield-alt me-1"></i> <strong>Proteccion anti-bloqueo:</strong> Max 50 mensajes/dia por instancia, delay aleatorio entre envios, max 1 mensaje por cliente por dia, max 2 promos difundidas por dia, auto-stop si se detectan errores.
+                </div>
+              </div>
+            </div>
             <div class="col-12" id="promoCumpleHint" style="display:none;">
               <div class="alert alert-info mb-0">
                 <i class="fas fa-birthday-cake me-1"></i> <strong>Promo Cumpleanos:</strong> Promocion <strong>permanente</strong> (no vence). El bot envia mensajes automaticamente a las horas configuradas:<br>- <strong>Dia anterior:</strong> 1 mensaje de aviso<br>- <strong>Dia del cumpleanos:</strong> multiples envios (1ro: felicitacion, intermedios: recordatorio, ultimo: "ultima oportunidad"). Si el cliente agenda, se dejan de enviar.<br>- <strong>El descuento solo aplica el dia del cumpleanos.</strong> Si no agenda, pierde la promocion.<br><strong>Plantilla (1er envio):</strong> <code>{nombre}</code> <code>{negocio}</code> <code>{descuento}</code> <code>{horario}</code> <code>{dia}</code>. Los siguientes son recordatorios automaticos.
@@ -1356,7 +1393,8 @@ function renderPromociones() {
         ? '<button class="btn btn-outline-secondary btn-sm-icon" title="Desactivar" onclick="desactivarPromo(' + p.rowIndex + ')"><i class="fas fa-pause"></i></button>'
         : '<button class="btn btn-outline-success btn-sm-icon" title="Activar" onclick="abrirModalActivar(' + p.rowIndex + ',\'' + esc(p.nombre) + '\')"><i class="fas fa-play"></i></button>';
 
-      html += '<tr><td><strong>' + esc(p.nombre) + '</strong><br><small class="text-muted">' + esc(p.descripcion || '') + '</small></td>';
+      var difIcon = (p.difusion || 'NO').toUpperCase() === 'SI' ? ' <i class="fas fa-bullhorn" style="color:#ff9800;font-size:.75rem;" title="Difusion activa: ' + esc(p.horaDifusion || '?') + 'h"></i>' : '';
+      html += '<tr><td><strong>' + esc(p.nombre) + '</strong>' + difIcon + '<br><small class="text-muted">' + esc(p.descripcion || '') + '</small></td>';
       html += '<td>' + tipoLabel + '</td><td>' + descLabel + '</td>';
       html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaServicio || 'TODOS') + '</small></td>';
       html += '<td class="d-none d-md-table-cell"><small>' + esc(p.aplicaDia || 'Todos') + '</small></td>';
@@ -2112,6 +2150,14 @@ function abrirModalPromoCrear() {
   document.getElementById('promoUrlMedia').value = '';
   document.getElementById('promoUrlMediaGroup').style.display = 'none';
   document.getElementById('promoMaxUsos').value = 0;
+  // Reset difusion fields
+  document.getElementById('promoDifusionSwitch').checked = false;
+  document.getElementById('promoDifusionLabel').textContent = 'NO (solo se muestra si el cliente pregunta)';
+  document.getElementById('promoDifusionFields').style.display = 'none';
+  document.getElementById('promoHoraDifusion').value = '08:00';
+  document.getElementById('promoMaxEnvios').value = 20;
+  document.getElementById('promoMensajeDifusion').value = '';
+  document.getElementById('promoDifusionCharCount').textContent = '0/300';
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
 
@@ -2160,6 +2206,15 @@ function abrirModalPromoEditar(rowIndex) {
   document.getElementById('promoUrlMedia').value = p.urlMediaPromo || '';
   document.getElementById('promoUrlMediaGroup').style.display = p.tipoMediaPromo ? '' : 'none';
   document.getElementById('promoMaxUsos').value = p.maxUsosCliente || 0;
+  // Poblar difusion fields
+  var difOn = (p.difusion || 'NO').toUpperCase() === 'SI';
+  document.getElementById('promoDifusionSwitch').checked = difOn;
+  document.getElementById('promoDifusionLabel').textContent = difOn ? 'SI (se envia automaticamente)' : 'NO (solo se muestra si el cliente pregunta)';
+  document.getElementById('promoDifusionFields').style.display = difOn ? '' : 'none';
+  document.getElementById('promoHoraDifusion').value = p.horaDifusion || '08:00';
+  document.getElementById('promoMaxEnvios').value = p.maxEnviosDifusion || 20;
+  document.getElementById('promoMensajeDifusion').value = p.mensajeDifusion || '';
+  document.getElementById('promoDifusionCharCount').textContent = (p.mensajeDifusion || '').length + '/300';
   document.getElementById('promoTipo').dispatchEvent(new Event('change'));
   new bootstrap.Modal(document.getElementById('modalPromocion')).show();
 }
@@ -2204,7 +2259,11 @@ function guardarPromocion() {
     aplicaTipoCliente: tipoClienteArr.join(','),
     tipoMediaPromo: document.getElementById('promoTipoMedia').value || '',
     urlMediaPromo: document.getElementById('promoUrlMedia').value.trim() || '',
-    maxUsosCliente: parseInt(document.getElementById('promoMaxUsos').value) || 0
+    maxUsosCliente: parseInt(document.getElementById('promoMaxUsos').value) || 0,
+    difusion: document.getElementById('promoDifusionSwitch').checked ? 'SI' : 'NO',
+    horaDifusion: document.getElementById('promoHoraDifusion').value || '',
+    maxEnviosDifusion: parseInt(document.getElementById('promoMaxEnvios').value) || 20,
+    mensajeDifusion: document.getElementById('promoMensajeDifusion').value.trim() || ''
   };
   var btn = document.getElementById('btnGuardarPromo');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
@@ -2242,6 +2301,60 @@ function llenarSelectServicios() {
   var sel = document.getElementById('promoServicio');
   sel.innerHTML = '<option value="TODOS">TODOS</option>';
   serviciosNombres.forEach(function(s) { var o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+}
+
+// ── Difusion Automatica ──
+function toggleDifusionFields() {
+  var on = document.getElementById('promoDifusionSwitch').checked;
+  document.getElementById('promoDifusionFields').style.display = on ? '' : 'none';
+  document.getElementById('promoDifusionLabel').textContent = on ? 'SI (se envia automaticamente)' : 'NO (solo se muestra si el cliente pregunta)';
+}
+
+// Contador de caracteres del mensaje de difusion
+document.addEventListener('DOMContentLoaded', function() {
+  var ta = document.getElementById('promoMensajeDifusion');
+  if (ta) ta.addEventListener('input', function() {
+    document.getElementById('promoDifusionCharCount').textContent = ta.value.length + '/300';
+  });
+});
+
+function generarMensajeIA() {
+  var btn = document.getElementById('btnGenerarIA');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando...';
+
+  var promoData = {
+    nombre: document.getElementById('promoNombre').value.trim(),
+    descripcion: document.getElementById('promoDescripcion').value.trim(),
+    tipoPromo: document.getElementById('promoTipo').value,
+    valorDescuento: parseInt(document.getElementById('promoValor').value) || 0,
+    aplicaTipoCliente: '',
+    negocio: config.flat.NOMBRE_NEGOCIO || ''
+  };
+  // Obtener tipo cliente seleccionado
+  if (document.getElementById('tcTodos').checked) {
+    promoData.aplicaTipoCliente = 'TODOS';
+  } else {
+    var tipos = [];
+    ['tcNuevo','tcOcasional','tcFrecuente','tcVIP'].forEach(function(id) {
+      if (document.getElementById(id).checked) tipos.push(document.getElementById(id).value);
+    });
+    promoData.aplicaTipoCliente = tipos.join(',') || 'TODOS';
+  }
+
+  if (!promoData.nombre) { toast('Primero llena el nombre de la promo.', 'warning'); btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic me-1"></i> Generar con IA'; return; }
+
+  google.script.run
+    .withSuccessHandler(function(msg) {
+      document.getElementById('promoMensajeDifusion').value = msg;
+      document.getElementById('promoDifusionCharCount').textContent = msg.length + '/300';
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic me-1"></i> Generar con IA';
+      toast('Mensaje generado. Revisalo y editalo si deseas.', 'success');
+    })
+    .withFailureHandler(function(e) {
+      toast('Error generando mensaje: ' + e.message, 'danger');
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-magic me-1"></i> Generar con IA';
+    })
+    .generarMensajeDifusion(promoData);
 }
 
 // =============================================
