@@ -6,6 +6,7 @@ const axios = require('axios');
 class ApiService {
     constructor() {
         this.webhookUrl = process.env.WEBHOOK_GAS_URL;
+        this.lastErrorMessage = '';
     }
 
     /**
@@ -44,6 +45,7 @@ class ApiService {
      */
     async createAgenda(payload) {
         if (!this.webhookUrl) return false;
+        this.lastErrorMessage = '';
 
         try {
             const response = await axios.post(this.webhookUrl, {
@@ -56,7 +58,8 @@ class ApiService {
                 console.log(`✅ Cita confirmada e insertada en Sheets (ID: ${agendaId}).`);
                 return agendaId || true;
             } else {
-                console.error("⚠️ Error lógico en GAS:", response.data.message);
+                this.lastErrorMessage = response.data.message || '';
+                console.error("⚠️ Error lógico en GAS:", this.lastErrorMessage);
                 return false;
             }
         } catch (error) {
@@ -111,6 +114,7 @@ class ApiService {
             console.error("❌ webhookUrl no definido para rescheduleAgenda");
             return false;
         }
+        this.lastErrorMessage = '';
 
         console.log(`📤 rescheduleAgenda → ${payload.id}:`, JSON.stringify(payload));
 
@@ -131,7 +135,8 @@ class ApiService {
                 console.log(`✅ Cita ${payload.id} reagendada in-place exitosamente.`);
                 return true;
             } else {
-                console.error(`⚠️ Error lógico en GAS (reschedule ${payload.id}):`, data?.message || JSON.stringify(data).substring(0, 200));
+                this.lastErrorMessage = data?.message || '';
+                console.error(`⚠️ Error lógico en GAS (reschedule ${payload.id}):`, this.lastErrorMessage || JSON.stringify(data).substring(0, 200));
                 return false;
             }
         } catch (error) {

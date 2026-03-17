@@ -84,10 +84,7 @@ async function loadServicesConfig(sheetId) {
             return [];
         }
 
-        await sheet.loadHeaderRow(); // Forzar recarga de headers por si acaso
-        console.log("=== DEBUG HEADERS ===");
-        console.log(sheet.headerValues);
-
+        await sheet.loadHeaderRow();
         const rows = await sheet.getRows();
 
         // Transformamos cada fila en un objeto manejable y a prueba de errores de espacios
@@ -141,10 +138,7 @@ async function loadKnowledgeConfig(sheetId) {
         await doc.loadInfo();
 
         const sheet = doc.sheetsByTitle['CONOCIMIENTO'];
-        if (!sheet) {
-            console.warn("⚠️ La pestaña CONOCIMIENTO no existe.");
-            return [];
-        }
+        if (!sheet) return [];
 
         await sheet.loadHeaderRow();
         const rows = await sheet.getRows();

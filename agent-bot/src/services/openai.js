@@ -803,12 +803,29 @@ async function generateAIResponse(
                         if (diasHasta < 0) diasHasta += 7;
 
                         if (diasHasta === 0) {
-                            // Hoy ES el día de la promo
-                            fechaHoy = todayStr;
+                            // Hoy ES el día de la promo — verificar si el negocio aún está abierto
+                            let negocioAbierto = true;
+                            if (disponibilidadCatalog && disponibilidadCatalog.length > 0) {
+                                const jornadaHoy = disponibilidadCatalog.find(d =>
+                                    d.tipo.toLowerCase() === 'jornada' && normDay(d.fechaDia) === normDay(todayDayName)
+                                );
+                                if (jornadaHoy && jornadaHoy.horaFin) {
+                                    const [hFin, mFin] = jornadaHoy.horaFin.split(':').map(Number);
+                                    const cierreMin = hFin * 60 + mFin;
+                                    const ahoraMin = nowColombia.getHours() * 60 + nowColombia.getMinutes();
+                                    if (ahoraMin >= cierreMin) negocioAbierto = false;
+                                }
+                            }
                             const nextWeek = new Date(nowColombia);
                             nextWeek.setDate(nextWeek.getDate() + 7);
                             fechaProxima = fmtDate(nextWeek);
-                            fechaAUsar = todayStr; // por defecto usar hoy
+                            if (negocioAbierto) {
+                                fechaHoy = todayStr;
+                                fechaAUsar = todayStr;
+                            } else {
+                                // Ya cerró: no ofrecer hoy, apuntar al próximo día de promo
+                                fechaAUsar = fechaProxima;
+                            }
                         } else {
                             const nextDate = new Date(nowColombia);
                             nextDate.setDate(nextDate.getDate() + diasHasta);
@@ -1286,7 +1303,12 @@ PASO 5 — POST-CONFIRMACIÓN:
                         toolResultText = `✅ Cita reagendada exitosamente. Cita (${session.reagendandoCitaId}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${functionArgs.precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente y muéstrale el resumen. NO pidas confirmación adicional.`;
                         session._lastToolAction = 'cita_reagendada';
                     } else {
-                        toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}. Verifica si el ID es correcto.`;
+                        const gasMsg = api.lastErrorMessage || '';
+                        if (gasMsg.toLowerCase().includes('horario')) {
+                            toolResultText = `⚠️ El sistema rechazó el reagendamiento: ${gasMsg}. Ofrece al cliente un horario DENTRO del rango permitido.`;
+                        } else {
+                            toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}.${gasMsg ? ' Detalle: ' + gasMsg : ''} Verifica si el ID es correcto.`;
+                        }
                     }
                 } else {
                     // ── Detectar si aplica promo (cumpleaños u otra) — MISMO ALGORITMO QUE webhook.js ──
@@ -1375,7 +1397,12 @@ PASO 5 — POST-CONFIRMACIÓN:
                         toolResultText = `✅ Cita GUARDADA exitosamente en el sistema. ID del turno: ${agendaId}. Fecha: ${functionArgs.fecha} de ${functionArgs.hora_inicio} a ${functionArgs.hora_fin}. Servicios: ${functionArgs.servicios}. Total: $${precioFinalConDescuento.toLocaleString('es-CO')}${promoNote}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE GUARDADA con ID ${agendaId}. Presenta el resumen de confirmación al cliente con el precio $${precioFinalConDescuento.toLocaleString('es-CO')}. NO pidas otra confirmación, la cita ya está registrada en el sistema.`;
                         if (session) session._lastToolAction = 'cita_creada';
                     } else {
-                        toolResultText = "❌ Hubo un problema al registrar la cita en el sistema. Por favor intenta de nuevo.";
+                        const gasMsg = api.lastErrorMessage || '';
+                        if (gasMsg.toLowerCase().includes('horario')) {
+                            toolResultText = `⚠️ El sistema rechazó la cita: ${gasMsg}. Ofrece al cliente un horario DENTRO del rango permitido.`;
+                        } else {
+                            toolResultText = `❌ Hubo un problema al registrar la cita en el sistema.${gasMsg ? ' Detalle: ' + gasMsg : ''} Por favor intenta de nuevo.`;
+                        }
                     }
                 }
             }
@@ -1450,7 +1477,12 @@ PASO 5 — POST-CONFIRMACIÓN:
                         toolResultText = `✅ Cita reagendada exitosamente en el mismo registro. Cita (${functionArgs.id_cita_antigua}) marcada como REAGENDADO. Nueva Fecha: ${functionArgs.nueva_fecha} de ${functionArgs.nueva_hora_inicio} a ${functionArgs.nueva_hora_fin}. Servicios: ${functionArgs.nuevos_servicios}. Total: $${functionArgs.nuevo_precio_total.toLocaleString('es-CO')}.${profLabel}\n\n→ IMPORTANTE: La cita YA FUE MODIFICADA en el sistema. Informa al cliente que su cita fue reagendada exitosamente. NO pidas confirmación adicional.`;
                         if (session) session._lastToolAction = 'cita_reagendada';
                     } else {
-                        toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}. Verifica si el ID es correcto.`;
+                        const gasMsg = api.lastErrorMessage || '';
+                        if (gasMsg.toLowerCase().includes('horario')) {
+                            toolResultText = `⚠️ El sistema rechazó el reagendamiento: ${gasMsg}. Ofrece al cliente un horario DENTRO del rango permitido.`;
+                        } else {
+                            toolResultText = `❌ Error al reagendar la cita ${functionArgs.id_cita_antigua}.${gasMsg ? ' Detalle: ' + gasMsg : ''} Verifica si el ID es correcto.`;
+                        }
                     }
                 }
             }
