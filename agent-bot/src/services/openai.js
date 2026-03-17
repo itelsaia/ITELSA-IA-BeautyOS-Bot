@@ -740,6 +740,19 @@ async function generateAIResponse(
         const weekDays = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
         const todayDayName = weekDays[nowColombia.getDay()];
 
+        // 4a. Generar fechas exactas de los próximos 7 días para evitar alucinaciones
+        const next7Days = [];
+        for (let i = 1; i <= 7; i++) {
+            const nextDate = new Date(nowColombia);
+            nextDate.setDate(nextDate.getDate() + i);
+            const ndd = String(nextDate.getDate()).padStart(2, '0');
+            const nmm = String(nextDate.getMonth() + 1).padStart(2, '0');
+            const nyyyy = nextDate.getFullYear();
+            const nDayName = weekDays[nextDate.getDay()];
+            next7Days.push(`  - ${nDayName}: ${ndd}/${nmm}/${nyyyy}`);
+        }
+        const next7DaysText = next7Days.join('\n');
+
         // 4b. Calcular festivos colombianos del año actual y siguiente
         const colombianHolidays = [
             ...getColombianHolidays(parseInt(yyyy)),
@@ -899,7 +912,11 @@ async function generateAIResponse(
 📊 FECHA Y HORA ACTUAL (Colombia - Zona horaria oficial):
 📅 HOY ES: ${todayStr} (${todayDayName})
 ⏰ HORA ACTUAL: ${nowTimeStr}
-⚠️ REGLA CRÍTICA: Cuando el usuario diga "mañana", la fecha es ${(() => { const d = new Date(nowColombia); d.setDate(d.getDate() + 1); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); })()}. USA SIEMPRE formato DD/MM/YYYY. NUNCA uses fechas de años anteriores.
+⚠️ REGLA CRÍTICA DE FECHAS:
+- "Mañana" = ${(() => { const d = new Date(nowColombia); d.setDate(d.getDate() + 1); return String(d.getDate()).padStart(2, '0') + '/' + String(d.getMonth() + 1).padStart(2, '0') + '/' + d.getFullYear(); })()}
+- Si el cliente menciona un día de la semana SIN fecha exacta, USA esta referencia:
+${next7DaysText}
+- USA SIEMPRE formato DD/MM/YYYY. NUNCA inventes fechas ni uses meses o años que ya pasaron.
 
 🇨🇴 FESTIVOS COLOMBIA (próximos 30 días):
 ${colombianHolidays.filter(h => {
@@ -946,9 +963,13 @@ ${horarioLegible}
    ⚠️ GUÍA PASO A PASO: Lleva al cliente paso a paso. Si dice "ambos", primero pregunta "¿Qué servicio deseas ahora?" y luego "¿Para qué fecha y hora?". No intentes resolver todo en un solo paso.
    g) REAGENDAMIENTO DE CITAS CON PROMOCIÓN:
       Si la cita que el cliente quiere reagendar tiene "🏷️ PROMO:" en sus datos, busca esa promo en la lista de PROMOCIONES VIGENTES:
-      - Si la promo es "🔒 DÍA FIJO": NO permitas cambiar ni el día ni el servicio. Solo permite cambiar la HORA dentro del mismo día. Si insiste en otro día, explícale con claridad: "La promo *[nombre]* es exclusiva de los [día]. Solo puedo cambiarte la hora dentro del mismo [día]. Si prefieres otro día, sería sin el descuento a precio normal de $[precio completo]. ¿Qué prefieres?"
+      - Si la promo es "🔒 DÍA FIJO":
+        ⚠️ PASO 1 OBLIGATORIO: DETENTE antes de hacer cualquier cosa. NO llames a 'verificar_disponibilidad' ni a 'reagendar_cita' todavía.
+        ⚠️ PASO 2: Si el cliente pide SOLO cambiar la HORA (mismo día de promo): Procede normalmente, verifica disponibilidad y reagenda con el descuento.
+        ⚠️ PASO 3: Si el cliente pide un DÍA DIFERENTE al de la promo: ESTÁ PROHIBIDO llamar a 'verificar_disponibilidad' de inmediato. Primero DEBES advertirle: "Esa cita la tienes con la promo *[nombre]* que solo aplica los *[días]*. Si la cambias a otro día, el servicio quedaría a precio normal de $[precio completo] sin descuento. ¿Estás de acuerdo o prefieres solo cambiar la hora dentro del *[día de promo]*?"
+        ⚠️ PASO 4: SOLO si el cliente confirma que acepta perder el descuento, ahí sí llama a 'verificar_disponibilidad' para el nuevo día. Si prefiere mantener el descuento, ofrécele horarios del próximo día de promo.
       - Si la promo es "📅 FLEXIBLE": Permite cambiar el día siempre que siga dentro de la vigencia. Advierte si se sale del rango.
-      - NUNCA reagendes silenciosamente una cita con promo a un día/servicio sin promo. Transparencia con el cliente es prioridad.
+      - NUNCA reagendes silenciosamente una cita con promo a un día/servicio sin promo. Transparencia con el cliente es prioridad absoluta.
 11. PROMOCIONES — ESTRATEGIA DE PERSUASIÓN ACTIVA:
    ⚠️ Eres una asesora de ventas experta. Las promociones son tu herramienta principal para cerrar citas.
 
@@ -960,12 +981,11 @@ ${horarioLegible}
       - Si la fecha tiene ⚠️ FESTIVO, informa al cliente: "Ten en cuenta que el [fecha] es [nombre festivo], pero deja verifico si hay disponibilidad."
       - Estas promos existen para activar días con baja demanda. El cliente viene ESE día o no hay descuento.
       ⚠️ SI EL CLIENTE PIDE UN DÍA DIFERENTE AL DE LA PROMO:
-         1. Dile CLARAMENTE: "La promoción *[nombre promo]* NO aplica para el [día que pidió]. Esta promo es exclusiva de los *[día de la promo]*."
-         2. Calcula la FECHA CORRECTA: Usa la fecha de la PRÓXIMA semana de la promo (no la de hoy si hoy ya pasó o el cliente pidió otro día).
-            Ejemplo: Si hoy es lunes 16/03 y el cliente pide "mañana" (martes), dile: "El próximo lunes es el *23/03/2026*."
-         3. INMEDIATAMENTE llama a 'verificar_disponibilidad' con esa fecha para mostrarle los horarios disponibles de mañana y tarde.
-         4. Presenta los horarios: "¿Te gustaría agendar en alguno de estos horarios para aprovechar el descuento? 💖"
-         5. Si el cliente insiste en otro día, aclara que sería a precio normal sin descuento.
+         1. NO llames a 'verificar_disponibilidad' de inmediato. DETENTE y advierte primero.
+         2. Dile CLARAMENTE: "La promoción *[nombre promo]* es exclusiva de los *[día de la promo]*. Si agendamos para el *[día que pidió]*, el precio sería el normal de $[precio completo] sin descuento. ¿Prefieres mantener tu fecha sin descuento, o prefieres agendar el próximo *[día de promo]* para aprovechar la oferta? 💖"
+         3. SOLO cuando el cliente responda y elija una opción, procedes a llamar a 'verificar_disponibilidad' con la fecha que haya elegido.
+         4. Si elige el día de promo: usa la FECHA EXACTA de la promo indicada arriba y llama a verificar_disponibilidad.
+         5. Si elige otro día sin descuento: llama a verificar_disponibilidad con la fecha que pidió y usa el precio COMPLETO.
    📅 FLEXIBLE (ej: "Día de la Mujer", "Semana de Aniversario"):
       - Aplica a cualquier fecha dentro de la vigencia. El cliente elige día y hora libremente.
       - Puede aplicar a varios servicios.
