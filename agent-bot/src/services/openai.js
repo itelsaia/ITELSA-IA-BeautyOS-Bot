@@ -1085,7 +1085,21 @@ ${promotionsText}
 - Si usas el precio original, el descuento NO se registrará. SIEMPRE calcula y usa el precio final con descuento.
 
 👥 EQUIPO DE TRABAJO:
-${colaboradoresCatalog.length > 0 ? colaboradoresCatalog.map(c => `  - ${c.nombre} (${c.rol}) | Especialidades: ${c.competencias || 'Todos los servicios'}`).join('\n') : 'No hay colaboradores registrados.'}
+${(() => {
+    // Deduplicar por nombre: si una persona tiene 2 roles (STAFF + ADMIN), mostrar solo 1 al cliente
+    const seen = {};
+    const unique = [];
+    colaboradoresCatalog.forEach(c => {
+        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        if (!seen[norm]) { seen[norm] = c; unique.push(c); }
+        else if (c.rol === 'STAFF' && seen[norm].rol !== 'STAFF') {
+            const idx = unique.indexOf(seen[norm]);
+            if (idx >= 0) unique[idx] = c;
+            seen[norm] = c;
+        }
+    });
+    return unique.length > 0 ? unique.map(c => `  - ${c.nombre} | Especialidades: ${c.competencias || 'Todos los servicios'}`).join('\n') : 'No hay colaboradores registrados.';
+})()}
 
 ⏱️ TIEMPOS DEL NEGOCIO:
 - Intervalo de agenda: cada ${config.slotInterval || 15} minutos
@@ -1105,7 +1119,29 @@ ${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita
 - Si NO pide profesional, la función asigna automáticamente al mejor disponible.
 
 📝 FLUJO DE AGENDAMIENTO:
-1. Cliente pide servicio + fecha + hora → llama 'verificar_disponibilidad'
+${(() => {
+    const seen2 = {};
+    colaboradoresCatalog.forEach(c => {
+        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+        if (!seen2[norm]) seen2[norm] = c;
+        else if (c.rol === 'STAFF' && seen2[norm].rol !== 'STAFF') seen2[norm] = c;
+    });
+    const uniqueCount = Object.keys(seen2).length;
+    if (uniqueCount > 1) {
+        return `⚠️ NEGOCIO CON MÚLTIPLES PROFESIONALES — SELECCIÓN OBLIGATORIA:
+1. Cuando el cliente pida agendar un servicio, ANTES de buscar horarios pregunta: "¿Tienes alguna estilista preferida?"
+   - Muestra SOLO los profesionales que dominan ese servicio específico (según las especialidades del EQUIPO DE TRABAJO de arriba).
+   - NO muestres profesionales que no tienen ese servicio en sus especialidades.
+   - Ejemplo: "Nuestro equipo para Cejas es: Andrea, Camila y Carolina. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"
+2. Si el cliente elige una → pasa su nombre como 'profesional_preferido' al llamar 'verificar_disponibilidad'
+3. Si el cliente dice "cualquiera" / "me da igual" / "la que esté" → NO pases profesional_preferido (mostrará opciones de todas)
+4. Si el cliente YA mencionó una profesional en la conversación, NO vuelvas a preguntar
+5. Luego sigue el flujo normal: fecha → verificar_disponibilidad → confirmar → agendar_cita`;
+    } else {
+        return `Solo hay 1 profesional en el negocio. NO preguntes por preferencia de profesional, asígnalo automáticamente.
+1. Cliente pide servicio + fecha + hora → llama 'verificar_disponibilidad'`;
+    }
+})()}
 2. Si la función dice ✅ DISPONIBLE → presenta resumen al cliente y espera confirmación
 3. Si la función dice ❌ NO DISPONIBLE → ofrece las alternativas que devolvió la función
 4. Cliente confirma con CUALQUIER expresión afirmativa (sí, dale, ok, vale, confirmo, listo, bueno, hagale, claro, perfecto, etc.) → llama 'agendar_cita' OBLIGATORIAMENTE con los datos del resumen
