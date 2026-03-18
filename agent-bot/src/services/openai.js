@@ -1399,7 +1399,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                     // ── Validar pérdida de promo DÍA FIJO (igual que reagendar_cita) ──
                     let guardaPromoBlocked = false;
                     const guardaOldAppt = userPendingAppointments.find(c => c.id === session.reagendandoCitaId);
-                    if (guardaOldAppt && guardaOldAppt.tipoPromo && !session.promoLossAccepted) {
+                    if (guardaOldAppt && guardaOldAppt.tipoPromo && session.promoLossAcceptedFor !== session.reagendandoCitaId) {
                         const guardaPromoOrig = promotionsCatalog.find(p =>
                             normDay(p.nombre) === normDay(guardaOldAppt.tipoPromo)
                         );
@@ -1456,6 +1456,17 @@ PASO 5 — POST-CONFIRMACIÓN:
                     }
                     }
                 } else {
+                    // ── GUARDRAIL: Bloquear agendar_cita si no se verificó disponibilidad antes ──
+                    // Qué protege: La IA no puede crear citas sin haber confirmado horario libre
+                    // Cómo funciona: pendingConfirmation se setea en verificar_disponibilidad exitoso
+                    if (session && !session.pendingConfirmation) {
+                        toolResultText = `🚫 DETENIDO: Debes llamar primero a 'verificar_disponibilidad' antes de agendar.\n` +
+                            `No puedes agendar una cita sin haber verificado que el horario esté disponible.\n` +
+                            `Llama a 'verificar_disponibilidad' con la fecha, hora y servicio del cliente.`;
+                        console.log(`[openai] ⛔ GUARDRAIL: Bloqueada agendar_cita sin verificar_disponibilidad previa`);
+                    }
+
+                    if (!toolResultText) {
                     // ── Detectar si aplica promo (cumpleaños u otra) — MISMO ALGORITMO QUE webhook.js ──
                     let promoDetected = 'NO';
                     let tipoPromoDetected = '';
@@ -1549,6 +1560,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             toolResultText = `❌ Hubo un problema al registrar la cita en el sistema.${gasMsg ? ' Detalle: ' + gasMsg : ''} Por favor intenta de nuevo.`;
                         }
                     }
+                    } // cierre del if (!toolResultText) — guardrail verificar_disponibilidad
                 }
             }
 
@@ -1557,7 +1569,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 // ── GUARDRAIL: Validar pérdida de promo DÍA FIJO ──
                 let promoBlocked = false;
                 const oldAppt = userPendingAppointments.find(c => c.id === functionArgs.id_cita_antigua);
-                if (oldAppt && oldAppt.tipoPromo && !(session && session.promoLossAccepted)) {
+                if (oldAppt && oldAppt.tipoPromo && !(session && session.promoLossAcceptedFor === functionArgs.id_cita_antigua)) {
                     const promoOriginal = promotionsCatalog.find(p =>
                         normDay(p.nombre) === normDay(oldAppt.tipoPromo)
                     );
@@ -1684,12 +1696,22 @@ PASO 5 — POST-CONFIRMACIÓN:
 
             // ─── Herramienta: cancelar_cita ────────────────────────────────
             else if (functionName === "cancelar_cita") {
-                const exito = await api.cancelAgenda(functionArgs.id_cita);
-                if (exito) {
-                    toolResultText = `✅ Cita ${functionArgs.id_cita} CANCELADA exitosamente. El horario ha sido liberado.`;
-                    if (session) session._lastToolAction = 'cita_cancelada';
+                // ── GUARDRAIL: Bloquear cancelación durante reagendamiento ──
+                // Qué protege: Evita que la IA cancele una cita mientras está en flujo de reagendamiento
+                // Cómo funciona: Si isReagendando está activo, bloquea y pide aclaración al cliente
+                if (session && session.isReagendando && session.reagendandoCitaId) {
+                    toolResultText = `🚫 MODO REAGENDAMIENTO ACTIVO — No puedes cancelar mientras reagendas la cita ${session.reagendandoCitaId}.\n` +
+                        `Pregúntale al cliente: "Estamos en proceso de reagendar tu cita ${session.reagendandoCitaId}. ¿Prefieres cancelarla en vez de reagendarla?".\n` +
+                        `Si el cliente confirma que quiere CANCELAR, primero el sistema debe salir del modo reagendamiento.`;
+                    console.log(`[openai] ⛔ GUARDRAIL: Bloqueada cancelar_cita durante reagendamiento (cita: ${session.reagendandoCitaId})`);
                 } else {
-                    toolResultText = `❌ Error al cancelar la cita ${functionArgs.id_cita}. Verifica si el ID es correcto.`;
+                    const exito = await api.cancelAgenda(functionArgs.id_cita);
+                    if (exito) {
+                        toolResultText = `✅ Cita ${functionArgs.id_cita} CANCELADA exitosamente. El horario ha sido liberado.`;
+                        if (session) session._lastToolAction = 'cita_cancelada';
+                    } else {
+                        toolResultText = `❌ Error al cancelar la cita ${functionArgs.id_cita}. Verifica si el ID es correcto.`;
+                    }
                 }
             }
 

@@ -713,7 +713,7 @@ router.post('/evolution', async (req, res) => {
             } else if (CHOICE_2.test(msgNorm)) {
                 const pw = session.pendingPromoWarning;
                 session.pendingPromoWarning = null;
-                session.promoLossAccepted = true;
+                session.promoLossAcceptedFor = session.reagendandoCitaId;
                 const ackMsg = `Entendido, el precio sería de *$${Number(pw.precioSinPromo).toLocaleString('es-CO')}* sin descuento.\n\n¿Para qué día y hora te gustaría reagendar tu cita? 📅`;
                 session.history.push({ role: 'user', content: messageText });
                 session.history.push({ role: 'assistant', content: ackMsg });
@@ -731,7 +731,7 @@ router.post('/evolution', async (req, res) => {
         }
 
         // ── PROMO WARNING PROACTIVO: Disparar al detectar reagendamiento sobre cita con promo DÍA FIJO ──
-        if (session.isReagendando && session.reagendandoCitaId && !session.promoWarningShown && !session.promoLossAccepted) {
+        if (session.isReagendando && session.reagendandoCitaId && !session.promoWarningShown && session.promoLossAcceptedFor !== session.reagendandoCitaId) {
             const userApptsPromo = tenant.pendingAppointments[phoneNumber] || [];
             const citaReag = userApptsPromo.find(c => c.id === session.reagendandoCitaId);
             console.log(`[${instanceName}] 🔍 PROMO-TRIGGER: citaId=${session.reagendandoCitaId}, appts=${userApptsPromo.length}, found=${!!citaReag}${citaReag ? `, promo="${citaReag.promo}", tipoPromo="${citaReag.tipoPromo}"` : ''}`);
@@ -1457,6 +1457,10 @@ router.post('/evolution', async (req, res) => {
             session.pendingConfirmation = null;
             session.pendingReagendamiento = null;
             session._lastToolAction = null;
+            session.promoLossAcceptedFor = null;
+            session.promoWarningShown = false;
+            session.pendingPromoWarning = null;
+            session.stylistAsked = false;
             tenant.pendingAppointments = await loadPendingAppointments(tenant.sheetId);
 
             // ── Notificación WhatsApp a la dueña ──
@@ -1501,7 +1505,15 @@ router.post('/evolution', async (req, res) => {
         if (toolAction === 'cita_cancelada') {
             console.log(`[${instanceName}] Cancelación detectada via IA tool. Refrescando citas...`);
             session.isCancelando = false;
+            session.isReagendando = false;
+            session.reagendandoCitaId = null;
+            session.pendingConfirmation = null;
+            session.pendingReagendamiento = null;
             session._lastToolAction = null;
+            session.promoLossAcceptedFor = null;
+            session.promoWarningShown = false;
+            session.pendingPromoWarning = null;
+            session.stylistAsked = false;
             tenant.pendingAppointments = await loadPendingAppointments(tenant.sheetId);
 
             const ownerPhone = tenant.config.ownerPhone;
