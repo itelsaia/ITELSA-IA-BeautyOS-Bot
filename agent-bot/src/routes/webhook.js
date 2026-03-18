@@ -597,7 +597,11 @@ router.post('/evolution', async (req, res) => {
                 return;
             }
 
-            if (userAppts.length > 1) {
+            if (userAppts.length === 1) {
+                // Auto-resolver cuando hay exactamente 1 cita pendiente
+                session.reagendandoCitaId = userAppts[0].id;
+                console.log(`[${instanceName}] 🎯 Cita auto-resuelta (única cita): ${session.reagendandoCitaId}`);
+            } else if (userAppts.length > 1) {
                 let resolved = null;
 
                 // 1. Resolver por posición: "la primera", "la segunda", "la 1"
