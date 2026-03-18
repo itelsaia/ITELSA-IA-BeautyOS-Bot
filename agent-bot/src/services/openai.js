@@ -749,7 +749,21 @@ async function generateAIResponse(
                 const svc = servicesCatalog.find(s => s.id === sid);
                 const items = serviceGallery[sid];
                 const svcName = svc ? svc.name : sid;
-                return `- ${svcName}: ${items.length} archivo(s) (${items.map(i => i.type).join(', ')})`;
+                const fotos = items.filter(i => i.type === 'imagen').length;
+                const videos = items.filter(i => i.type === 'video').length;
+                const recs = items.filter(i => i.category === 'recomendacion').length;
+                const catDetails = items.map(i => {
+                    const catNames = { antes_despues: 'antes/despues', procedimiento: 'procedimiento', recomendacion: 'cuidados', resultado: 'resultado' };
+                    return catNames[i.category] || i.type;
+                });
+                const parts = [];
+                if (fotos) parts.push(`${fotos} foto(s)`);
+                if (videos) parts.push(`${videos} video(s)`);
+                if (recs) parts.push(`${recs} recomendacion(es) de cuidado`);
+                // Incluir texto de recomendaciones para que la IA las comparta directamente
+                const recTexts = items.filter(i => i.category === 'recomendacion' && i.description)
+                    .map(i => `  📋 "${i.title}": ${i.description}`).join('\n');
+                return `- ${svcName}: ${parts.join(' | ')}${recTexts ? '\n' + recTexts : ''}`;
             }).join('\n');
         }
 
@@ -1120,9 +1134,14 @@ Servicios con contenido visual disponible para enviar al cliente:
 ${galleryContext}
 
 REGLAS DE USO DE LA GALERÍA:
-- Si el cliente pregunta por un servicio que TIENE galería, OFRECE enviarle fotos/videos de forma natural: "¡Tengo fotos de resultados de [servicio]! ¿Te las envío para que veas cómo quedan? 📸"
-- Si el cliente muestra duda o indecisión sobre un servicio con galería, usa la función 'enviar_informacion_servicio' para enviarle el contenido visual y ayudarlo a decidirse.
+- Si el cliente pregunta por un servicio que TIENE galería, OFRECE contenido segun la intencion:
+  * "¿Como queda?" / "resultados" → ofrece fotos antes/despues: "¡Tengo fotos de resultados! ¿Te las envío? 📸"
+  * "¿Como es el procedimiento?" / "¿que me hacen?" → ofrece video: "Tengo un video del procedimiento 🎬"
+  * "¿Que cuidados?" / "recomendaciones" / "preparacion" → comparte las recomendaciones como TEXTO en tu respuesta (NO llames enviar_informacion_servicio para recomendaciones)
+  * Si pregunta en general, menciona TODO lo disponible: "Tengo fotos, videos y tips de cuidado, ¿que te gustaria ver?"
+- Si el cliente muestra duda o indecision, ofrece el contenido visual para ayudarlo a decidirse.
 - Si el cliente dice "sí" a ver fotos/videos, llama 'enviar_informacion_servicio' con el nombre del servicio.
+- Para RECOMENDACIONES: comparte el texto directamente en tu mensaje de forma natural, NO envies como media.
 - NO menciones la galería si el servicio NO tiene contenido disponible.
 - Después de enviar media, pregunta si tiene alguna duda o si quiere agendar: "¿Qué te parecen los resultados? ¿Te animas a agendar? 💖"
 - NO envíes galería sin que el cliente lo pida o sin que haya un momento natural para ofrecerla.

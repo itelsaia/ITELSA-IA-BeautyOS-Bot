@@ -143,11 +143,11 @@ function inicializarEntorno() {
     });
   }
 
-  // 11. GALERIA_SERVICIOS (Multimedia por servicio: fotos antes/despues, videos, catalogos)
+  // 11. GALERIA_SERVICIOS (Multimedia por servicio: fotos antes/despues, videos, recomendaciones)
   let sheetGaleria = getOrCreateSheet(ss, "GALERIA_SERVICIOS");
   sheetGaleria.clear();
-  sheetGaleria.appendRow(["ID_SERVICIO", "TIPO_MEDIA", "TITULO", "DESCRIPCION", "URL_MEDIA", "ORDEN"]);
-  sheetGaleria.appendRow(["DIS-001", "imagen", "Antes y Despues", "Mira como queda el diseno de cejas con nuestras profesionales", "https://drive.google.com/...", 1]);
+  sheetGaleria.appendRow(["ID_MATERIAL", "ID_SERVICIO", "CATEGORIA", "TIPO_MEDIA", "TITULO", "DESCRIPCION", "URL_MEDIA", "ORDEN"]);
+  sheetGaleria.appendRow(["DIS-001-M01", "DIS-001", "antes_despues", "imagen", "Antes y Despues", "Mira como queda el diseno de cejas con nuestras profesionales", "https://drive.google.com/...", 1]);
   formatHeaders(sheetGaleria);
 
   // 12. FESTIVOS_CONFIG (Dias festivos colombianos - control de apertura)

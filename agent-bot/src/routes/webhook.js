@@ -1397,12 +1397,18 @@ router.post('/evolution', async (req, res) => {
 
             for (const item of gallery.items) {
                 try {
-                    const directUrl = convertDriveUrl(item.url);
-                    const mediaType = item.type === 'imagen' ? 'image' : item.type === 'video' ? 'video' : 'document';
-                    const caption = item.title + (item.description ? '\n' + item.description : '');
-                    const fileName = item.type === 'documento' ? (item.title.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
+                    // Recomendaciones se envían como texto, no como media
+                    if (item.category === 'recomendacion') {
+                        const recText = `📋 *${item.title}*\n${item.description || ''}`;
+                        await evolutionClient.sendText(instanceName, phoneNumber, recText);
+                    } else {
+                        const directUrl = convertDriveUrl(item.url);
+                        const mediaType = item.type === 'imagen' ? 'image' : item.type === 'video' ? 'video' : 'document';
+                        const caption = item.title + (item.description ? '\n' + item.description : '');
+                        const fileName = item.type === 'documento' ? (item.title.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
 
-                    await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+                        await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+                    }
 
                     // Delay entre envíos para no saturar
                     if (gallery.items.length > 1) {

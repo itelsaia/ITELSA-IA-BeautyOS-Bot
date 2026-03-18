@@ -1114,12 +1114,14 @@ function getGaleria() {
   return data.slice(1).map(function(row, i) {
     return {
       rowIndex: i + 2,
-      idServicio: row[0] || '',
-      tipoMedia: row[1] || '',
-      titulo: row[2] || '',
-      descripcion: row[3] || '',
-      urlMedia: row[4] || '',
-      orden: row[5] || 1
+      idMaterial: row[0] || '',
+      idServicio: row[1] || '',
+      categoria: row[2] || '',
+      tipoMedia: row[3] || '',
+      titulo: row[4] || '',
+      descripcion: row[5] || '',
+      urlMedia: row[6] || '',
+      orden: row[7] || 1
     };
   }).filter(function(g) { return g.idServicio !== ''; });
 }
@@ -1128,15 +1130,31 @@ function saveGaleria(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
   if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe. Ejecuta Setup primero.");
+
+  // Auto-generar ID_MATERIAL: {idServicio}-M{NN}
+  var allData = sheet.getDataRange().getValues();
+  var prefix = data.idServicio + '-M';
+  var maxNum = 0;
+  for (var i = 1; i < allData.length; i++) {
+    var existingId = (allData[i][0] || '').toString();
+    if (existingId.startsWith(prefix)) {
+      var num = parseInt(existingId.replace(prefix, ''), 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  }
+  var idMaterial = prefix + String(maxNum + 1).padStart(2, '0');
+
   sheet.appendRow([
+    idMaterial,
     data.idServicio,
+    data.categoria || 'otro',
     data.tipoMedia,
     data.titulo,
     data.descripcion,
     data.urlMedia,
     parseInt(data.orden) || 1
   ]);
-  return { status: "Galeria item created" };
+  return { status: "Galeria item created", idMaterial: idMaterial };
 }
 
 function updateGaleria(data) {
@@ -1144,12 +1162,14 @@ function updateGaleria(data) {
   var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
   if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe.");
   var row = data.rowIndex;
-  sheet.getRange(row, 1).setValue(data.idServicio);
-  sheet.getRange(row, 2).setValue(data.tipoMedia);
-  sheet.getRange(row, 3).setValue(data.titulo);
-  sheet.getRange(row, 4).setValue(data.descripcion);
-  sheet.getRange(row, 5).setValue(data.urlMedia);
-  sheet.getRange(row, 6).setValue(parseInt(data.orden) || 1);
+  // Columna 1 (ID_MATERIAL) no se modifica
+  sheet.getRange(row, 2).setValue(data.idServicio);
+  sheet.getRange(row, 3).setValue(data.categoria || 'otro');
+  sheet.getRange(row, 4).setValue(data.tipoMedia);
+  sheet.getRange(row, 5).setValue(data.titulo);
+  sheet.getRange(row, 6).setValue(data.descripcion);
+  sheet.getRange(row, 7).setValue(data.urlMedia);
+  sheet.getRange(row, 8).setValue(parseInt(data.orden) || 1);
   return { status: "Galeria item updated" };
 }
 

@@ -568,11 +568,21 @@
         <input type="hidden" id="galRowIndex">
         <input type="hidden" id="galIdServicio">
         <div class="mb-3">
+          <label class="form-label fw-semibold">Categoria *</label>
+          <select id="galCategoria" class="form-select" onchange="toggleGalFields()">
+            <option value="antes_despues">Antes y Despues (foto resultado)</option>
+            <option value="procedimiento">Procedimiento (video del servicio)</option>
+            <option value="recomendacion">Recomendacion (cuidados pre/post servicio)</option>
+            <option value="resultado">Resultado final (foto/video)</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="mb-3" id="galTipoMediaWrap">
           <label class="form-label fw-semibold">Tipo de contenido *</label>
           <select id="galTipoMedia" class="form-select">
-            <option value="imagen">Imagen (foto antes/despues)</option>
-            <option value="video">Video corto</option>
-            <option value="documento">Documento (catalogo PDF)</option>
+            <option value="imagen">Imagen</option>
+            <option value="video">Video</option>
+            <option value="documento">Documento (PDF)</option>
           </select>
         </div>
         <div class="mb-3">
@@ -580,10 +590,10 @@
           <input id="galTitulo" class="form-control" placeholder="Ej: Antes y Despues Tinte">
         </div>
         <div class="mb-3">
-          <label class="form-label fw-semibold">Descripcion (se envia como caption en WhatsApp)</label>
+          <label class="form-label fw-semibold" id="galDescLabel">Descripcion (se envia como caption en WhatsApp)</label>
           <textarea id="galDescripcion" class="form-control" rows="2" placeholder="Ej: Mira el resultado de nuestro tinte profesional"></textarea>
         </div>
-        <div class="mb-3">
+        <div class="mb-3" id="galUrlWrap">
           <label class="form-label fw-semibold">URL de Google Drive *</label>
           <input id="galUrlMedia" class="form-control" placeholder="https://drive.google.com/file/d/.../view">
           <small class="text-muted">Sube el archivo a Google Drive, comparte con "Cualquiera con el enlace" y pega la URL aqui.</small>
@@ -1360,9 +1370,13 @@ function renderServicios() {
         html += '<br><span class="badge bg-warning text-dark"><i class="fas fa-hand-holding-usd me-1"></i>Anticipo: ' + anticipoLabel + '</span>';
       }
       html += '<br><small class="text-muted">ID: ' + esc(s.idServicio) + '</small>';
-      var galeriaCount = galeria.filter(function(g) { return g.idServicio === s.idServicio; }).length;
+      var srvGal = galeria.filter(function(g) { return g.idServicio === s.idServicio; });
+      var galImgs = srvGal.filter(function(g) { return g.tipoMedia === 'imagen'; }).length;
+      var galVids = srvGal.filter(function(g) { return g.tipoMedia === 'video'; }).length;
+      var galRecs = srvGal.filter(function(g) { return g.categoria === 'recomendacion'; }).length;
+      var galBadge = (galImgs ? galImgs + ' <i class="fas fa-image"></i> ' : '') + (galVids ? galVids + ' <i class="fas fa-video"></i> ' : '') + (galRecs ? galRecs + ' <i class="fas fa-clipboard-list"></i>' : '');
       html += '<div class="mt-2"><button class="btn btn-sm btn-outline-info" onclick="abrirGaleriaServicio(\'' + esc(s.idServicio) + '\', \'' + esc(s.tipoServicio) + '\')">';
-      html += '<i class="fas fa-images me-1"></i> Galeria (' + galeriaCount + ')</button></div>';
+      html += '<i class="fas fa-images me-1"></i> Galeria (' + srvGal.length + ')' + (galBadge ? ' <span class="ms-1 small">' + galBadge + '</span>' : '') + '</button></div>';
       html += '</div></div>';
     });
   }
@@ -2003,6 +2017,9 @@ function guardarServicio() {
 // =============================================
 // GALERIA DE SERVICIOS CRUD
 // =============================================
+var catLabels = { antes_despues: 'Antes/Despues', procedimiento: 'Procedimiento', recomendacion: 'Recomendacion', resultado: 'Resultado', otro: 'Otro' };
+var catIcons = { antes_despues: 'fa-image text-primary', procedimiento: 'fa-video text-danger', recomendacion: 'fa-clipboard-list text-success', resultado: 'fa-camera text-info', otro: 'fa-file text-secondary' };
+
 function abrirGaleriaServicio(idServicio, nombreServicio) {
   document.getElementById('modalGaleriaTitulo').innerHTML = '<i class="fas fa-images me-1"></i> Galeria - ' + nombreServicio;
   var items = galeria.filter(function(g) { return g.idServicio === idServicio; })
@@ -2010,15 +2027,17 @@ function abrirGaleriaServicio(idServicio, nombreServicio) {
 
   var grid = document.getElementById('galeriaGrid');
   if (items.length === 0) {
-    grid.innerHTML = '<div class="col-12"><div class="empty-state py-4"><i class="fas fa-photo-video fa-2x d-block mb-2 text-muted"></i><p class="text-muted">No hay contenido multimedia para este servicio.</p><small class="text-muted">Agrega fotos, videos o documentos que el bot enviara a tus clientes por WhatsApp.</small></div></div>';
+    grid.innerHTML = '<div class="col-12"><div class="empty-state py-4"><i class="fas fa-photo-video fa-2x d-block mb-2 text-muted"></i><p class="text-muted">No hay contenido multimedia para este servicio.</p><small class="text-muted">Agrega fotos de antes/despues, videos de procedimientos o recomendaciones de cuidado.</small></div></div>';
   } else {
     grid.innerHTML = items.map(function(item) {
-      var icon = item.tipoMedia === 'video' ? 'fa-video text-danger' : item.tipoMedia === 'documento' ? 'fa-file-pdf text-warning' : 'fa-image text-primary';
-      var tipoLabel = item.tipoMedia === 'video' ? 'Video' : item.tipoMedia === 'documento' ? 'Documento' : 'Imagen';
+      var cat = item.categoria || 'otro';
+      var icon = catIcons[cat] || 'fa-file text-secondary';
+      var catLabel = catLabels[cat] || cat;
       return '<div class="col-md-4"><div class="card-custom p-3 text-center">' +
         '<i class="fas ' + icon + ' fa-3x mb-2"></i>' +
         '<h6 class="mb-1">' + esc(item.titulo) + '</h6>' +
-        '<span class="badge bg-light text-dark mb-1">' + tipoLabel + ' &bull; Orden: ' + item.orden + '</span>' +
+        '<span class="badge bg-light text-dark mb-1">' + catLabel + ' &bull; Orden: ' + item.orden + '</span>' +
+        (item.idMaterial ? '<br><small class="text-muted">ID: ' + esc(item.idMaterial) + '</small>' : '') +
         '<p class="small text-muted mt-1 mb-2">' + esc((item.descripcion || '').substring(0, 100)) + '</p>' +
         '<div class="btn-group btn-group-sm">' +
         '<button class="btn btn-outline-primary btn-sm-icon" title="Editar" onclick="editarGaleriaItem(' + item.rowIndex + ')"><i class="fas fa-pencil-alt"></i></button>' +
@@ -2031,9 +2050,22 @@ function abrirGaleriaServicio(idServicio, nombreServicio) {
   new bootstrap.Modal(document.getElementById('modalGaleria')).show();
 }
 
+function toggleGalFields() {
+  var cat = document.getElementById('galCategoria').value;
+  var isRec = cat === 'recomendacion';
+  document.getElementById('galTipoMediaWrap').style.display = isRec ? 'none' : '';
+  document.getElementById('galUrlWrap').style.display = isRec ? 'none' : '';
+  document.getElementById('galDescLabel').textContent = isRec ? 'Recomendaciones / Cuidados *' : 'Descripcion (se envia como caption en WhatsApp)';
+  document.getElementById('galDescripcion').rows = isRec ? 5 : 2;
+  document.getElementById('galDescripcion').placeholder = isRec ? 'Ej: Llegar con el rostro limpio e hidratado. Despues del servicio usar bloqueador solar.' : 'Ej: Mira el resultado de nuestro tinte profesional';
+  if (isRec) document.getElementById('galTipoMedia').value = 'texto';
+  else if (document.getElementById('galTipoMedia').value === 'texto') document.getElementById('galTipoMedia').value = 'imagen';
+}
+
 function abrirModalGaleriaItem() {
   document.getElementById('modalGaleriaItemTitulo').innerHTML = '<i class="fas fa-plus-circle me-1"></i> Agregar Contenido';
   document.getElementById('galRowIndex').value = '';
+  document.getElementById('galCategoria').value = 'antes_despues';
   document.getElementById('galTitulo').value = '';
   document.getElementById('galDescripcion').value = '';
   document.getElementById('galUrlMedia').value = '';
@@ -2041,6 +2073,7 @@ function abrirModalGaleriaItem() {
   var currentCount = galeria.filter(function(g) { return g.idServicio === currentSrv; }).length;
   document.getElementById('galOrden').value = currentCount + 1;
   document.getElementById('galTipoMedia').value = 'imagen';
+  toggleGalFields();
   new bootstrap.Modal(document.getElementById('modalGaleriaItem')).show();
 }
 
@@ -2049,24 +2082,31 @@ function editarGaleriaItem(rowIndex) {
   if (!item) return;
   document.getElementById('modalGaleriaItemTitulo').innerHTML = '<i class="fas fa-pencil-alt me-1"></i> Editar Contenido';
   document.getElementById('galRowIndex').value = rowIndex;
+  document.getElementById('galCategoria').value = item.categoria || 'otro';
   document.getElementById('galTipoMedia').value = item.tipoMedia || 'imagen';
   document.getElementById('galTitulo').value = item.titulo || '';
   document.getElementById('galDescripcion').value = item.descripcion || '';
   document.getElementById('galUrlMedia').value = item.urlMedia || '';
   document.getElementById('galOrden').value = item.orden || 1;
+  toggleGalFields();
   new bootstrap.Modal(document.getElementById('modalGaleriaItem')).show();
 }
 
 function guardarGaleriaItem() {
+  var cat = document.getElementById('galCategoria').value;
+  var isRec = cat === 'recomendacion';
   var data = {
     idServicio: document.getElementById('galIdServicio').value,
-    tipoMedia: document.getElementById('galTipoMedia').value,
+    categoria: cat,
+    tipoMedia: isRec ? 'texto' : document.getElementById('galTipoMedia').value,
     titulo: document.getElementById('galTitulo').value.trim(),
     descripcion: document.getElementById('galDescripcion').value.trim(),
-    urlMedia: document.getElementById('galUrlMedia').value.trim(),
+    urlMedia: isRec ? '' : document.getElementById('galUrlMedia').value.trim(),
     orden: parseInt(document.getElementById('galOrden').value) || 1
   };
-  if (!data.titulo || !data.urlMedia) { toast('Titulo y URL son obligatorios.', 'warning'); return; }
+  if (!data.titulo) { toast('El titulo es obligatorio.', 'warning'); return; }
+  if (!isRec && !data.urlMedia) { toast('La URL es obligatoria para imagenes y videos.', 'warning'); return; }
+  if (isRec && !data.descripcion) { toast('Las recomendaciones son obligatorias.', 'warning'); return; }
 
   var btn = document.getElementById('btnGuardarGaleria');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';

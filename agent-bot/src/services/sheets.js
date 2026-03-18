@@ -192,6 +192,8 @@ async function loadServiceGallery(sheetId) {
 
             if (!gallery[serviceId]) gallery[serviceId] = [];
             gallery[serviceId].push({
+                id: (cleanData['ID_MATERIAL'] || '').trim(),
+                category: (cleanData['CATEGORIA'] || 'otro').toLowerCase().trim(),
                 type: (cleanData['TIPO_MEDIA'] || 'imagen').toLowerCase(),
                 title: cleanData['TITULO'] || '',
                 description: cleanData['DESCRIPCION'] || '',
