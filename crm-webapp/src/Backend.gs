@@ -1106,10 +1106,26 @@ function deleteServicio(rowIndex) {
 // GALERIA DE SERVICIOS (Multimedia por servicio)
 // ============================================
 
+// Migra headers viejos (6 cols) al formato nuevo (8 cols) sin perder datos
+function ensureGaleriaHeaders_(sheet) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var expected = ["ID_MATERIAL", "ID_SERVICIO", "CATEGORIA", "TIPO_MEDIA", "TITULO", "DESCRIPCION", "URL_MEDIA", "ORDEN"];
+  if (headers[0] === expected[0]) return; // Ya migrado
+
+  // Headers viejos: ID_SERVICIO, TIPO_MEDIA, TITULO, DESCRIPCION, URL_MEDIA, ORDEN
+  // Insertar 2 columnas al inicio: ID_MATERIAL (A) y mover todo +1, luego insertar CATEGORIA (C)
+  sheet.insertColumnBefore(1); // Nueva col A para ID_MATERIAL
+  sheet.insertColumnAfter(2);  // Nueva col C para CATEGORIA
+  // Escribir headers nuevos
+  sheet.getRange(1, 1, 1, 8).setValues([expected]);
+  sheet.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#f3f3f3');
+}
+
 function getGaleria() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
   if (!sheet) return [];
+  ensureGaleriaHeaders_(sheet);
   var data = sheet.getDataRange().getValues();
   return data.slice(1).map(function(row, i) {
     return {
@@ -1130,6 +1146,7 @@ function saveGaleria(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName("GALERIA_SERVICIOS");
   if (!sheet) throw new Error("Hoja GALERIA_SERVICIOS no existe. Ejecuta Setup primero.");
+  ensureGaleriaHeaders_(sheet);
 
   // Auto-generar ID_MATERIAL: {idServicio}-M{NN}
   var allData = sheet.getDataRange().getValues();
