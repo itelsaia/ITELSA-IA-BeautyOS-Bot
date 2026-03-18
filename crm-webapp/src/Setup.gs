@@ -154,6 +154,7 @@ function inicializarEntorno() {
   let sheetFestivos = getOrCreateSheet(ss, "FESTIVOS_CONFIG");
   sheetFestivos.clear();
   sheetFestivos.appendRow(["ANO", "FECHA", "NOMBRE", "TRABAJA", "GENERADO_AUTO", "HORA_INI", "HORA_FIN"]);
+  populateFestivos2026_(sheetFestivos);
   formatHeaders(sheetFestivos);
 
   Logger.log("¡Entorno V8 inicializado correctamente con LISTA_ESTADOS y gestión de citas mejorada!");
@@ -168,6 +169,51 @@ function getOrCreateSheet(ss, name) {
     sheet = ss.insertSheet(name);
   }
   return sheet;
+}
+
+/**
+ * Resetea la hoja FESTIVOS_CONFIG con los 18 festivos oficiales de Colombia 2026.
+ * Ejecutar manualmente desde el editor GAS cuando se necesite corregir festivos.
+ */
+function resetFestivos2026() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) { Logger.log("Error: Script debe estar vinculado a un Google Sheet."); return; }
+
+  let sheet = getOrCreateSheet(ss, "FESTIVOS_CONFIG");
+  sheet.clear();
+  sheet.appendRow(["ANO", "FECHA", "NOMBRE", "TRABAJA", "GENERADO_AUTO", "HORA_INI", "HORA_FIN"]);
+  populateFestivos2026_(sheet);
+  formatHeaders(sheet);
+  Logger.log("Festivos 2026 actualizados correctamente (18 festivos oficiales Colombia).");
+}
+
+/**
+ * Helper: Inserta los 18 festivos oficiales de Colombia 2026 (Ley Emiliani aplicada).
+ */
+function populateFestivos2026_(sheet) {
+  const festivos = [
+    // Fechas fijas
+    [2026, "01/01/2026", "Ano Nuevo",                        "NO", "SI", "", ""],
+    [2026, "02/04/2026", "Jueves Santo",                     "NO", "SI", "", ""],
+    [2026, "03/04/2026", "Viernes Santo",                    "NO", "SI", "", ""],
+    [2026, "01/05/2026", "Dia del Trabajo",                  "NO", "SI", "", ""],
+    [2026, "20/07/2026", "Dia de la Independencia",          "NO", "SI", "", ""],
+    [2026, "07/08/2026", "Batalla de Boyaca",                "NO", "SI", "", ""],
+    [2026, "08/12/2026", "Inmaculada Concepcion",            "NO", "SI", "", ""],
+    [2026, "25/12/2026", "Navidad",                          "NO", "SI", "", ""],
+    // Ley Emiliani (trasladados al lunes)
+    [2026, "12/01/2026", "Reyes Magos",                      "NO", "SI", "", ""],
+    [2026, "23/03/2026", "San Jose",                         "NO", "SI", "", ""],
+    [2026, "18/05/2026", "Ascension del Senor",              "NO", "SI", "", ""],
+    [2026, "08/06/2026", "Corpus Christi",                   "NO", "SI", "", ""],
+    [2026, "15/06/2026", "Sagrado Corazon de Jesus",         "NO", "SI", "", ""],
+    [2026, "29/06/2026", "San Pedro y San Pablo",            "NO", "SI", "", ""],
+    [2026, "17/08/2026", "Asuncion de la Virgen",            "NO", "SI", "", ""],
+    [2026, "12/10/2026", "Dia de la Diversidad Etnica",      "NO", "SI", "", ""],
+    [2026, "02/11/2026", "Todos los Santos",                 "NO", "SI", "", ""],
+    [2026, "16/11/2026", "Independencia de Cartagena",       "NO", "SI", "", ""],
+  ];
+  festivos.forEach(row => sheet.appendRow(row));
 }
 
 /**

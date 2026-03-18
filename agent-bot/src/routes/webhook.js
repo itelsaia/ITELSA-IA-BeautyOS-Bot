@@ -696,6 +696,84 @@ router.post('/evolution', async (req, res) => {
             }
         }
 
+        // ── PROMO WARNING PROACTIVO: Respuesta del cliente a la advertencia ──
+        if (session.pendingPromoWarning) {
+            const CHOICE_1 = /^(1|uno|primera|hora|mismo.?dia|cambiar.?hora|solo.?hora|mantener|descuento|promo)$/i;
+            const CHOICE_2 = /^(2|dos|segunda|otro.?dia|diferente|acepto|precio.?completo|sin.?promo|sin.?descuento|completo|cambiar.?dia)$/i;
+
+            if (CHOICE_1.test(msgNorm)) {
+                const pw = session.pendingPromoWarning;
+                session.pendingPromoWarning = null;
+                const ackMsg = `¡Perfecto! Mantengamos tu descuento 💖\n\n¿Para qué hora del *${pw.promoDias}* te gustaría cambiar tu cita?`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: ackMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, ackMsg);
+                console.log(`[${instanceName}] ✅ Cliente eligió mantener promo (opción 1). Reagendando en mismo día.`);
+                return;
+            } else if (CHOICE_2.test(msgNorm)) {
+                const pw = session.pendingPromoWarning;
+                session.pendingPromoWarning = null;
+                session.promoLossAccepted = true;
+                const ackMsg = `Entendido, el precio sería de *$${Number(pw.precioSinPromo).toLocaleString('es-CO')}* sin descuento.\n\n¿Para qué día y hora te gustaría reagendar tu cita? 📅`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: ackMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, ackMsg);
+                console.log(`[${instanceName}] ⚠️ Cliente aceptó perder promo (opción 2). Precio completo: $${pw.precioSinPromo}`);
+                return;
+            } else {
+                const pw = session.pendingPromoWarning;
+                const reaskMsg = `Por favor elige una opción:\n\n1️⃣ Cambiar solo la *hora* del *${pw.promoDias}* (mantener descuento)\n2️⃣ Reagendar a otro día (precio completo: *$${Number(pw.precioSinPromo).toLocaleString('es-CO')}*)\n\nResponde *1* o *2* 💖`;
+                session.history.push({ role: 'user', content: messageText });
+                session.history.push({ role: 'assistant', content: reaskMsg });
+                await evolutionClient.sendText(instanceName, phoneNumber, reaskMsg);
+                return;
+            }
+        }
+
+        // ── PROMO WARNING PROACTIVO: Disparar al detectar reagendamiento sobre cita con promo DÍA FIJO ──
+        if (session.isReagendando && session.reagendandoCitaId && !session.promoWarningShown && !session.promoLossAccepted) {
+            const userApptsPromo = tenant.pendingAppointments[phoneNumber] || [];
+            const citaReag = userApptsPromo.find(c => c.id === session.reagendandoCitaId);
+
+            if (citaReag && citaReag.promo === 'SI' && citaReag.tipoPromo) {
+                const promoOrig = (tenant.promotionsCatalog || []).find(p =>
+                    p.nombre && p.nombre.toLowerCase().trim() === citaReag.tipoPromo.toLowerCase().trim()
+                );
+
+                if (promoOrig && promoOrig.aplicaDia && promoOrig.aplicaDia.trim() !== '') {
+                    // Es promo DÍA FIJO → advertir PROACTIVAMENTE
+                    const srvNamesP = citaReag.servicio.split(',').map(s => s.trim().toLowerCase());
+                    const precioSinDesc = srvNamesP.reduce((sum, name) => {
+                        const info = tenant.servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                        return sum + (info ? info.price : 0);
+                    }, 0);
+
+                    const warningMsg = `⚠️ *Importante antes de continuar:*\n\n` +
+                        `Tu cita *${citaReag.id}* tiene la promo *${citaReag.tipoPromo}* que aplica los *${promoOrig.aplicaDia}*.\n` +
+                        `Precio actual con descuento: *$${Number(citaReag.precio).toLocaleString('es-CO')}*\n\n` +
+                        `Si reagendas para un día diferente, el precio sería de *$${Number(precioSinDesc).toLocaleString('es-CO')}* (sin descuento).\n\n` +
+                        `¿Qué prefieres?\n` +
+                        `1️⃣ Cambiar solo la *hora* dentro del *${promoOrig.aplicaDia}* para mantener tu descuento\n` +
+                        `2️⃣ Reagendar a otro día a precio completo\n\n` +
+                        `Responde *1* o *2* 💖`;
+
+                    session.promoWarningShown = true;
+                    session.pendingPromoWarning = {
+                        citaId: citaReag.id,
+                        promoName: citaReag.tipoPromo,
+                        promoDias: promoOrig.aplicaDia,
+                        precioConPromo: citaReag.precio,
+                        precioSinPromo: precioSinDesc
+                    };
+                    session.history.push({ role: 'user', content: messageText });
+                    session.history.push({ role: 'assistant', content: warningMsg });
+                    await evolutionClient.sendText(instanceName, phoneNumber, warningMsg);
+                    console.log(`[${instanceName}] ⚠️ PROMO WARNING PROACTIVO: ${citaReag.tipoPromo} (${citaReag.id}). Esperando elección 1 o 2.`);
+                    return;
+                }
+            }
+        }
+
         // ── CANCELACIÓN MASIVA CONFIRMACIÓN ──
         if (session.pendingCancelacionMasiva) {
             if (CONFIRM_REGEX.test(msgNorm)) {

@@ -1292,7 +1292,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                     // ── Validar pérdida de promo DÍA FIJO (igual que reagendar_cita) ──
                     let guardaPromoBlocked = false;
                     const guardaOldAppt = userPendingAppointments.find(c => c.id === session.reagendandoCitaId);
-                    if (guardaOldAppt && guardaOldAppt.promo === 'SI' && guardaOldAppt.tipoPromo) {
+                    if (guardaOldAppt && guardaOldAppt.promo === 'SI' && guardaOldAppt.tipoPromo && !session.promoLossAccepted) {
                         const guardaPromoOrig = promotionsCatalog.find(p =>
                             normDay(p.nombre) === normDay(guardaOldAppt.tipoPromo)
                         );
@@ -1450,7 +1450,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 // ── GUARDRAIL: Validar pérdida de promo DÍA FIJO ──
                 let promoBlocked = false;
                 const oldAppt = userPendingAppointments.find(c => c.id === functionArgs.id_cita_antigua);
-                if (oldAppt && oldAppt.promo === 'SI' && oldAppt.tipoPromo) {
+                if (oldAppt && oldAppt.promo === 'SI' && oldAppt.tipoPromo && !(session && session.promoLossAccepted)) {
                     const promoOriginal = promotionsCatalog.find(p =>
                         normDay(p.nombre) === normDay(oldAppt.tipoPromo)
                     );
