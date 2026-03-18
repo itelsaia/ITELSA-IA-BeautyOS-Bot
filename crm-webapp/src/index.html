@@ -266,61 +266,79 @@
 <!-- MODAL: Servicio (Crear / Editar)             -->
 <!-- ============================================ -->
 <div class="modal fade" id="modalServicio" tabindex="-1">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-xl">
     <div class="modal-content">
       <div class="modal-header modal-header-brand">
         <h5 class="modal-title" id="modalServicioTitulo"><i class="fas fa-plus-circle me-1"></i> Nuevo Servicio</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <form id="formServicio">
-          <input type="hidden" id="srvRowIndex" value="">
-          <input type="hidden" id="srvId" value="">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Nombre del Servicio *</label>
-              <input type="text" class="form-control" id="srvTipoServicio" placeholder="Ej: Manicure" required>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Categoria</label>
-              <input type="text" class="form-control" id="srvCategoria" placeholder="Ej: Manos y Pies">
-            </div>
-            <div class="col-md-3">
-              <label class="form-label fw-semibold">Tiempo (min) *</label>
-              <input type="number" class="form-control" id="srvTiempo" placeholder="45" min="0" required>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label fw-semibold">Intencion IA</label>
-              <input type="text" class="form-control" id="srvIntencion" placeholder="Ej: precios_manicure">
-              <small class="text-muted">Palabra clave que usa el bot para reconocer este servicio</small>
-            </div>
-            <div class="col-12">
-              <label class="form-label fw-semibold">Respuesta del Bot *</label>
-              <textarea class="form-control" id="srvRespuesta" rows="3" placeholder="Ej: El manicure tradicional cuesta $15.000" required></textarea>
-              <small class="text-muted">Incluye el precio para que el bot lo muestre al cliente</small>
-            </div>
-            <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">Configuracion de Anticipo</small></div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Anticipo</label>
-              <select class="form-select" id="srvAnticipoHabilitado">
-                <option value="NO">No requiere</option>
-                <option value="SI">Si, requiere anticipo</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Tipo</label>
-              <select class="form-select" id="srvTipoAnticipo">
-                <option value="FIJO">Valor fijo ($)</option>
-                <option value="PORCENTAJE">Porcentaje (%)</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Valor Anticipo</label>
-              <input type="number" class="form-control" id="srvValorAnticipo" placeholder="Ej: 15000" min="0">
-              <small class="text-muted">Monto ($) o porcentaje (%) segun tipo</small>
-            </div>
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-3" id="srvTabs">
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabDatosServicio"><i class="fas fa-cog me-1"></i> Datos del Servicio</a></li>
+          <li class="nav-item" id="tabGaleriaNav"><a class="nav-link" data-bs-toggle="tab" href="#tabGaleriaServicio"><i class="fas fa-images me-1"></i> Galeria Multimedia <span id="srvGaleriaBadge" class="badge bg-secondary ms-1" style="display:none;">0</span></a></li>
+        </ul>
+        <div class="tab-content">
+          <!-- Tab 1: Datos del Servicio -->
+          <div class="tab-pane fade show active" id="tabDatosServicio">
+            <form id="formServicio">
+              <input type="hidden" id="srvRowIndex" value="">
+              <input type="hidden" id="srvId" value="">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Nombre del Servicio *</label>
+                  <input type="text" class="form-control" id="srvTipoServicio" placeholder="Ej: Manicure" required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Categoria</label>
+                  <input type="text" class="form-control" id="srvCategoria" placeholder="Ej: Manos y Pies">
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Tiempo (min) *</label>
+                  <input type="number" class="form-control" id="srvTiempo" placeholder="45" min="0" required>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Intencion IA</label>
+                  <input type="text" class="form-control" id="srvIntencion" placeholder="Ej: precios_manicure">
+                  <small class="text-muted">Palabra clave que usa el bot para reconocer este servicio</small>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold">Respuesta del Bot *</label>
+                  <textarea class="form-control" id="srvRespuesta" rows="3" placeholder="Ej: El manicure tradicional cuesta $15.000" required></textarea>
+                  <small class="text-muted">Incluye el precio para que el bot lo muestre al cliente</small>
+                </div>
+                <div class="col-12"><hr class="my-1"><small class="text-muted fw-semibold">Configuracion de Anticipo</small></div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Anticipo</label>
+                  <select class="form-select" id="srvAnticipoHabilitado">
+                    <option value="NO">No requiere</option>
+                    <option value="SI">Si, requiere anticipo</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Tipo</label>
+                  <select class="form-select" id="srvTipoAnticipo">
+                    <option value="FIJO">Valor fijo ($)</option>
+                    <option value="PORCENTAJE">Porcentaje (%)</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label fw-semibold">Valor Anticipo</label>
+                  <input type="number" class="form-control" id="srvValorAnticipo" placeholder="Ej: 15000" min="0">
+                  <small class="text-muted">Monto ($) o porcentaje (%) segun tipo</small>
+                </div>
+              </div>
+            </form>
           </div>
-        </form>
+          <!-- Tab 2: Galeria Multimedia -->
+          <div class="tab-pane fade" id="tabGaleriaServicio">
+            <input type="hidden" id="galIdServicio">
+            <p class="text-muted small mb-3">Contenido multimedia que el bot puede enviar por WhatsApp cuando un cliente pregunte por este servicio.</p>
+            <div id="galeriaGrid" class="row g-3"></div>
+            <hr>
+            <button class="btn btn-brand btn-sm" onclick="abrirModalGaleriaItem()"><i class="fas fa-plus me-1"></i> Agregar Contenido</button>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -538,24 +556,6 @@
   </div>
 </div>
 
-<!-- MODAL: Galeria del Servicio -->
-<div class="modal fade" id="modalGaleria" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header modal-header-brand">
-        <h5 class="modal-title" id="modalGaleriaTitulo"><i class="fas fa-images me-1"></i> Galeria</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <p class="text-muted small mb-3">Contenido multimedia que el bot puede enviar por WhatsApp cuando un cliente pregunte por este servicio.</p>
-        <div id="galeriaGrid" class="row g-3"></div>
-        <hr>
-        <button class="btn btn-brand btn-sm" onclick="abrirModalGaleriaItem()"><i class="fas fa-plus me-1"></i> Agregar Contenido</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL: Agregar/Editar item de galeria -->
 <div class="modal fade" id="modalGaleriaItem" tabindex="-1">
   <div class="modal-dialog">
@@ -566,7 +566,6 @@
       </div>
       <div class="modal-body">
         <input type="hidden" id="galRowIndex">
-        <input type="hidden" id="galIdServicio">
         <div class="mb-3">
           <label class="form-label fw-semibold">Categoria *</label>
           <select id="galCategoria" class="form-select" onchange="toggleGalFields()">
@@ -614,6 +613,14 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ── Fix: Bootstrap 5 stacked modals ──
+// Cuando se cierra un sub-modal, restaurar modal-open en body para que el modal padre siga funcional
+document.addEventListener('hidden.bs.modal', function(e) {
+  if (document.querySelector('.modal.show')) {
+    document.body.classList.add('modal-open');
+  }
+});
+
 // =============================================
 // Estado Global
 // =============================================
@@ -1371,12 +1378,13 @@ function renderServicios() {
       }
       html += '<br><small class="text-muted">ID: ' + esc(s.idServicio) + '</small>';
       var srvGal = galeria.filter(function(g) { return g.idServicio === s.idServicio; });
-      var galImgs = srvGal.filter(function(g) { return g.tipoMedia === 'imagen'; }).length;
-      var galVids = srvGal.filter(function(g) { return g.tipoMedia === 'video'; }).length;
-      var galRecs = srvGal.filter(function(g) { return g.categoria === 'recomendacion'; }).length;
-      var galBadge = (galImgs ? galImgs + ' <i class="fas fa-image"></i> ' : '') + (galVids ? galVids + ' <i class="fas fa-video"></i> ' : '') + (galRecs ? galRecs + ' <i class="fas fa-clipboard-list"></i>' : '');
-      html += '<div class="mt-2"><button class="btn btn-sm btn-outline-info" onclick="abrirGaleriaServicio(\'' + esc(s.idServicio) + '\', \'' + esc(s.tipoServicio) + '\')">';
-      html += '<i class="fas fa-images me-1"></i> Galeria (' + srvGal.length + ')' + (galBadge ? ' <span class="ms-1 small">' + galBadge + '</span>' : '') + '</button></div>';
+      if (srvGal.length > 0) {
+        var galImgs = srvGal.filter(function(g) { return g.tipoMedia === 'imagen'; }).length;
+        var galVids = srvGal.filter(function(g) { return g.tipoMedia === 'video'; }).length;
+        var galRecs = srvGal.filter(function(g) { return g.categoria === 'recomendacion'; }).length;
+        var galBadge = (galImgs ? galImgs + ' <i class="fas fa-image"></i> ' : '') + (galVids ? galVids + ' <i class="fas fa-video"></i> ' : '') + (galRecs ? galRecs + ' <i class="fas fa-clipboard-list"></i>' : '');
+        html += '<br><span class="badge bg-info text-white"><i class="fas fa-images me-1"></i>' + srvGal.length + ' archivo(s) ' + galBadge + '</span>';
+      }
       html += '</div></div>';
     });
   }
@@ -1964,6 +1972,13 @@ function abrirModalServicioCrear() {
   document.getElementById('srvRowIndex').value = '';
   document.getElementById('srvId').value = '';
   document.getElementById('formServicio').reset();
+  // Ocultar tab de galeria (no existe ID aun)
+  document.getElementById('tabGaleriaNav').style.display = 'none';
+  document.getElementById('galeriaGrid').innerHTML = '';
+  document.getElementById('srvGaleriaBadge').style.display = 'none';
+  // Activar tab de datos
+  var datosTab = document.querySelector('#srvTabs a[href="#tabDatosServicio"]');
+  if (datosTab) new bootstrap.Tab(datosTab).show();
   new bootstrap.Modal(document.getElementById('modalServicio')).show();
 }
 
@@ -1981,6 +1996,12 @@ function abrirModalServicioEditar(rowIndex) {
   document.getElementById('srvAnticipoHabilitado').value = srv.anticipoHabilitado || 'NO';
   document.getElementById('srvTipoAnticipo').value = srv.tipoAnticipo || 'FIJO';
   document.getElementById('srvValorAnticipo').value = srv.valorAnticipo || 0;
+  // Mostrar tab de galeria y cargar contenido
+  document.getElementById('tabGaleriaNav').style.display = '';
+  renderGaleriaEnModal(srv.idServicio);
+  // Activar tab de datos por defecto
+  var datosTab = document.querySelector('#srvTabs a[href="#tabDatosServicio"]');
+  if (datosTab) new bootstrap.Tab(datosTab).show();
   new bootstrap.Modal(document.getElementById('modalServicio')).show();
 }
 
@@ -2020,8 +2041,7 @@ function guardarServicio() {
 var catLabels = { antes_despues: 'Antes/Despues', procedimiento: 'Procedimiento', recomendacion: 'Recomendacion', resultado: 'Resultado', otro: 'Otro' };
 var catIcons = { antes_despues: 'fa-image text-primary', procedimiento: 'fa-video text-danger', recomendacion: 'fa-clipboard-list text-success', resultado: 'fa-camera text-info', otro: 'fa-file text-secondary' };
 
-function abrirGaleriaServicio(idServicio, nombreServicio) {
-  document.getElementById('modalGaleriaTitulo').innerHTML = '<i class="fas fa-images me-1"></i> Galeria - ' + nombreServicio;
+function renderGaleriaEnModal(idServicio) {
   var items = galeria.filter(function(g) { return g.idServicio === idServicio; })
     .sort(function(a, b) { return (a.orden || 1) - (b.orden || 1); });
 
@@ -2046,8 +2066,12 @@ function abrirGaleriaServicio(idServicio, nombreServicio) {
     }).join('');
   }
 
+  // Actualizar badge de conteo en tab
+  var badge = document.getElementById('srvGaleriaBadge');
+  if (items.length > 0) { badge.textContent = items.length; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+
   document.getElementById('galIdServicio').value = idServicio;
-  new bootstrap.Modal(document.getElementById('modalGaleria')).show();
 }
 
 function toggleGalFields() {
@@ -2139,19 +2163,11 @@ function eliminarGaleriaItem(rowIndex) {
 function reloadGaleria(idServicio) {
   google.script.run.withSuccessHandler(function(data) {
     galeria = data || [];
-    // Cerrar modal de item
+    // Cerrar sub-modal de item
     var itemModal = bootstrap.Modal.getInstance(document.getElementById('modalGaleriaItem'));
     if (itemModal) itemModal.hide();
-    // Re-abrir galeria del servicio
-    if (idServicio) {
-      var srv = servicios.find(function(s) { return s.idServicio === idServicio; });
-      if (srv) {
-        // Cerrar y re-abrir para refrescar
-        var galModal = bootstrap.Modal.getInstance(document.getElementById('modalGaleria'));
-        if (galModal) galModal.hide();
-        setTimeout(function() { abrirGaleriaServicio(idServicio, srv.tipoServicio); }, 300);
-      }
-    }
+    // Re-renderizar grid en el tab de galeria
+    if (idServicio) renderGaleriaEnModal(idServicio);
     toast('Galeria actualizada.', 'success');
   }).getGaleria();
 }
