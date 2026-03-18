@@ -1115,8 +1115,7 @@ ${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita
 - NUNCA rechaces ni aceptes un horario sin haber llamado primero a 'verificar_disponibilidad'.
 - NUNCA inventes ni supongas horarios. SOLO ofrece lo que 'verificar_disponibilidad' te devuelva.
 - La función hace todo el cálculo: filtra por competencias, verifica bloqueos, cruza agendas y asigna al mejor profesional.
-- Si el cliente pide un profesional específico, pásalo como 'profesional_preferido'.
-- Si NO pide profesional, la función asigna automáticamente al mejor disponible.
+- El parámetro 'profesional_preferido' permite filtrar por profesional. Ver FLUJO DE AGENDAMIENTO abajo para saber CUÁNDO y CÓMO usarlo.
 
 📝 FLUJO DE AGENDAMIENTO:
 ${(() => {
@@ -1128,25 +1127,41 @@ ${(() => {
     });
     const uniqueCount = Object.keys(seen2).length;
     if (uniqueCount > 1) {
-        return `⚠️ NEGOCIO CON MÚLTIPLES PROFESIONALES — SELECCIÓN OBLIGATORIA:
-1. Cuando el cliente pida agendar un servicio, ANTES de buscar horarios pregunta: "¿Tienes alguna estilista preferida?"
-   - Muestra SOLO los profesionales que dominan ese servicio específico (según las especialidades del EQUIPO DE TRABAJO de arriba).
-   - NO muestres profesionales que no tienen ese servicio en sus especialidades.
-   - Ejemplo: "Nuestro equipo para Cejas es: Andrea, Camila y Carolina. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"
-2. Si el cliente elige una → pasa su nombre como 'profesional_preferido' al llamar 'verificar_disponibilidad'
-3. Si el cliente dice "cualquiera" / "me da igual" / "la que esté" → NO pases profesional_preferido (mostrará opciones de todas)
-4. Si el cliente YA mencionó una profesional en la conversación, NO vuelvas a preguntar
-5. Luego sigue el flujo normal: fecha → verificar_disponibilidad → confirmar → agendar_cita`;
+        return `🚫🚫🚫 NEGOCIO CON MÚLTIPLES PROFESIONALES — PASO 1 ES OBLIGATORIO 🚫🚫🚫
+PROHIBIDO llamar 'verificar_disponibilidad' sin antes haber preguntado por la estilista preferida.
+INCLUSO si el cliente da servicio + fecha + hora todo en un solo mensaje, PRIMERO debes preguntar por profesional.
+NO puedes saltarte este paso bajo NINGUNA circunstancia.
+
+FLUJO OBLIGATORIO (seguir EN ORDEN, sin saltar pasos):
+1. 👩‍🎨 PREGUNTAR POR PROFESIONAL (SIEMPRE, sin excepcion):
+   - Responde al cliente confirmando el servicio solicitado
+   - Pregunta: "¿Tienes alguna estilista preferida?"
+   - Muestra SOLO los profesionales que dominan ese servicio (segun especialidades del EQUIPO DE TRABAJO)
+   - NO muestres profesionales que no tienen ese servicio en sus especialidades
+   - Ejemplo: "¡Claro! Para Cejas nuestro equipo es: Andrea, Camila y Carolina. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"
+   - EXCEPCION: Si el cliente YA eligio profesional antes en ESTA conversacion, no vuelvas a preguntar
+2. 📅 VERIFICAR DISPONIBILIDAD (solo DESPUES de que el cliente respondio el paso 1):
+   - Si eligio profesional → pasa como 'profesional_preferido'
+   - Si dijo "cualquiera" / "me da igual" → NO pases profesional_preferido
+   - Llama 'verificar_disponibilidad' con la fecha/hora solicitada
+3. ✅ RESULTADO:
+   - Si DISPONIBLE → presenta resumen al cliente y espera confirmacion
+   - Si NO DISPONIBLE → ofrece las alternativas que devolvio la funcion
+4. 📋 CONFIRMAR Y AGENDAR:
+   - Cliente confirma (si, dale, ok, vale, confirmo, listo, bueno, hagale, claro, perfecto, etc.) → llama 'agendar_cita' OBLIGATORIAMENTE
+   - ⚠️ DEBES ejecutar 'agendar_cita'. Si solo respondes con texto, la cita NO se guarda.
+   - Si no estas seguro si el mensaje es confirmacion, asume que SI lo es y ejecuta 'agendar_cita'.`;
     } else {
-        return `Solo hay 1 profesional en el negocio. NO preguntes por preferencia de profesional, asígnalo automáticamente.
-1. Cliente pide servicio + fecha + hora → llama 'verificar_disponibilidad'`;
+        return `Solo hay 1 profesional en el negocio. NO preguntes por preferencia de profesional, asignalo automaticamente.
+FLUJO:
+1. Cliente pide servicio + fecha + hora → llama 'verificar_disponibilidad'
+2. Si DISPONIBLE → presenta resumen y espera confirmacion
+3. Si NO DISPONIBLE → ofrece alternativas
+4. Cliente confirma (si, dale, ok, vale, confirmo, listo, bueno, hagale, claro, perfecto, etc.) → llama 'agendar_cita' OBLIGATORIAMENTE
+   - ⚠️ DEBES ejecutar 'agendar_cita'. Si solo respondes con texto, la cita NO se guarda.
+   - Si no estas seguro si el mensaje es confirmacion, asume que SI lo es y ejecuta 'agendar_cita'.`;
     }
 })()}
-2. Si la función dice ✅ DISPONIBLE → presenta resumen al cliente y espera confirmación
-3. Si la función dice ❌ NO DISPONIBLE → ofrece las alternativas que devolvió la función
-4. Cliente confirma con CUALQUIER expresión afirmativa (sí, dale, ok, vale, confirmo, listo, bueno, hagale, claro, perfecto, etc.) → llama 'agendar_cita' OBLIGATORIAMENTE con los datos del resumen
-⚠️ REGLA CRÍTICA: En el paso 4, DEBES ejecutar 'agendar_cita'. Si solo respondes con texto sin llamar a la función, la cita NO se guardará en el sistema y el cliente quedará sin cita. NUNCA saltes el paso 1 ni el paso 4.
-⚠️ Si no estás seguro si el mensaje es una confirmación, asume que SÍ lo es y ejecuta 'agendar_cita'.
 
 🗣️ LENGUAJE CON EL CLIENTE:
 - NUNCA uses palabras como "bloqueado", "bloqueo", "restricción" ni "no disponible por bloqueo". El cliente NO debe saber que existen bloqueos internos.
