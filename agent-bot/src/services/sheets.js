@@ -60,7 +60,9 @@ async function loadClientConfig(sheetId) {
             // Ubicacion del negocio
             businessAddress: configRaw['DIRECCION_NEGOCIO'] || '',
             locationLink: configRaw['ENLACE_UBICACION'] || '',
-            // Difusion de promos — ahora se configura POR PROMO en hoja PROMOCIONES
+            // Mensajes CRM
+            reminderMessage: configRaw['MENSAJE_RECORDATORIO'] || '',
+            thankYouMessage: configRaw['MENSAJE_AGRADECIMIENTO'] || '',
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
@@ -299,6 +301,7 @@ async function loadPendingAppointments(sheetId) {
                         fecha: data['FECHA'] || 'N/A',
                         inicio: data['INICIO'] || 'N/A',
                         fin: data['FIN'] || 'N/A',
+                        cliente: data['CLIENTE'] || '',
                         servicio: data['SERVICIO'] || 'N/A',
                         precio: data['PRECIO'] || 'N/A',
                         estado: estado,

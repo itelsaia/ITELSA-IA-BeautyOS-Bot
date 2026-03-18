@@ -2010,10 +2010,109 @@ function handleGetBirthdayClients(ss, payload) {
   return { hoy: hoy, manana: manana };
 }
 
+// ─── CRM Frontend: Wrapper para cambiar estado de cita ───
+
+function updateAgendaStatus(citaId, nuevoEstado) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return handleUpdateAgendaStatus(ss, { id: citaId, nuevoEstado: nuevoEstado });
+}
+
+// ─── Autenticación PIN para CRM ───
+
+function validatePin(pin) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("COLABORADORES");
+  if (!sheet || sheet.getLastRow() <= 1) return { valid: false };
+
+  var data = sheet.getDataRange().getValues();
+  var pinStr = (pin || '').toString().trim();
+
+  for (var i = 1; i < data.length; i++) {
+    var estado = (data[i][5] || '').toString().trim().toUpperCase();
+    if (estado !== 'ACTIVO') continue;
+
+    var sheetPin = (data[i][4] || '').toString().trim();
+    if (sheetPin === pinStr) {
+      return {
+        valid: true,
+        id: (data[i][0] || '').toString(),
+        nombre: (data[i][1] || '').toString(),
+        rol: (data[i][3] || '').toString().toUpperCase(),
+        competencias: (data[i][6] || '').toString()
+      };
+    }
+  }
+
+  return { valid: false };
+}
+
+// ─── Enviar WhatsApp desde CRM (via Bot API) ───
+
+function enviarWhatsAppAgradecimiento(citaId, mensaje) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var configSheet = ss.getSheetByName("CONFIGURACION");
+  var agendaSheet = ss.getSheetByName("AGENDA");
+
+  if (!configSheet || !agendaSheet) throw new Error("Hojas requeridas no encontradas.");
+
+  // Leer config necesaria
+  var configData = configSheet.getDataRange().getValues();
+  var cfg = {};
+  for (var i = 1; i < configData.length; i++) {
+    var key = (configData[i][0] || '').toString().trim();
+    if (key) cfg[key] = (configData[i][1] || '').toString().trim();
+  }
+
+  var botUrl = cfg['URL_BOT_API'];
+  var apiKey = cfg['API_KEY_BOT'];
+  var instanceName = cfg['INSTANCE_NAME'];
+
+  if (!botUrl || !apiKey || !instanceName) {
+    throw new Error("Configuración incompleta: URL_BOT_API, API_KEY_BOT o INSTANCE_NAME faltante.");
+  }
+
+  // Buscar celular del cliente en la cita
+  var agendaData = agendaSheet.getDataRange().getValues();
+  var celularCliente = null;
+  for (var j = 1; j < agendaData.length; j++) {
+    if ((agendaData[j][0] || '').toString().trim() === citaId.toString().trim()) {
+      celularCliente = (agendaData[j][6] || '').toString().trim();
+      break;
+    }
+  }
+
+  if (!celularCliente) throw new Error("No se encontró la cita o el celular del cliente para ID: " + citaId);
+
+  // Llamar al Bot API
+  var url = botUrl.replace(/\/$/, '') + '/api/send-message';
+  var payload = {
+    instanceName: instanceName,
+    number: celularCliente,
+    text: mensaje,
+    apiKey: apiKey
+  };
+
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+
+  var response = UrlFetchApp.fetch(url, options);
+  var code = response.getResponseCode();
+
+  if (code >= 200 && code < 300) {
+    return { status: 'ok', celular: celularCliente };
+  } else {
+    throw new Error("Error enviando WhatsApp (HTTP " + code + "): " + response.getContentText());
+  }
+}
+
 function responseJSON(code, message, data = null) {
   const out = { code: code, message: message };
   if (data) out.data = data;
-  
+
   return ContentService.createTextOutput(JSON.stringify(out))
     .setMimeType(ContentService.MimeType.JSON);
 }

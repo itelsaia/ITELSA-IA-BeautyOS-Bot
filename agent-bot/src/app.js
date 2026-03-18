@@ -113,6 +113,32 @@ const main = async () => {
         }
     });
 
+    // ─── API: Enviar mensaje WhatsApp desde CRM ───
+    app.post('/api/send-message', async (req, res) => {
+        try {
+            const { instanceName, number, text, apiKey } = req.body;
+
+            if (!apiKey || apiKey !== process.env.BOT_API_KEY) {
+                return res.status(401).json({ error: 'API key invalida' });
+            }
+            if (!instanceName || !number || !text) {
+                return res.status(400).json({ error: 'Faltan parametros: instanceName, number, text' });
+            }
+
+            // Verificar que la instancia pertenece a un tenant activo
+            const activeTenants = getActiveTenantIds();
+            if (!activeTenants.includes(instanceName)) {
+                return res.status(404).json({ error: 'Instancia no encontrada: ' + instanceName });
+            }
+
+            await evolutionClient.sendText(instanceName, number, text);
+            res.json({ status: 'ok' });
+        } catch (err) {
+            console.error('[api] Error en /api/send-message:', err.message);
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // 404
     app.use((req, res) => {
         res.status(404).json({ error: 'Not found' });

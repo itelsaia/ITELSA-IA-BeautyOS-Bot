@@ -331,6 +331,13 @@ async function syncTenantData(tenantId) {
             console.error(`[${tenantId}] Error en cumpleanos:`, bdayError.message);
         }
 
+        // ── Recordatorios de citas (1 hora antes) ──
+        try {
+            await checkAndSendReminders(tenant, tenantId);
+        } catch (reminderError) {
+            console.error(`[${tenantId}] Error en recordatorios:`, reminderError.message);
+        }
+
         // ── Difusion de promociones del dia ──
         try {
             await sendPromoBroadcasts(tenant, tenantId);
@@ -433,6 +440,72 @@ async function sendBirthdayMessage(tenant, cliente, timing, cumplePromo, sendInd
  * 9. Max configurable por promo (default 20, tope absoluto 50)
  * 10. Auto-stop si 3 errores consecutivos por promo
  */
+
+// ─── Recordatorios de citas 1 hora antes ───
+
+async function checkAndSendReminders(tenant, tenantId) {
+    if (!evolutionClient) return;
+
+    const configObj = tenant.config || {};
+    const template = configObj.reminderMessage || '';
+    if (!template) return; // Sin template configurado, no enviar
+
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const todayDD = String(now.getDate()).padStart(2, '0');
+    const todayMM = String(now.getMonth() + 1).padStart(2, '0');
+    const todayYYYY = now.getFullYear();
+    const todayStr = `${todayDD}/${todayMM}/${todayYYYY}`;
+    const todayKey = `${todayYYYY}-${todayMM}-${todayDD}`;
+
+    // Reset diario del tracking
+    if (!tenant.remindersSent || tenant.remindersSent.date !== todayKey) {
+        tenant.remindersSent = { date: todayKey, ids: new Set() };
+    }
+
+    const pendingAppts = tenant.pendingAppointments || {};
+    const businessName = configObj.businessName || 'nuestro salon';
+    let enviados = 0;
+
+    for (const celular of Object.keys(pendingAppts)) {
+        const citas = pendingAppts[celular];
+        if (!Array.isArray(citas)) continue;
+
+        for (const cita of citas) {
+            if (tenant.remindersSent.ids.has(cita.id)) continue;
+            if (cita.fecha !== todayStr) continue;
+
+            // Calcular minutos hasta la cita
+            const [horaH, horaM] = (cita.inicio || '00:00').split(':').map(Number);
+            const citaMin = horaH * 60 + horaM;
+            const nowMin = now.getHours() * 60 + now.getMinutes();
+            const diffMin = citaMin - nowMin;
+
+            // Ventana: entre 55 y 65 minutos antes (captura ~1 hora con sync cada 5 min)
+            if (diffMin < 55 || diffMin > 65) continue;
+
+            const mensaje = template
+                .replace(/\{cliente\}/g, cita.cliente || '')
+                .replace(/\{servicio\}/g, cita.servicio || '')
+                .replace(/\{hora\}/g, cita.inicio || '')
+                .replace(/\{profesional\}/g, cita.profesional || '')
+                .replace(/\{negocio\}/g, businessName);
+
+            try {
+                await evolutionClient.sendText(tenant.instanceName, celular, mensaje);
+                tenant.remindersSent.ids.add(cita.id);
+                enviados++;
+                console.log(`[${tenantId}] 🔔 Recordatorio enviado: ${cita.id} → ${celular} (${cita.servicio} a las ${cita.inicio})`);
+            } catch (err) {
+                console.error(`[${tenantId}] Error enviando recordatorio ${cita.id}:`, err.message);
+            }
+        }
+    }
+
+    if (enviados > 0) {
+        console.log(`[${tenantId}] 🔔 ${enviados} recordatorio(s) enviado(s)`);
+    }
+}
+
 async function sendPromoBroadcasts(tenant, tenantId) {
     if (!evolutionClient) return;
 

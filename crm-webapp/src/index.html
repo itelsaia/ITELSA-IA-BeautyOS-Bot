@@ -197,6 +197,53 @@
       .content-area { padding:16px; }
       .stat-card { padding:14px; }
     }
+
+    /* ── Login Overlay ── */
+    #loginOverlay {
+      position:fixed; inset:0; background:linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      display:flex; align-items:center; justify-content:center; flex-direction:column; z-index:10001;
+    }
+    .login-card {
+      background:#fff; border-radius:20px; padding:40px 32px; text-align:center;
+      box-shadow:0 20px 60px rgba(0,0,0,.3); max-width:340px; width:90%;
+    }
+    .login-card .login-logo { width:64px; height:64px; border-radius:16px; object-fit:cover; margin-bottom:12px; display:none; }
+    .login-card .login-icon { width:64px; height:64px; border-radius:16px; display:flex; align-items:center; justify-content:center; font-size:1.6rem; color:#fff; margin:0 auto 12px; background:var(--brand); }
+    .login-card h2 { font-size:1.2rem; font-weight:700; color:#1a1a2e; margin:0 0 4px; }
+    .login-card p { font-size:.82rem; color:#888; margin:0 0 24px; }
+    .pin-dots { display:flex; justify-content:center; gap:12px; margin-bottom:24px; }
+    .pin-dots .dot { width:16px; height:16px; border-radius:50%; border:2px solid #ddd; transition:all .2s; }
+    .pin-dots .dot.filled { background:var(--brand); border-color:var(--brand); }
+    .pin-dots .dot.error { border-color:#dc3545; background:#dc3545; }
+    .numpad { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; max-width:240px; margin:0 auto; }
+    .numpad button {
+      width:64px; height:64px; border-radius:50%; border:1px solid #e5e7eb; background:#fafbfc;
+      font-size:1.3rem; font-weight:600; color:#1a1a2e; cursor:pointer; transition:all .15s;
+      display:flex; align-items:center; justify-content:center; margin:0 auto;
+    }
+    .numpad button:hover { background:#f0f0f0; }
+    .numpad button:active { background:var(--brand-light); transform:scale(.95); }
+    .numpad .num-action { background:transparent; border:none; font-size:1rem; color:#888; }
+    .numpad .num-action:hover { color:var(--brand); }
+    .login-error { color:#dc3545; font-size:.82rem; min-height:20px; margin-top:12px; }
+    @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-8px)} 40%,80%{transform:translateX(8px)} }
+    .shake { animation:shake .4s ease; }
+
+    /* ── Mi Agenda Cards ── */
+    .agenda-card {
+      background:#fff; border-radius:14px; padding:16px 18px; margin-bottom:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,.06); border-left:4px solid var(--brand);
+      transition:transform .15s, box-shadow .15s;
+    }
+    .agenda-card:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.1); }
+    .agenda-card .ac-time { font-size:1rem; font-weight:700; color:#1a1a2e; }
+    .agenda-card .ac-client { font-size:.95rem; font-weight:600; color:#333; margin-top:4px; }
+    .agenda-card .ac-detail { font-size:.85rem; color:#666; margin-top:2px; }
+    .agenda-card .ac-actions { display:flex; gap:8px; margin-top:12px; }
+    .agenda-card .ac-actions .btn { font-size:.82rem; padding:6px 14px; border-radius:8px; font-weight:600; }
+    .agenda-card.ac-ejecutado { border-left-color:#155724; opacity:.7; }
+    .agenda-card.ac-rechazado { border-left-color:#721C24; opacity:.6; }
+    .agenda-card.ac-cancelada { border-left-color:#495057; opacity:.5; }
   </style>
 </head>
 <body>
@@ -210,8 +257,30 @@
 <!-- Toasts -->
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- Login Overlay -->
+<div id="loginOverlay" style="display:none;">
+  <div class="login-card">
+    <div class="login-icon" id="loginIconFallback"><i class="fas fa-spa"></i></div>
+    <img class="login-logo" id="loginLogo" src="" alt="" onload="this.style.display='block';document.getElementById('loginIconFallback').style.display='none';" onerror="this.style.display='none';">
+    <h2 id="loginNegocio">BeautyOS</h2>
+    <p>Ingresa tu PIN de acceso</p>
+    <div class="pin-dots" id="pinDots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    <div class="numpad" id="numpad">
+      <button onclick="pinInput(1)">1</button><button onclick="pinInput(2)">2</button><button onclick="pinInput(3)">3</button>
+      <button onclick="pinInput(4)">4</button><button onclick="pinInput(5)">5</button><button onclick="pinInput(6)">6</button>
+      <button onclick="pinInput(7)">7</button><button onclick="pinInput(8)">8</button><button onclick="pinInput(9)">9</button>
+      <button class="num-action" onclick="pinClear()"><i class="fas fa-backspace"></i></button>
+      <button onclick="pinInput(0)">0</button>
+      <button class="num-action" onclick="pinSubmit()"><i class="fas fa-sign-in-alt"></i></button>
+    </div>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
 <!-- App Wrapper -->
-<div class="app-wrapper">
+<div class="app-wrapper" id="appWrapper" style="display:none;">
 
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
@@ -224,24 +293,29 @@
       </div>
     </div>
 
-    <nav class="sidebar-nav">
-      <div class="nav-section">Principal</div>
-      <a href="#" class="active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
-      <a href="#" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
-      <a href="#" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
-      <a href="#" data-page="equipo"><i class="fas fa-user-friends"></i> Equipo</a>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <div class="nav-section nav-admin">Principal</div>
+      <a href="#" class="active nav-admin" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
+      <a href="#" data-page="miagenda"><i class="fas fa-calendar-check"></i> Mi Agenda</a>
+      <a href="#" class="nav-admin" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
+      <a href="#" class="nav-admin" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
+      <a href="#" class="nav-admin" data-page="equipo"><i class="fas fa-user-friends"></i> Equipo</a>
 
-      <div class="nav-section">Negocio</div>
-      <a href="#" data-page="servicios"><i class="fas fa-concierge-bell"></i> Servicios</a>
-      <a href="#" data-page="promociones"><i class="fas fa-tags"></i> Promociones</a>
-      <a href="#" data-page="horarios"><i class="fas fa-clock"></i> Horarios</a>
-      <a href="#" data-page="analisis"><i class="fas fa-chart-bar"></i> Análisis</a>
+      <div class="nav-section nav-admin">Negocio</div>
+      <a href="#" class="nav-admin" data-page="servicios"><i class="fas fa-concierge-bell"></i> Servicios</a>
+      <a href="#" class="nav-admin" data-page="promociones"><i class="fas fa-tags"></i> Promociones</a>
+      <a href="#" class="nav-admin" data-page="horarios"><i class="fas fa-clock"></i> Horarios</a>
+      <a href="#" class="nav-admin" data-page="analisis"><i class="fas fa-chart-bar"></i> Análisis</a>
 
-      <div class="nav-section">Sistema</div>
-      <a href="#" data-page="config"><i class="fas fa-cog"></i> Configuracion</a>
+      <div class="nav-section nav-admin">Sistema</div>
+      <a href="#" class="nav-admin" data-page="config"><i class="fas fa-cog"></i> Configuracion</a>
     </nav>
 
-    <div class="sidebar-footer">Powered by <strong>ITELSA BeautyOS</strong></div>
+    <div class="sidebar-footer">
+      <div id="sidebarUser" style="margin-bottom:8px; font-size:.78rem; color:#a0a3b1;"></div>
+      <a href="#" onclick="cerrarSesion(); return false;" style="color:#e57373; text-decoration:none; font-size:.78rem;"><i class="fas fa-sign-out-alt me-1"></i> Cerrar Sesión</a>
+      <div style="margin-top:6px;">Powered by <strong>ITELSA BeautyOS</strong></div>
+    </div>
   </aside>
 
   <!-- Overlay -->
@@ -611,6 +685,35 @@
   </div>
 </div>
 
+<!-- MODAL: Cerrar Cita (Agradecimiento WhatsApp) -->
+<div class="modal fade" id="modalCerrarCita" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#155724;color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-check-circle me-1"></i> Cerrar Cita</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cerrarCitaId">
+        <div id="cerrarCitaResumen" class="mb-3 p-3" style="background:#f8f9fa; border-radius:8px;"></div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Mensaje de agradecimiento</label>
+          <textarea class="form-control" id="cerrarCitaMensaje" rows="4"></textarea>
+          <small class="text-muted">Este mensaje se enviara por WhatsApp al cliente.</small>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="cerrarCitaEnviarWA" checked>
+          <label class="form-check-label" for="cerrarCitaEnviarWA">Enviar mensaje WhatsApp al cliente</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success btn-sm" onclick="confirmarCerrarCita()"><i class="fas fa-check me-1"></i> Cerrar Cita</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ── Fix: Bootstrap 5 stacked modals ──
@@ -638,6 +741,8 @@ var analyticsData = null;
 var analyticsCharts = {};
 var currentPage = 'dashboard';
 var pendingLoads = 0;
+var currentPin = '';
+var userSession = null; // { nombre, rol, id, competencias }
 
 // =============================================
 // Inicializacion
@@ -746,9 +851,21 @@ function onLoadErr(err) { console.error('Error carga:', err); checkLoaded(); }
 function checkLoaded() {
   pendingLoads--;
   if (pendingLoads <= 0) {
-    navigateTo('dashboard');
     document.getElementById('loadingOverlay').style.display = 'none';
-    iniciarAutoRefresh();
+
+    // Restaurar sesion si existe
+    var saved = sessionStorage.getItem('beautyosSession');
+    if (saved) {
+      try {
+        userSession = JSON.parse(saved);
+        iniciarApp();
+      } catch (e) {
+        sessionStorage.removeItem('beautyosSession');
+        mostrarLogin();
+      }
+    } else {
+      mostrarLogin();
+    }
   }
 }
 
@@ -779,6 +896,8 @@ function iniciarAutoRefresh() {
         // Actualizar vista actual sin recargar toda la pagina
         if (currentPage === 'agenda') {
           updateAgendaView();
+        } else if (currentPage === 'miagenda') {
+          updateMiAgendaCards();
         } else if (currentPage === 'dashboard') {
           navigateTo('dashboard');
         }
@@ -1053,16 +1172,119 @@ function renderTablaProfesionales(byProf) {
 // =============================================
 // Navegacion
 // =============================================
+// =============================================
+// PIN Login
+// =============================================
+function pinInput(num) {
+  if (currentPin.length >= 4) return;
+  currentPin += num.toString();
+  updatePinDots();
+  if (currentPin.length === 4) pinSubmit();
+}
+
+function pinClear() {
+  if (currentPin.length > 0) {
+    currentPin = currentPin.slice(0, -1);
+    updatePinDots();
+  }
+}
+
+function updatePinDots() {
+  var dots = document.querySelectorAll('#pinDots .dot');
+  dots.forEach(function(d, i) {
+    d.classList.toggle('filled', i < currentPin.length);
+    d.classList.remove('error');
+  });
+  document.getElementById('loginError').textContent = '';
+}
+
+function pinSubmit() {
+  if (currentPin.length < 4) return;
+  var dots = document.querySelectorAll('#pinDots .dot');
+  var numpad = document.getElementById('numpad');
+  numpad.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      numpad.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+      if (result && result.valid) {
+        userSession = { nombre: result.nombre, rol: result.rol, id: result.id, competencias: result.competencias || '' };
+        sessionStorage.setItem('beautyosSession', JSON.stringify(userSession));
+        iniciarApp();
+      } else {
+        dots.forEach(function(d) { d.classList.add('error'); });
+        document.getElementById('pinDots').classList.add('shake');
+        setTimeout(function() { document.getElementById('pinDots').classList.remove('shake'); }, 400);
+        document.getElementById('loginError').textContent = 'PIN incorrecto';
+        currentPin = '';
+        setTimeout(function() { dots.forEach(function(d) { d.classList.remove('error', 'filled'); }); }, 1000);
+      }
+    })
+    .withFailureHandler(function(err) {
+      numpad.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+      document.getElementById('loginError').textContent = 'Error de conexion';
+      currentPin = '';
+      dots.forEach(function(d) { d.classList.remove('filled'); });
+    })
+    .validatePin(currentPin);
+}
+
+function mostrarLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('appWrapper').style.display = 'none';
+  currentPin = '';
+  updatePinDots();
+  // Aplicar branding al login
+  var f = config.flat;
+  if (f.NOMBRE_NEGOCIO) document.getElementById('loginNegocio').textContent = f.NOMBRE_NEGOCIO;
+  if (f.ENLACE_LOGO) {
+    var url = f.ENLACE_LOGO;
+    var m = url.match(/\/file\/d\/([^\/]+)/);
+    if (m) url = 'https://lh3.googleusercontent.com/d/' + m[1];
+    document.getElementById('loginLogo').src = url;
+  }
+}
+
+function iniciarApp() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appWrapper').style.display = '';
+  aplicarRol();
+  var startPage = (userSession.rol === 'ADMIN') ? 'dashboard' : 'miagenda';
+  navigateTo(startPage);
+  iniciarAutoRefresh();
+}
+
+function aplicarRol() {
+  var isAdmin = userSession.rol === 'ADMIN';
+  // Mostrar/ocultar items del sidebar
+  document.querySelectorAll('.nav-admin').forEach(function(el) {
+    el.style.display = isAdmin ? '' : 'none';
+  });
+  document.getElementById('sidebarUser').textContent = userSession.nombre + ' (' + userSession.rol + ')';
+}
+
+function cerrarSesion() {
+  sessionStorage.removeItem('beautyosSession');
+  userSession = null;
+  mostrarLogin();
+}
+
+// =============================================
+// Navegacion
+// =============================================
 function navigateTo(page) {
+  // Proteger rutas ADMIN
+  var adminPages = ['dashboard', 'agenda', 'clientes', 'equipo', 'servicios', 'promociones', 'horarios', 'analisis', 'config'];
+  if (userSession && userSession.rol !== 'ADMIN' && adminPages.indexOf(page) !== -1) {
+    page = 'miagenda';
+  }
+
   currentPage = page;
-  // Update active nav
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
     a.classList.toggle('active', a.getAttribute('data-page') === page);
   });
-  // Update title
-  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', equipo:'Equipo', servicios:'Servicios', promociones:'Promociones', horarios:'Horarios', analisis:'Análisis', config:'Configuracion' };
+  var titles = { dashboard:'Dashboard', agenda:'Agenda', clientes:'Clientes', equipo:'Equipo', servicios:'Servicios', promociones:'Promociones', horarios:'Horarios', analisis:'Análisis', config:'Configuracion', miagenda:'Mi Agenda' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
-  // Render
   var area = document.getElementById('contentArea');
   switch(page) {
     case 'dashboard': area.innerHTML = renderDashboard(); break;
@@ -1074,6 +1296,7 @@ function navigateTo(page) {
     case 'horarios': area.innerHTML = renderHorarios(); break;
     case 'analisis': area.innerHTML = renderAnalisis(); loadAnalyticsCharts(); break;
     case 'config': area.innerHTML = renderConfig(); break;
+    case 'miagenda': area.innerHTML = renderMiAgenda(); break;
   }
 }
 
@@ -1189,7 +1412,7 @@ function renderAgenda() {
   html += '</div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table" id="tablaAgenda">';
-  html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th><th>Promo</th></tr></thead>';
+  html += '<thead><tr><th>ID</th><th>Fecha</th><th>Dia</th><th>Hora</th><th>Cliente</th><th>Servicio</th><th>Precio</th><th>Profesional</th><th>Estado</th><th>Promo</th><th>Acciones</th></tr></thead>';
   html += '<tbody id="tbodyAgenda">';
   html += renderAgendaRows(agenda);
   html += '</tbody></table></div></div>';
@@ -1197,12 +1420,17 @@ function renderAgenda() {
 }
 
 function renderAgendaRows(data) {
-  if (data.length === 0) return '<tr><td colspan="10" class="text-center text-muted py-4"><i class="fas fa-calendar fa-2x d-block mb-2"></i>No hay citas.</td></tr>';
+  if (data.length === 0) return '<tr><td colspan="11" class="text-center text-muted py-4"><i class="fas fa-calendar fa-2x d-block mb-2"></i>No hay citas.</td></tr>';
   return data.map(function(a) {
     var promoBadge = '';
     if (a.promo === 'SI') {
       var promoLabel = a.tipoPromo === 'CUMPLEANOS' ? '🎂 Cumple' : (a.tipoPromo || 'Promo');
       promoBadge = '<span class="badge bg-warning text-dark">' + esc(promoLabel) + '</span>';
+    }
+    var acciones = '';
+    if (a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO') {
+      acciones = '<button class="btn btn-success btn-sm btn-sm-icon" title="Cerrar cita" onclick="abrirCerrarCita(\'' + esc(a.id) + '\')"><i class="fas fa-check"></i></button>';
+      acciones += ' <button class="btn btn-outline-danger btn-sm btn-sm-icon" title="No asistio" onclick="marcarNoAsistio(\'' + esc(a.id) + '\')"><i class="fas fa-user-slash"></i></button>';
     }
     return '<tr><td><small class="text-muted">' + esc(a.id) + '</small></td>' +
       '<td>' + esc(a.fecha) + '</td><td>' + esc(a.tipoDia) + '</td>' +
@@ -1210,8 +1438,199 @@ function renderAgendaRows(data) {
       '<td>' + esc(a.cliente) + '</td><td>' + esc(a.servicio) + '</td>' +
       '<td>' + formatMoney(a.precio) + '</td><td>' + esc(a.profesional) + '</td>' +
       '<td>' + badgeEstadoCita(a.estado) + '</td>' +
-      '<td>' + promoBadge + '</td></tr>';
+      '<td>' + promoBadge + '</td><td>' + acciones + '</td></tr>';
   }).join('');
+}
+
+// =============================================
+// RENDER: Mi Agenda (vista Staff/ADMIN)
+// =============================================
+function renderMiAgenda() {
+  var isAdmin = userSession && userSession.rol === 'ADMIN';
+  var nombreFiltro = isAdmin ? '' : (userSession ? userSession.nombre : '');
+
+  // Fecha selector (default: hoy Colombia)
+  var hoy = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  var hoyStr = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear();
+  var hoyISO = hoy.getFullYear() + '-' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '-' + ('0' + hoy.getDate()).slice(-2);
+
+  var html = '<div style="margin-bottom:16px;">';
+  html += '<h5 style="font-weight:700; color:#1a1a2e; margin:0 0 4px;">Hola, ' + esc(userSession ? userSession.nombre : '') + '</h5>';
+  html += '<small class="text-muted">' + esc(hoyStr) + '</small>';
+  html += '</div>';
+
+  // Filtros
+  html += '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">';
+  html += '<input type="date" class="form-control" style="width:auto;" id="miAgendaFecha" value="' + hoyISO + '" onchange="updateMiAgendaCards()">';
+  if (isAdmin) {
+    html += '<select class="form-select" style="width:auto;" id="miAgendaProf" onchange="updateMiAgendaCards()">';
+    html += '<option value="">Todos</option>';
+    var profs = [];
+    colaboradores.forEach(function(c) { if (c.estado === 'ACTIVO' && profs.indexOf(c.nombre) === -1) profs.push(c.nombre); });
+    profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
+    html += '</select>';
+  }
+  html += '</div>';
+
+  html += '<div id="miAgendaCards">';
+  html += renderMiAgendaCards(hoyStr, nombreFiltro);
+  html += '</div>';
+  return html;
+}
+
+function renderMiAgendaCards(fechaStr, profFiltro) {
+  var filtered = agenda.filter(function(a) {
+    if (a.fecha !== fechaStr) return false;
+    if (profFiltro && a.profesional !== profFiltro) return false;
+    return true;
+  });
+
+  // Ordenar por hora
+  filtered.sort(function(a, b) { return (a.inicio || '').localeCompare(b.inicio || ''); });
+
+  if (filtered.length === 0) {
+    return '<div class="empty-state"><i class="fas fa-calendar-check"></i><p>No hay citas para esta fecha.</p></div>';
+  }
+
+  var pendientes = filtered.filter(function(a) { return a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO'; }).length;
+  var html = '<div class="mb-3"><span class="badge bg-warning text-dark" style="font-size:.82rem;">' + pendientes + ' pendiente(s)</span> <span class="badge bg-light text-dark" style="font-size:.82rem;">' + filtered.length + ' total</span></div>';
+
+  filtered.forEach(function(a) {
+    var extraClass = '';
+    if (a.estado === 'EJECUTADO') extraClass = ' ac-ejecutado';
+    else if (a.estado === 'RECHAZADO') extraClass = ' ac-rechazado';
+    else if (a.estado === 'CANCELADA') extraClass = ' ac-cancelada';
+
+    html += '<div class="agenda-card' + extraClass + '">';
+    html += '<div class="d-flex justify-content-between align-items-start">';
+    html += '<div class="ac-time">' + esc(a.inicio) + ' - ' + esc(a.fin) + '</div>';
+    html += badgeEstadoCita(a.estado);
+    html += '</div>';
+    html += '<div class="ac-client">' + esc(a.cliente) + '</div>';
+    html += '<div class="ac-detail">' + esc(a.servicio) + ' &bull; ' + formatMoney(a.precio);
+    if (a.profesional) html += ' &bull; ' + esc(a.profesional);
+    html += '</div>';
+
+    if (a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO') {
+      html += '<div class="ac-actions">';
+      html += '<button class="btn btn-success" onclick="abrirCerrarCita(\'' + esc(a.id) + '\')"><i class="fas fa-check me-1"></i>Cerrar</button>';
+      html += '<button class="btn btn-outline-danger" onclick="marcarNoAsistio(\'' + esc(a.id) + '\')"><i class="fas fa-user-slash me-1"></i>No asistio</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+function updateMiAgendaCards() {
+  var fechaInput = document.getElementById('miAgendaFecha');
+  var profSelect = document.getElementById('miAgendaProf');
+  if (!fechaInput) return;
+
+  // Convertir YYYY-MM-DD a DD/MM/YYYY
+  var parts = fechaInput.value.split('-');
+  var fechaStr = parts[2] + '/' + parts[1] + '/' + parts[0];
+
+  var profFiltro = '';
+  if (profSelect) profFiltro = profSelect.value;
+  else if (userSession && userSession.rol !== 'ADMIN') profFiltro = userSession.nombre;
+
+  var container = document.getElementById('miAgendaCards');
+  if (container) container.innerHTML = renderMiAgendaCards(fechaStr, profFiltro);
+}
+
+// =============================================
+// Cerrar Cita + WhatsApp Agradecimiento
+// =============================================
+function abrirCerrarCita(citaId) {
+  var cita = agenda.find(function(a) { return a.id === citaId; });
+  if (!cita) { toast('Cita no encontrada', 'danger'); return; }
+
+  document.getElementById('cerrarCitaId').value = citaId;
+
+  var resumen = '<div><strong>' + esc(cita.cliente) + '</strong></div>';
+  resumen += '<div class="text-muted" style="font-size:.85rem;">' + esc(cita.servicio) + ' &bull; ' + formatMoney(cita.precio) + '</div>';
+  resumen += '<div class="text-muted" style="font-size:.85rem;">' + esc(cita.fecha) + ' &bull; ' + esc(cita.inicio) + ' - ' + esc(cita.fin) + '</div>';
+  if (cita.profesional) resumen += '<div class="text-muted" style="font-size:.85rem;">Profesional: ' + esc(cita.profesional) + '</div>';
+  document.getElementById('cerrarCitaResumen').innerHTML = resumen;
+
+  // Template de agradecimiento
+  var template = (config.flat.MENSAJE_AGRADECIMIENTO || 'Gracias {cliente}! Fue un placer atenderte en {negocio}. Te esperamos pronto!');
+  var mensaje = template
+    .replace(/\{cliente\}/g, cita.cliente || '')
+    .replace(/\{servicio\}/g, cita.servicio || '')
+    .replace(/\{negocio\}/g, config.flat.NOMBRE_NEGOCIO || 'nuestro salon');
+  document.getElementById('cerrarCitaMensaje').value = mensaje;
+  document.getElementById('cerrarCitaEnviarWA').checked = true;
+
+  new bootstrap.Modal(document.getElementById('modalCerrarCita')).show();
+}
+
+function confirmarCerrarCita() {
+  var citaId = document.getElementById('cerrarCitaId').value;
+  var enviarWA = document.getElementById('cerrarCitaEnviarWA').checked;
+  var mensaje = document.getElementById('cerrarCitaMensaje').value.trim();
+  var btn = document.querySelector('#modalCerrarCita .btn-success');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Cerrando...';
+
+  // 1. Cambiar estado a EJECUTADO
+  google.script.run
+    .withSuccessHandler(function() {
+      // 2. Enviar WhatsApp si aplica
+      if (enviarWA && mensaje) {
+        google.script.run
+          .withSuccessHandler(function() {
+            finalizarCerrarCita(btn, citaId, true);
+          })
+          .withFailureHandler(function(err) {
+            console.error('Error WhatsApp:', err);
+            finalizarCerrarCita(btn, citaId, false);
+          })
+          .enviarWhatsAppAgradecimiento(citaId, mensaje);
+      } else {
+        finalizarCerrarCita(btn, citaId, null);
+      }
+    })
+    .withFailureHandler(function(err) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-1"></i> Cerrar Cita';
+      toast('Error cerrando cita: ' + err.message, 'danger');
+    })
+    .updateAgendaStatus(citaId, 'EJECUTADO');
+}
+
+function finalizarCerrarCita(btn, citaId, whatsappOk) {
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-check me-1"></i> Cerrar Cita';
+  bootstrap.Modal.getInstance(document.getElementById('modalCerrarCita')).hide();
+
+  // Actualizar agenda local
+  agenda.forEach(function(a) { if (a.id === citaId) a.estado = 'EJECUTADO'; });
+  updateBadgePendientes();
+
+  if (currentPage === 'miagenda') updateMiAgendaCards();
+  else if (currentPage === 'agenda') updateAgendaView();
+  else if (currentPage === 'dashboard') navigateTo('dashboard');
+
+  if (whatsappOk === true) toast('Cita cerrada y WhatsApp enviado', 'success');
+  else if (whatsappOk === false) toast('Cita cerrada. Error enviando WhatsApp.', 'warning');
+  else toast('Cita cerrada exitosamente', 'success');
+}
+
+function marcarNoAsistio(citaId) {
+  if (!confirm('Marcar como "No asistio" la cita ' + citaId + '?')) return;
+  google.script.run
+    .withSuccessHandler(function() {
+      agenda.forEach(function(a) { if (a.id === citaId) a.estado = 'RECHAZADO'; });
+      updateBadgePendientes();
+      if (currentPage === 'miagenda') updateMiAgendaCards();
+      else if (currentPage === 'agenda') updateAgendaView();
+      else if (currentPage === 'dashboard') navigateTo('dashboard');
+      toast('Cita marcada como no asistio', 'info');
+    })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+    .updateAgendaStatus(citaId, 'RECHAZADO');
 }
 
 // =============================================
