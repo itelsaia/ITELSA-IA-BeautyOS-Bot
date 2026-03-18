@@ -725,7 +725,7 @@ async function generateAIResponse(
         if (userPendingAppointments.length > 0) {
             pendingAppointmentsText = `⚠️ ATENCIÓN: El cliente TIENE las siguientes citas PENDIENTES:\n` +
                 userPendingAppointments.map(c => {
-                    const promoTag = c.promo === 'SI' && c.tipoPromo ? ` | 🏷️ PROMO: ${c.tipoPromo}` : '';
+                    const promoTag = c.tipoPromo ? ` | 🏷️ PROMO: ${c.tipoPromo}` : '';
                     return `  - ID: ${c.id} | Fecha: ${c.fecha} | Hora: ${c.inicio}-${c.fin} | Profesional: ${c.profesional || 'Por asignar'} | Servicio: ${c.servicio} | Precio: $${c.precio}${promoTag} | Estado pago: ${c.estadoPago || 'N/A'}`;
                 }).join('\n') +
                 `\n→ Si el usuario pide cambiar o modificar su cita, usa la herramienta 'reagendar_cita' con el ID_CITA arriba indicado.\n→ Tener citas pendientes NO impide agendar nuevas citas. El cliente puede tener múltiples citas.` +
@@ -1292,7 +1292,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                     // ── Validar pérdida de promo DÍA FIJO (igual que reagendar_cita) ──
                     let guardaPromoBlocked = false;
                     const guardaOldAppt = userPendingAppointments.find(c => c.id === session.reagendandoCitaId);
-                    if (guardaOldAppt && guardaOldAppt.promo === 'SI' && guardaOldAppt.tipoPromo && !session.promoLossAccepted) {
+                    if (guardaOldAppt && guardaOldAppt.tipoPromo && !session.promoLossAccepted) {
                         const guardaPromoOrig = promotionsCatalog.find(p =>
                             normDay(p.nombre) === normDay(guardaOldAppt.tipoPromo)
                         );
@@ -1450,7 +1450,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 // ── GUARDRAIL: Validar pérdida de promo DÍA FIJO ──
                 let promoBlocked = false;
                 const oldAppt = userPendingAppointments.find(c => c.id === functionArgs.id_cita_antigua);
-                if (oldAppt && oldAppt.promo === 'SI' && oldAppt.tipoPromo && !(session && session.promoLossAccepted)) {
+                if (oldAppt && oldAppt.tipoPromo && !(session && session.promoLossAccepted)) {
                     const promoOriginal = promotionsCatalog.find(p =>
                         normDay(p.nombre) === normDay(oldAppt.tipoPromo)
                     );

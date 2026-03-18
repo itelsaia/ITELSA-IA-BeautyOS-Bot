@@ -736,7 +736,7 @@ router.post('/evolution', async (req, res) => {
             const citaReag = userApptsPromo.find(c => c.id === session.reagendandoCitaId);
             console.log(`[${instanceName}] 🔍 PROMO-TRIGGER: citaId=${session.reagendandoCitaId}, appts=${userApptsPromo.length}, found=${!!citaReag}${citaReag ? `, promo="${citaReag.promo}", tipoPromo="${citaReag.tipoPromo}"` : ''}`);
 
-            if (citaReag && citaReag.promo === 'SI' && citaReag.tipoPromo) {
+            if (citaReag && citaReag.tipoPromo) {
                 const promoOrig = (tenant.promotionsCatalog || []).find(p =>
                     p.nombre && p.nombre.toLowerCase().trim() === citaReag.tipoPromo.toLowerCase().trim()
                 );
@@ -881,7 +881,7 @@ router.post('/evolution', async (req, res) => {
                     console.log(`[${instanceName}] 🔍 PROMO-CHECK IDs disponibles: ${userAppts.map(c => c.id).join(', ')}`);
                 }
 
-                if (citaOriginal && citaOriginal.promo === 'SI' && citaOriginal.tipoPromo) {
+                if (citaOriginal && citaOriginal.tipoPromo) {
                     // Buscar la promo en el catálogo
                     const promoOriginal = (tenant.promotionsCatalog || []).find(p =>
                         p.nombre && p.nombre.toLowerCase().trim() === citaOriginal.tipoPromo.toLowerCase().trim()
