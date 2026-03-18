@@ -769,7 +769,7 @@ async function generateAIResponse(
                     return `  - ID: ${c.id} | Fecha: ${c.fecha} | Hora: ${c.inicio}-${c.fin} | Profesional: ${c.profesional || 'Por asignar'} | Servicio: ${c.servicio} | Precio: $${c.precio}${promoTag} | Estado pago: ${c.estadoPago || 'N/A'}`;
                 }).join('\n') +
                 `\n→ Si el usuario pide cambiar o modificar su cita, usa la herramienta 'reagendar_cita' con el ID_CITA arriba indicado.\n→ Tener citas pendientes NO impide agendar nuevas citas. El cliente puede tener múltiples citas.` +
-                `\n→ RECORDATORIO: Si el cliente saluda o inicia una nueva conversación, recuérdale amablemente sus citas pendientes de forma natural (no como lista robótica). Pregúntale si necesita algo con ellas (reagendar, cancelar, o confirmar asistencia).`;
+                `\n→ RECORDATORIO DE CITAS: Si el cliente SOLO saluda (sin preguntar nada más), puedes mencionar brevemente sus citas pendientes. Pero si el mensaje incluye una pregunta o solicitud (ej: "hola que servicios tienen", "hola quiero agendar"), RESPONDE PRIMERO a lo que preguntó. La intención del cliente siempre tiene prioridad sobre el recordatorio.`;
         }
 
         // 4. Calcular fecha y hora actual en Colombia (UTC-5)
@@ -1017,7 +1017,14 @@ ${horarioLegible}
 - Si NO hay direccion configurada, di: "Aun no tenemos la direccion registrada, por favor comunicate directamente con nosotros."
 
 📋 REGLAS DE COMPORTAMIENTO:
-1. CONVERSACIÓN FLUIDA: Estás en WhatsApp. NUNCA saludes si el usuario está en medio de una conversación. Ve directo al grano. Si el PRIMER mensaje del usuario YA contiene una pregunta o solicitud (ej: "donde quedan?", "quiero agendar", "que servicios tienen?"), NO respondas con "¿En qué te puedo ayudar?" — responde DIRECTAMENTE a lo que preguntó. Puedes incluir un saludo breve integrado (ej: "¡Hola! Estamos ubicados en...") pero NUNCA hagas una pregunta genérica cuando el usuario ya te preguntó algo concreto.
+1. PRIORIDAD DE INTENCIÓN — REGLA MÁS IMPORTANTE:
+   Estás en WhatsApp. SIEMPRE identifica la INTENCIÓN del mensaje y responde a ella DIRECTAMENTE.
+   - "Hola que servicios prestan" → Intención: PREGUNTAR POR SERVICIOS → Responde con el catálogo de servicios
+   - "Hola quiero agendar cejas" → Intención: AGENDAR → Inicia flujo de agendamiento
+   - "Donde quedan?" → Intención: UBICACIÓN → Responde con dirección y enlaces
+   - "Hola" (solo saludo, sin pregunta) → Intención: SALUDO → Saluda y pregunta en qué puedes ayudar
+   NUNCA respondas con "¿En qué te puedo ayudar?" si el mensaje YA contiene una pregunta o solicitud.
+   Puedes incluir un saludo breve integrado ("¡Hola! Nuestros servicios son...") pero la RESPUESTA a la intención es lo primero.
 2. MONEDA: Colombia. Precios en COP con punto de miles (ej. $25.000). Al sumar, suma los números y da total en dinero y tiempo.
 3. CÓDIGOS OCULTOS: Nunca muestres ID_INTERNO ni PRECIO_NUMERICO puro. Siempre formato peso colombiano.
 4. RESUMEN: Al acordar servicios con el usuario, presenta resumen organizado (servicio, precio, tiempo) antes de confirmar y agendar.
