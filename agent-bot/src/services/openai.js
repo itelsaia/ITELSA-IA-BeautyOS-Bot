@@ -421,7 +421,7 @@ function selectOptimalSlots(allSlots, serviceDuration, appointments, fecha, maxS
  * Procesa la función verificar_disponibilidad.
  * Retorna texto descriptivo para que la IA le responda al cliente.
  */
-function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatalog, disponibilidadCatalog, allPendingAppointments, todayStr, nowTimeStr, config, excludeAgendaId, festivosConfig) {
+function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatalog, disponibilidadCatalog, allPendingAppointments, todayStr, nowTimeStr, config, excludeAgendaId, festivosConfig, promotionsCatalog) {
     const { fecha, hora_deseada, servicio, profesional_preferido } = args;
     const slotInterval = (config && config.slotInterval) || 15;
     const bufferMin = (config && config.bufferTime) || 15;
@@ -571,14 +571,47 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
             // ✅ HORA DISPONIBLE — retornar objeto con datos para confirmación directa
             console.log(`✅ DISPONIBLE: ${serviceName} ${fecha} ${match.hora_inicio}-${match.hora_fin} con ${match.profesional}`);
 
+            // Calcular precio con promo si aplica
+            let precioFinal = servicePrice;
+            let promoInfo = '';
+            if (promotionsCatalog && promotionsCatalog.length > 0) {
+                const srvLower = serviceName.toLowerCase().trim();
+                const promoMatch = promotionsCatalog.find(p => {
+                    if (p.estado !== 'ACTIVO' || p.tipoPromo === 'CUMPLEANOS') return false;
+                    if (p.aplicaDia && p.aplicaDia.trim() !== '') {
+                        const dias = p.aplicaDia.split(',').map(d => normDay(d.trim()));
+                        if (!dias.includes(normDay(dayName))) return false;
+                    }
+                    if (p.aplicaServicio && p.aplicaServicio !== 'TODOS') {
+                        const srvPromo = p.aplicaServicio.split(',').map(s => s.trim().toLowerCase());
+                        if (!srvPromo.some(sp => srvLower.includes(sp) || sp.includes(srvLower))) return false;
+                    }
+                    return true;
+                });
+                if (promoMatch && servicePrice > 0) {
+                    if (promoMatch.tipoPromo === 'PORCENTAJE') {
+                        precioFinal = Math.round(servicePrice * (1 - promoMatch.valorDescuento / 100));
+                    } else if (promoMatch.tipoPromo === 'VALOR_FIJO') {
+                        precioFinal = Math.max(0, servicePrice - promoMatch.valorDescuento);
+                    }
+                    if (precioFinal !== servicePrice) {
+                        promoInfo = `\n🏷️ PROMO "${promoMatch.nombre}": ~$${Number(servicePrice).toLocaleString('es-CO')}~ → $${Number(precioFinal).toLocaleString('es-CO')} (${promoMatch.valorDescuento}% descuento)`;
+                    }
+                }
+            }
+
+            const precioText = promoInfo
+                ? `Precio: ~$${Number(servicePrice).toLocaleString('es-CO')}~ → *$${Number(precioFinal).toLocaleString('es-CO')}* (con descuento)` + promoInfo
+                : `Precio: $${Number(servicePrice).toLocaleString('es-CO')}`;
+
             const text = `✅ CONFIRMADO POR EL SISTEMA: La hora ${match.hora_inicio} ESTÁ DISPONIBLE.\n` +
                 `Profesional asignado: ${match.profesional}\n` +
                 `Servicio: ${serviceName}\n` +
                 `Fecha: ${fecha}\n` +
                 `Horario: ${match.hora_inicio} a ${match.hora_fin}\n` +
-                `Precio: $${Number(servicePrice).toLocaleString('es-CO')}` +
+                precioText +
                 anticipoInfo + `\n\n` +
-                `→ Presenta este resumen al cliente y pregúntale si confirma para agendar.`;
+                `→ Presenta este resumen al cliente con el PRECIO CON DESCUENTO y pregúntale si confirma para agendar.`;
             return {
                 text,
                 confirmationData: {
@@ -586,7 +619,7 @@ function handleVerificarDisponibilidad(args, servicesCatalog, colaboradoresCatal
                     hora_inicio: match.hora_inicio,
                     hora_fin: match.hora_fin,
                     servicios: serviceName,
-                    precio_total: servicePrice,
+                    precio_total: precioFinal,
                     profesional: match.profesional
                 }
             };
@@ -1250,7 +1283,8 @@ PASO 5 — POST-CONFIRMACIÓN:
                     nowTimeStr,
                     config,
                     excludeId,
-                    festivosConfig
+                    festivosConfig,
+                    promotionsCatalog
                 );
 
                 // Si retornó objeto con confirmationData, guardar en session para confirmación directa
