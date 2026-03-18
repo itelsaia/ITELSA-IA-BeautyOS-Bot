@@ -1332,6 +1332,41 @@ PASO 5 — POST-CONFIRMACIÓN:
 
             // ─── Herramienta: verificar_disponibilidad ──────────────────
             if (functionName === "verificar_disponibilidad") {
+
+                // ── GUARDRAIL: Selección de profesional obligatoria en negocios multi-profesional ──
+                // Qué protege: El cliente debe elegir estilista antes de ver horarios
+                // Cómo funciona: Bloquea la llamada si no se ha preguntado y no se pasó profesional_preferido
+                if (!functionArgs.profesional_preferido && session && !session.stylistAsked) {
+                    const seenGuard = {};
+                    colaboradoresCatalog.forEach(c => {
+                        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+                        if (!seenGuard[norm]) seenGuard[norm] = c;
+                        else if (c.rol === 'STAFF' && seenGuard[norm].rol !== 'STAFF') seenGuard[norm] = c;
+                    });
+                    const uniqueNames = Object.values(seenGuard).map(c => c.nombre);
+                    if (uniqueNames.length > 1) {
+                        // Filtrar profesionales que dominan el servicio solicitado
+                        const servicioSolicitado = (functionArgs.servicio || '').toLowerCase().trim();
+                        const relevantPros = Object.values(seenGuard).filter(c => {
+                            if (!c.competencias) return true;
+                            return c.competencias.toLowerCase().includes(servicioSolicitado);
+                        });
+                        const nombres = (relevantPros.length > 0 ? relevantPros : Object.values(seenGuard))
+                            .map(c => c.nombre);
+                        session.stylistAsked = true;
+                        toolResultText = `🚫 DETENIDO: Debes preguntar al cliente por su estilista preferida ANTES de verificar disponibilidad.\n` +
+                            `Profesionales disponibles para "${functionArgs.servicio}": ${nombres.join(', ')}.\n` +
+                            `Pregúntale: "¿Tienes alguna estilista preferida? Nuestro equipo para ${functionArgs.servicio} es: ${nombres.join(', ')}. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"\n` +
+                            `Cuando el cliente responda, llama de nuevo a verificar_disponibilidad con profesional_preferido si eligió una, o sin él si dijo "cualquiera".`;
+                        console.log(`[openai] ⛔ GUARDRAIL: Bloqueada verificar_disponibilidad — falta selección de profesional (${uniqueNames.length} profesionales)`);
+                    }
+                }
+
+                // Si el guardrail bloqueó, no ejecutar la función
+                if (toolResultText) {
+                    // toolResultText ya tiene el mensaje del guardrail
+                } else {
+
                 // Si estamos reagendando, pasar el ID de la cita para excluir su horario del cálculo
                 const excludeId = (session && session.isReagendando && session.reagendandoCitaId) ? session.reagendandoCitaId : null;
                 const verifyResult = handleVerificarDisponibilidad(
@@ -1376,6 +1411,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                         session.pendingReagendamiento = null;
                     }
                 }
+                } // cierre del else del guardrail de profesional
             }
 
             // ─── Herramienta: agendar_cita ───────────────────────────────
