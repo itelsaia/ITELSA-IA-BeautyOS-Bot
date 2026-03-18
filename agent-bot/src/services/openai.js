@@ -963,7 +963,24 @@ async function generateAIResponse(
             ubicacionContext = `\n📍 UBICACION DEL NEGOCIO:\nDireccion: ${addr}\nGoogle Maps: ${mapsLink}\nWaze: ${wazeLink}\n⚠️ IMPORTANTE: Comparte estos enlaces tal cual estan. NO modifiques ni acortes las URLs.`;
         }
 
-        // 5c. Prompt del sistema — ARQUITECTURA "BACKEND INTELIGENTE"
+        // 5c. Deduplicar colaboradores (1 persona con 2 roles = 1 nombre visible al cliente)
+        const dedupSeen = {};
+        const dedupUnique = [];
+        colaboradoresCatalog.forEach(c => {
+            const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+            if (!dedupSeen[norm]) { dedupSeen[norm] = c; dedupUnique.push(c); }
+            else if (c.rol === 'STAFF' && dedupSeen[norm].rol !== 'STAFF') {
+                const idx = dedupUnique.indexOf(dedupSeen[norm]);
+                if (idx >= 0) dedupUnique[idx] = c;
+                dedupSeen[norm] = c;
+            }
+        });
+        const isMultiProfessional = dedupUnique.length > 1;
+        if (dedupUnique.length !== colaboradoresCatalog.length) {
+            console.log(`[openai] 👥 Dedup: ${colaboradoresCatalog.length} registros → ${dedupUnique.length} profesionales únicos`);
+        }
+
+        // 5d. Prompt del sistema — ARQUITECTURA "BACKEND INTELIGENTE"
         // La IA NO calcula disponibilidad. Usa verificar_disponibilidad para que el código haga la matemática.
         const businessRules = `
 ---
@@ -1019,8 +1036,9 @@ ${horarioLegible}
    f) Llama a 'reagendar_cita' con el ID de la cita antigua y los nuevos datos.
    ⚠️ CRÍTICO: Mientras estés en flujo de reagendamiento, TODO lo que diga el cliente (servicios, fechas, horas) es para MODIFICAR la cita existente. NUNCA llames a 'agendar_cita' durante un reagendamiento — SIEMPRE usa 'reagendar_cita'. Si el cliente menciona un servicio diferente, es porque quiere CAMBIAR el servicio de su cita, NO crear una nueva.
    ⚠️ GUÍA PASO A PASO: Lleva al cliente paso a paso. Si dice "ambos", primero pregunta "¿Qué servicio deseas ahora?" y luego "¿Para qué fecha y hora?". No intentes resolver todo en un solo paso.
-   g) REAGENDAMIENTO DE CITAS CON PROMOCIÓN:
-      Si la cita tiene "🏷️ PROMO:" en sus datos y es tipo "🔒 DÍA FIJO":
+   g) REAGENDAMIENTO Y PROMOCIONES:
+      ⚠️ PRIMERO revisa los datos de la cita pendiente arriba. Si la cita NO tiene "🏷️ PROMO:" en sus datos, NO menciones promos ni descuentos durante el reagendamiento. El precio se mantiene igual. Sigue el flujo normal.
+      SOLO si la cita tiene "🏷️ PROMO:" en sus datos y es tipo "🔒 DÍA FIJO":
       - Si el cliente quiere cambiar a un DÍA DIFERENTE al de la promo, el sistema BLOQUEARÁ automáticamente la llamada a 'reagendar_cita' y te devolverá un mensaje con las opciones para el cliente. Transmite ese mensaje TAL CUAL al cliente y espera su respuesta.
       - Si el cliente ACEPTA perder el descuento, llama de nuevo a 'reagendar_cita' con acepta_perder_descuento=true. El sistema calculará el precio completo automáticamente.
       - Si el cliente prefiere mantener el descuento, ofrécele cambiar solo la HORA dentro del mismo día de promo.
@@ -1035,7 +1053,7 @@ ${horarioLegible}
       - Usa las FECHAS indicadas en la promo (puede haber fecha de HOY y de la PRÓXIMA semana).
       - Si la fecha tiene ⚠️ FESTIVO, informa al cliente: "Ten en cuenta que el [fecha] es [nombre festivo], pero deja verifico si hay disponibilidad."
       - Estas promos existen para activar días con baja demanda. El cliente viene ESE día o no hay descuento.
-      ⚠️ SI EL CLIENTE PIDE UN DÍA DIFERENTE AL DE LA PROMO:
+      ⚠️ SI EL CLIENTE PIDE UN DÍA DIFERENTE AL DE LA PROMO (solo al agendar NUEVO, NO en reagendamiento):
          1. NO llames a 'verificar_disponibilidad' de inmediato. DETENTE y advierte primero.
          2. Dile CLARAMENTE: "La promoción *[nombre promo]* es exclusiva de los *[día de la promo]*. Si agendamos para el *[día que pidió]*, el precio sería el normal de $[precio completo] sin descuento. ¿Prefieres mantener tu fecha sin descuento, o prefieres agendar el próximo *[día de promo]* para aprovechar la oferta? 💖"
          3. SOLO cuando el cliente responda y elija una opción, procedes a llamar a 'verificar_disponibilidad' con la fecha que haya elegido.
@@ -1050,7 +1068,7 @@ ${horarioLegible}
       - Detectes coincidencia servicio+día al agendar (ver sección c) DETECCIÓN PROACTIVA).
       Si el cliente escribe para agendar, preguntar algo o saludar, responde SIN mencionar promos.
    b) CUANDO EL CLIENTE PREGUNTE POR PROMOS: Presentalas con entusiasmo. Si el historial ya las incluye, NO las repitas.
-   c) DETECCIÓN PROACTIVA AL AGENDAR: Cuando el cliente pida agendar un servicio, CRUZA el servicio + el día de la cita con las promos activas. Si hay coincidencia, NOTIFÍCALO con entusiasmo ANTES de confirmar.
+   c) DETECCIÓN PROACTIVA AL AGENDAR (SOLO citas NUEVAS, NO aplica durante reagendamiento): Cuando el cliente pida agendar un servicio NUEVO, CRUZA el servicio + el día de la cita con las promos activas. Si hay coincidencia, NOTIFÍCALO con entusiasmo ANTES de confirmar.
       - Si el servicio aplica pero el DÍA no: "Este servicio tiene promo los [días], ¿te gustaría agendar en uno de esos días para aprovechar el descuento? 😉"
    d) PERSUASIÓN NATURAL: No seas robótica. Usa frases persuasivas: "¡Estás de suerte!", "¡Justo hoy hay descuento!", "¡Aprovecha que vence pronto!"
    e) CÁLCULO DE DESCUENTO: Al agendar con promo, SIEMPRE muestra: ~precio original~ → *precio con descuento*. Usa el precio CON descuento en precio_total al llamar a 'agendar_cita'.
@@ -1085,21 +1103,7 @@ ${promotionsText}
 - Si usas el precio original, el descuento NO se registrará. SIEMPRE calcula y usa el precio final con descuento.
 
 👥 EQUIPO DE TRABAJO:
-${(() => {
-    // Deduplicar por nombre: si una persona tiene 2 roles (STAFF + ADMIN), mostrar solo 1 al cliente
-    const seen = {};
-    const unique = [];
-    colaboradoresCatalog.forEach(c => {
-        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-        if (!seen[norm]) { seen[norm] = c; unique.push(c); }
-        else if (c.rol === 'STAFF' && seen[norm].rol !== 'STAFF') {
-            const idx = unique.indexOf(seen[norm]);
-            if (idx >= 0) unique[idx] = c;
-            seen[norm] = c;
-        }
-    });
-    return unique.length > 0 ? unique.map(c => `  - ${c.nombre} | Especialidades: ${c.competencias || 'Todos los servicios'}`).join('\n') : 'No hay colaboradores registrados.';
-})()}
+${dedupUnique.length > 0 ? dedupUnique.map(c => `  - ${c.nombre} | Especialidades: ${c.competencias || 'Todos los servicios'}`).join('\n') : 'No hay colaboradores registrados.'}
 
 ⏱️ TIEMPOS DEL NEGOCIO:
 - Intervalo de agenda: cada ${config.slotInterval || 15} minutos
@@ -1119,14 +1123,7 @@ ${session && session.isReagendando ? `⚠️ MODO REAGENDAMIENTO ACTIVO — Cita
 
 📝 FLUJO DE AGENDAMIENTO:
 ${(() => {
-    const seen2 = {};
-    colaboradoresCatalog.forEach(c => {
-        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-        if (!seen2[norm]) seen2[norm] = c;
-        else if (c.rol === 'STAFF' && seen2[norm].rol !== 'STAFF') seen2[norm] = c;
-    });
-    const uniqueCount = Object.keys(seen2).length;
-    if (uniqueCount > 1) {
+    if (isMultiProfessional) {
         return `🚫🚫🚫 NEGOCIO CON MÚLTIPLES PROFESIONALES — PASO 1 ES OBLIGATORIO 🚫🚫🚫
 PROHIBIDO llamar 'verificar_disponibilidad' sin antes haber preguntado por la estilista preferida.
 INCLUSO si el cliente da servicio + fecha + hora todo en un solo mensaje, PRIMERO debes preguntar por profesional.
@@ -1277,17 +1274,7 @@ PASO 5 — POST-CONFIRMACIÓN:
             { role: 'user', content: incomingMessage }
         ];
 
-        // DEBUG
-        console.log('\n=== DEBUG PROMPT IA ===');
-        console.log('📅 Fecha/Hora:', todayStr, nowTimeStr, todayDayName);
-        console.log('👥 Equipo:', colaboradoresCatalog.map(c => `${c.nombre}(${c.competencias || 'todas'})`).join(', '));
-        console.log('📋 Agenda total:', allPendingAppointments.length, 'citas pendientes');
-        console.log('💬 Historial enviado (' + messageHistory.length + ' msgs):');
-        messageHistory.forEach((m, i) => {
-            console.log(`  [${i}] ${m.role}: ${(m.content || '').substring(0, 120)}...`);
-        });
-        console.log('🏗️ Arquitectura: Backend Inteligente (IA usa verificar_disponibilidad)');
-        console.log('=== FIN DEBUG ===\n');
+        console.log(`[openai] 📋 Prompt: equipo=${dedupUnique.length} pros, agenda=${allPendingAppointments.length} citas, historial=${messageHistory.length} msgs`);
 
         // 5. Primera llamada a OpenAI
         let completion = await openai.chat.completions.create({
@@ -1336,30 +1323,19 @@ PASO 5 — POST-CONFIRMACIÓN:
                 // ── GUARDRAIL: Selección de profesional obligatoria en negocios multi-profesional ──
                 // Qué protege: El cliente debe elegir estilista antes de ver horarios
                 // Cómo funciona: Bloquea la llamada si no se ha preguntado y no se pasó profesional_preferido
-                if (!functionArgs.profesional_preferido && session && !session.stylistAsked) {
-                    const seenGuard = {};
-                    colaboradoresCatalog.forEach(c => {
-                        const norm = c.nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-                        if (!seenGuard[norm]) seenGuard[norm] = c;
-                        else if (c.rol === 'STAFF' && seenGuard[norm].rol !== 'STAFF') seenGuard[norm] = c;
+                if (!functionArgs.profesional_preferido && session && !session.stylistAsked && isMultiProfessional) {
+                    const servicioSolicitado = (functionArgs.servicio || '').toLowerCase().trim();
+                    const relevantPros = dedupUnique.filter(c => {
+                        if (!c.competencias) return true;
+                        return c.competencias.toLowerCase().includes(servicioSolicitado);
                     });
-                    const uniqueNames = Object.values(seenGuard).map(c => c.nombre);
-                    if (uniqueNames.length > 1) {
-                        // Filtrar profesionales que dominan el servicio solicitado
-                        const servicioSolicitado = (functionArgs.servicio || '').toLowerCase().trim();
-                        const relevantPros = Object.values(seenGuard).filter(c => {
-                            if (!c.competencias) return true;
-                            return c.competencias.toLowerCase().includes(servicioSolicitado);
-                        });
-                        const nombres = (relevantPros.length > 0 ? relevantPros : Object.values(seenGuard))
-                            .map(c => c.nombre);
-                        session.stylistAsked = true;
-                        toolResultText = `🚫 DETENIDO: Debes preguntar al cliente por su estilista preferida ANTES de verificar disponibilidad.\n` +
-                            `Profesionales disponibles para "${functionArgs.servicio}": ${nombres.join(', ')}.\n` +
-                            `Pregúntale: "¿Tienes alguna estilista preferida? Nuestro equipo para ${functionArgs.servicio} es: ${nombres.join(', ')}. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"\n` +
-                            `Cuando el cliente responda, llama de nuevo a verificar_disponibilidad con profesional_preferido si eligió una, o sin él si dijo "cualquiera".`;
-                        console.log(`[openai] ⛔ GUARDRAIL: Bloqueada verificar_disponibilidad — falta selección de profesional (${uniqueNames.length} profesionales)`);
-                    }
+                    const nombres = (relevantPros.length > 0 ? relevantPros : dedupUnique).map(c => c.nombre);
+                    session.stylistAsked = true;
+                    toolResultText = `🚫 DETENIDO: Debes preguntar al cliente por su estilista preferida ANTES de verificar disponibilidad.\n` +
+                        `Profesionales disponibles para "${functionArgs.servicio}": ${nombres.join(', ')}.\n` +
+                        `Pregúntale: "¿Tienes alguna estilista preferida? Nuestro equipo para ${functionArgs.servicio} es: ${nombres.join(', ')}. ¿Tienes alguna preferida o te busco la mejor disponibilidad?"\n` +
+                        `Cuando el cliente responda, llama de nuevo a verificar_disponibilidad con profesional_preferido si eligió una, o sin él si dijo "cualquiera".`;
+                    console.log(`[openai] ⛔ GUARDRAIL: Bloqueada verificar_disponibilidad — falta selección de profesional (${dedupUnique.length} profesionales)`);
                 }
 
                 // Si el guardrail bloqueó, no ejecutar la función
@@ -1418,7 +1394,7 @@ PASO 5 — POST-CONFIRMACIÓN:
             else if (functionName === "agendar_cita") {
                 // GUARDA: Si estamos en modo reagendamiento, NO crear cita nueva — redirigir a reagendar
                 if (session && session.isReagendando && session.reagendandoCitaId) {
-                    console.log(`⚠️ GUARDA: IA llamó agendar_cita durante reagendamiento. Redirigiendo a reagendar_cita (${session.reagendandoCitaId})`);
+                    console.log(`[openai] ⚠️ GUARDA: IA llamó agendar_cita durante reagendamiento. Redirigiendo a reagendar_cita (${session.reagendandoCitaId})`);
 
                     // ── Validar pérdida de promo DÍA FIJO (igual que reagendar_cita) ──
                     let guardaPromoBlocked = false;
