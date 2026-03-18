@@ -1288,6 +1288,43 @@ PASO 5 — POST-CONFIRMACIÓN:
                 // GUARDA: Si estamos en modo reagendamiento, NO crear cita nueva — redirigir a reagendar
                 if (session && session.isReagendando && session.reagendandoCitaId) {
                     console.log(`⚠️ GUARDA: IA llamó agendar_cita durante reagendamiento. Redirigiendo a reagendar_cita (${session.reagendandoCitaId})`);
+
+                    // ── Validar pérdida de promo DÍA FIJO (igual que reagendar_cita) ──
+                    let guardaPromoBlocked = false;
+                    const guardaOldAppt = userPendingAppointments.find(c => c.id === session.reagendandoCitaId);
+                    if (guardaOldAppt && guardaOldAppt.promo === 'SI' && guardaOldAppt.tipoPromo) {
+                        const guardaPromoOrig = promotionsCatalog.find(p =>
+                            normDay(p.nombre) === normDay(guardaOldAppt.tipoPromo)
+                        );
+                        if (guardaPromoOrig && guardaPromoOrig.aplicaDia && guardaPromoOrig.aplicaDia.trim() !== '') {
+                            const weekDaysG = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+                            let nuevaDiaG = '';
+                            if (functionArgs.fecha) {
+                                const fpG = functionArgs.fecha.split('/');
+                                if (fpG.length === 3) {
+                                    nuevaDiaG = weekDaysG[new Date(fpG[2], fpG[1] - 1, fpG[0]).getDay()];
+                                }
+                            }
+                            const diasPromoG = guardaPromoOrig.aplicaDia.split(',').map(d => d.trim().toLowerCase());
+                            if (nuevaDiaG && !diasPromoG.includes(nuevaDiaG)) {
+                                guardaPromoBlocked = true;
+                                const srvNamesG = functionArgs.servicios.split(',').map(s => s.trim().toLowerCase());
+                                const precioCompletoG = srvNamesG.reduce((sum, name) => {
+                                    const info = servicesCatalog.find(s => s.name.toLowerCase().trim() === name);
+                                    return sum + (info ? info.price : 0);
+                                }, 0);
+                                toolResultText = `🚫 REAGENDAMIENTO PAUSADO — REQUIERE CONFIRMACIÓN DEL CLIENTE:\n\n` +
+                                    `La cita ${session.reagendandoCitaId} tiene la promoción "${guardaOldAppt.tipoPromo}" que SOLO aplica los ${guardaPromoOrig.aplicaDia}.\n` +
+                                    `La nueva fecha solicitada (${functionArgs.fecha}, ${nuevaDiaG}) NO es día de promoción.\n\n` +
+                                    `💰 Precio ACTUAL con descuento: $${Number(guardaOldAppt.precio).toLocaleString('es-CO')}\n` +
+                                    `💰 Precio SIN descuento: $${precioCompletoG.toLocaleString('es-CO')}\n\n` +
+                                    `📋 INSTRUCCIÓN: Informa al cliente que perdería la promo "${guardaOldAppt.tipoPromo}" y el precio quedaría en $${precioCompletoG.toLocaleString('es-CO')}. Pregúntale si desea continuar o prefiere mantener su cita actual.`;
+                                console.log(`[openai] ⛔ GUARDA: Reagendamiento bloqueado por promo "${guardaOldAppt.tipoPromo}" → ${nuevaDiaG} pierde promo.`);
+                            }
+                        }
+                    }
+
+                    if (!guardaPromoBlocked) {
                     const exito = await api.rescheduleAgenda({
                         id: session.reagendandoCitaId,
                         nuevaFecha: functionArgs.fecha,
@@ -1309,6 +1346,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                         } else {
                             toolResultText = `❌ Error al reagendar la cita ${session.reagendandoCitaId}.${gasMsg ? ' Detalle: ' + gasMsg : ''} Verifica si el ID es correcto.`;
                         }
+                    }
                     }
                 } else {
                     // ── Detectar si aplica promo (cumpleaños u otra) — MISMO ALGORITMO QUE webhook.js ──

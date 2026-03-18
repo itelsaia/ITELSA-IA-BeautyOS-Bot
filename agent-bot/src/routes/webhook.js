@@ -770,6 +770,7 @@ router.post('/evolution', async (req, res) => {
         // ── REAGENDAMIENTO DETERMINISTA (code-level) ──
         if (session.pendingReagendamiento && CONFIRM_REGEX.test(msgNorm)) {
             const reagData = session.pendingReagendamiento;
+            console.log(`[${instanceName}] 🔄 REAGENDAMIENTO DETERMINISTA: confirmación detectada. reagData=${JSON.stringify(reagData)}`);
 
             let citaId = session.reagendandoCitaId;
 
@@ -791,15 +792,21 @@ router.post('/evolution', async (req, res) => {
             }
 
             // ── ADVERTENCIA DE PÉRDIDA DE PROMO (code-level) ──
+            console.log(`[${instanceName}] 🔍 PROMO-CHECK entrada: citaId=${citaId}, promoWarningShown=${session.promoWarningShown}, phone=${phoneNumber}`);
             if (citaId && !session.promoWarningShown) {
                 const userAppts = tenant.pendingAppointments[phoneNumber] || [];
                 const citaOriginal = userAppts.find(c => c.id === citaId);
+                console.log(`[${instanceName}] 🔍 PROMO-CHECK: appts=${userAppts.length}, found=${!!citaOriginal}${citaOriginal ? `, promo="${citaOriginal.promo}", tipoPromo="${citaOriginal.tipoPromo}"` : ''}`);
+                if (!citaOriginal && userAppts.length > 0) {
+                    console.log(`[${instanceName}] 🔍 PROMO-CHECK IDs disponibles: ${userAppts.map(c => c.id).join(', ')}`);
+                }
 
                 if (citaOriginal && citaOriginal.promo === 'SI' && citaOriginal.tipoPromo) {
                     // Buscar la promo en el catálogo
                     const promoOriginal = (tenant.promotionsCatalog || []).find(p =>
                         p.nombre && p.nombre.toLowerCase().trim() === citaOriginal.tipoPromo.toLowerCase().trim()
                     );
+                    console.log(`[${instanceName}] 🔍 PROMO-CHECK: promoOriginal=${promoOriginal ? `"${promoOriginal.nombre}" aplicaDia="${promoOriginal.aplicaDia}"` : 'NOT FOUND'}, buscando="${citaOriginal.tipoPromo}"`);
 
                     if (promoOriginal && promoOriginal.aplicaDia && promoOriginal.aplicaDia.trim() !== '') {
                         // Es una promo de DÍA FIJO — verificar si la nueva fecha cumple
@@ -814,6 +821,7 @@ router.post('/evolution', async (req, res) => {
 
                         const diasPromo = promoOriginal.aplicaDia.split(',').map(d => d.trim().toLowerCase());
                         const pierdePromo = nuevoDia && !diasPromo.includes(nuevoDia);
+                        console.log(`[${instanceName}] 🔍 PROMO-CHECK: nuevoDia="${nuevoDia}", diasPromo=[${diasPromo}], pierdePromo=${pierdePromo}, reagFecha="${reagData.fecha}"`);
 
                         if (pierdePromo) {
                             // Calcular precio sin descuento
