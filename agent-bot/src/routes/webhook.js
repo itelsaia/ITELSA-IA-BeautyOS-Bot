@@ -734,11 +734,13 @@ router.post('/evolution', async (req, res) => {
         if (session.isReagendando && session.reagendandoCitaId && !session.promoWarningShown && !session.promoLossAccepted) {
             const userApptsPromo = tenant.pendingAppointments[phoneNumber] || [];
             const citaReag = userApptsPromo.find(c => c.id === session.reagendandoCitaId);
+            console.log(`[${instanceName}] 🔍 PROMO-TRIGGER: citaId=${session.reagendandoCitaId}, appts=${userApptsPromo.length}, found=${!!citaReag}${citaReag ? `, promo="${citaReag.promo}", tipoPromo="${citaReag.tipoPromo}"` : ''}`);
 
             if (citaReag && citaReag.promo === 'SI' && citaReag.tipoPromo) {
                 const promoOrig = (tenant.promotionsCatalog || []).find(p =>
                     p.nombre && p.nombre.toLowerCase().trim() === citaReag.tipoPromo.toLowerCase().trim()
                 );
+                console.log(`[${instanceName}] 🔍 PROMO-TRIGGER: promoOrig=${promoOrig ? `{nombre:"${promoOrig.nombre}", aplicaDia:"${promoOrig.aplicaDia}"}` : 'NOT FOUND'}, buscando="${citaReag.tipoPromo}", catalogo=[${(tenant.promotionsCatalog || []).map(p => p.nombre).join(',')}]`);
 
                 if (promoOrig && promoOrig.aplicaDia && promoOrig.aplicaDia.trim() !== '') {
                     // Es promo DÍA FIJO → advertir PROACTIVAMENTE
