@@ -745,25 +745,18 @@ async function generateAIResponse(
         const galleryServiceIds = Object.keys(serviceGallery || {});
         let galleryContext = '';
         if (galleryServiceIds.length > 0) {
+            // Listar CADA item con tipo y título exacto para evitar alucinaciones
             galleryContext = galleryServiceIds.map(sid => {
                 const svc = servicesCatalog.find(s => s.id === sid);
                 const items = serviceGallery[sid];
                 const svcName = svc ? svc.name : sid;
-                const fotos = items.filter(i => i.type === 'imagen').length;
-                const videos = items.filter(i => i.type === 'video').length;
-                const recs = items.filter(i => i.category === 'recomendacion').length;
-                const catDetails = items.map(i => {
-                    const catNames = { antes_despues: 'antes/despues', procedimiento: 'procedimiento', recomendacion: 'cuidados', resultado: 'resultado' };
-                    return catNames[i.category] || i.type;
-                });
-                const parts = [];
-                if (fotos) parts.push(`${fotos} foto(s)`);
-                if (videos) parts.push(`${videos} video(s)`);
-                if (recs) parts.push(`${recs} recomendacion(es) de cuidado`);
-                // Incluir texto de recomendaciones para que la IA las comparta directamente
-                const recTexts = items.filter(i => i.category === 'recomendacion' && i.description)
-                    .map(i => `  📋 "${i.title}": ${i.description}`).join('\n');
-                return `- ${svcName}: ${parts.join(' | ')}${recTexts ? '\n' + recTexts : ''}`;
+                const itemList = items.map(i => {
+                    if (i.category === 'recomendacion') {
+                        return `  - TEXTO recomendacion: "${i.title}" → ${i.description || ''}`;
+                    }
+                    return `  - ${i.type.toUpperCase()}: "${i.title}" (categoria: ${i.category})`;
+                }).join('\n');
+                return `- ${svcName} (${items.length} item(s)):\n${itemList}`;
             }).join('\n');
         }
 
@@ -1133,18 +1126,16 @@ ${galleryContext ? `📸 GALERÍA MULTIMEDIA POR SERVICIO:
 Servicios con contenido visual disponible para enviar al cliente:
 ${galleryContext}
 
-REGLAS DE USO DE LA GALERÍA:
-- Si el cliente pregunta por un servicio que TIENE galería, OFRECE contenido segun la intencion:
-  * "¿Como queda?" / "resultados" → ofrece fotos antes/despues: "¡Tengo fotos de resultados! ¿Te las envío? 📸"
-  * "¿Como es el procedimiento?" / "¿que me hacen?" → ofrece video: "Tengo un video del procedimiento 🎬"
-  * "¿Que cuidados?" / "recomendaciones" / "preparacion" → comparte las recomendaciones como TEXTO en tu respuesta (NO llames enviar_informacion_servicio para recomendaciones)
-  * Si pregunta en general, menciona TODO lo disponible: "Tengo fotos, videos y tips de cuidado, ¿que te gustaria ver?"
-- Si el cliente muestra duda o indecision, ofrece el contenido visual para ayudarlo a decidirse.
-- Si el cliente dice "sí" a ver fotos/videos, llama 'enviar_informacion_servicio' con el nombre del servicio.
-- Para RECOMENDACIONES: comparte el texto directamente en tu mensaje de forma natural, NO envies como media.
-- NO menciones la galería si el servicio NO tiene contenido disponible.
-- Después de enviar media, pregunta si tiene alguna duda o si quiere agendar: "¿Qué te parecen los resultados? ¿Te animas a agendar? 💖"
-- NO envíes galería sin que el cliente lo pida o sin que haya un momento natural para ofrecerla.
+REGLAS DE USO DE LA GALERÍA — ESTRICTAS:
+⚠️ SOLO puedes mencionar el contenido que aparece ARRIBA en la lista. NUNCA inventes ni asumas contenido que no existe.
+- Si un servicio tiene 1 VIDEO de procedimiento, di "tengo un video del procedimiento". NO digas "tengo fotos de antes y después" si NO hay fotos listadas.
+- Si un servicio tiene 1 IMAGEN antes/despues, di "tengo una foto de resultados". NO digas "tengo videos" si NO hay videos listados.
+- Usa los TITULOS exactos de los items al describir el contenido al cliente.
+- Si el cliente pide ver contenido, llama 'enviar_informacion_servicio' con el nombre del servicio.
+- Para items tipo RECOMENDACION: comparte el texto directamente en tu mensaje, NO llames enviar_informacion_servicio.
+- NO menciones galería si el servicio NO tiene contenido en la lista de arriba.
+- Después de enviar media, pregunta si tiene dudas o quiere agendar.
+- NO envíes galería sin que el cliente lo pida o sin un momento natural para ofrecerla.
 ` : ''}
 ${config.hasAnyAnticipo ? `
 💰 SISTEMA DE ANTICIPO / PAGO ANTICIPADO (POR SERVICIO):
