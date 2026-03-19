@@ -2172,6 +2172,15 @@ function cerrarNovedad(data) {
   return { status: 'ok' };
 }
 
+function deleteNovedad(rowIndex) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("NOVEDADES");
+  if (!sheet) throw new Error("La hoja NOVEDADES no existe.");
+  if (rowIndex < 2) throw new Error("No se puede eliminar la fila de encabezados.");
+  sheet.deleteRow(rowIndex);
+  return { status: 'ok' };
+}
+
 // ============================================
 // Controladores CRM Web App — Módulo Solicitudes
 // ============================================

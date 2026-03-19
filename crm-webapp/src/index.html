@@ -2281,8 +2281,11 @@ function renderNovedadesCards(items) {
       html += '</div>';
     }
 
-    if (!isCerrado && userSession && userSession.rol === 'ADMIN') {
-      html += '<div class="ac-actions"><button class="btn btn-success" onclick="abrirCerrarNovedad(' + n.rowIndex + ')"><i class="fas fa-check me-1"></i>Cerrar Novedad</button></div>';
+    if (userSession && userSession.rol === 'ADMIN') {
+      html += '<div class="ac-actions">';
+      if (!isCerrado) html += '<button class="btn btn-success" onclick="abrirCerrarNovedad(' + n.rowIndex + ')"><i class="fas fa-check me-1"></i>Cerrar Novedad</button>';
+      if (isCerrado) html += '<button class="btn btn-outline-danger btn-sm" onclick="eliminarNovedad(' + n.rowIndex + ',\'' + esc(n.id) + '\')"><i class="fas fa-trash me-1"></i>Eliminar</button>';
+      html += '</div>';
     }
     html += '</div>';
   });
@@ -2359,6 +2362,14 @@ function confirmarCerrarNovedad() {
     resetBtn(btn, 'Cerrar Novedad');
     recargarNovedades();
   }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Cerrar Novedad'); }).cerrarNovedad(data);
+}
+
+function eliminarNovedad(rowIndex, id) {
+  if (!confirm('¿Eliminar la novedad ' + id + '? Esta accion no se puede deshacer.')) return;
+  google.script.run.withSuccessHandler(function() {
+    toast('Novedad eliminada.', 'success');
+    recargarNovedades();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteNovedad(rowIndex);
 }
 
 function recargarNovedades() {
