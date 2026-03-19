@@ -2130,7 +2130,7 @@ function getNovedades() {
       mensaje: (row[5] || '').toString(),
       estado: (row[6] || '').toString(),
       respuesta: (row[7] || '').toString(),
-      fechaCierre: (row[8] || '').toString()
+      fechaCierre: row[8] instanceof Date ? Utilities.formatDate(row[8], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") : (row[8] || '').toString()
     };
   }).filter(function(n) { return n.id !== ''; });
 }
@@ -2205,7 +2205,7 @@ function getSolicitudes() {
       horaHasta: row[8] instanceof Date ? Utilities.formatDate(row[8], Session.getScriptTimeZone(), "HH:mm") : (row[8] || '').toString(),
       estado: (row[9] || '').toString(),
       motivoRechazo: (row[10] || '').toString(),
-      fechaRespuesta: (row[11] || '').toString()
+      fechaRespuesta: row[11] instanceof Date ? Utilities.formatDate(row[11], Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm") : (row[11] || '').toString()
     };
   }).filter(function(s) { return s.id !== ''; });
 }
