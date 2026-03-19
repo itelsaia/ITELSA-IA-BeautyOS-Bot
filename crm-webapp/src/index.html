@@ -257,6 +257,23 @@
 <!-- Toasts -->
 <div class="toast-container" id="toastContainer"></div>
 
+<!-- Modal Confirmacion Reutilizable -->
+<div class="modal fade" id="modalConfirmar" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalConfirmarTitulo">Confirmar</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalConfirmarBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn" id="btnConfirmarAccion">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Login Overlay -->
 <div id="loginOverlay" style="display:none;">
   <div class="login-card">
@@ -1684,18 +1701,26 @@ function finalizarCerrarCita(btn, citaId, whatsappOk) {
 }
 
 function marcarNoAsistio(citaId) {
-  if (!confirm('Marcar como "No asistio" la cita ' + citaId + '?')) return;
-  google.script.run
-    .withSuccessHandler(function() {
-      agenda.forEach(function(a) { if (a.id === citaId) a.estado = 'RECHAZADO'; });
-      updateBadgePendientes();
-      if (currentPage === 'miagenda') updateMiAgendaCards();
-      else if (currentPage === 'agenda') updateAgendaView();
-      else if (currentPage === 'dashboard') navigateTo('dashboard');
-      toast('Cita marcada como no asistio', 'info');
-    })
-    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
-    .updateAgendaStatus(citaId, 'RECHAZADO');
+  var cita = agenda.find(function(a) { return a.id === citaId; });
+  confirmar({
+    titulo: 'Marcar como No Asistio',
+    mensaje: '<p>¿Marcar esta cita como <strong>"No asistio"</strong>?</p>' +
+      (cita ? '<p class="text-muted mb-0"><strong>' + esc(cita.cliente) + '</strong> — ' + esc(cita.servicio) + ' (' + esc(cita.fecha) + ')</p>' : ''),
+    btnTexto: 'Si, no asistio',
+    btnClase: 'btn-warning'
+  }, function() {
+    google.script.run
+      .withSuccessHandler(function() {
+        agenda.forEach(function(a) { if (a.id === citaId) a.estado = 'RECHAZADO'; });
+        updateBadgePendientes();
+        if (currentPage === 'miagenda') updateMiAgendaCards();
+        else if (currentPage === 'agenda') updateAgendaView();
+        else if (currentPage === 'dashboard') navigateTo('dashboard');
+        toast('Cita marcada como no asistio', 'info');
+      })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+      .updateAgendaStatus(citaId, 'RECHAZADO');
+  });
 }
 
 function eliminarCita(citaId, rowIndex) {
@@ -1705,16 +1730,24 @@ function eliminarCita(citaId, rowIndex) {
     toast('No se pueden eliminar citas pendientes o reagendadas', 'warning');
     return;
   }
-  if (!confirm('Eliminar la cita ' + citaId + ' (' + cita.cliente + ' - ' + cita.servicio + ')?\nEsta accion no se puede deshacer.')) return;
-  google.script.run
-    .withSuccessHandler(function() {
-      agenda = agenda.filter(function(a) { return a.id !== citaId; });
-      updateBadgePendientes();
-      updateAgendaView();
-      toast('Cita eliminada correctamente', 'success');
-    })
-    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
-    .deleteCita(rowIndex);
+  confirmar({
+    titulo: 'Eliminar Cita',
+    mensaje: '<p>¿Eliminar la cita <strong>' + esc(citaId) + '</strong>?</p>' +
+      '<p class="text-muted"><strong>' + esc(cita.cliente) + '</strong> — ' + esc(cita.servicio) + ' (' + esc(cita.fecha) + ')</p>' +
+      '<p class="text-danger mb-0"><small><i class="fas fa-exclamation-triangle me-1"></i>Esta accion no se puede deshacer.</small></p>',
+    btnTexto: 'Eliminar',
+    btnClase: 'btn-danger'
+  }, function() {
+    google.script.run
+      .withSuccessHandler(function() {
+        agenda = agenda.filter(function(a) { return a.id !== citaId; });
+        updateBadgePendientes();
+        updateAgendaView();
+        toast('Cita eliminada correctamente', 'success');
+      })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+      .deleteCita(rowIndex);
+  });
 }
 
 // =============================================
@@ -2410,11 +2443,20 @@ function confirmarCerrarNovedad() {
 }
 
 function eliminarNovedad(rowIndex, id) {
-  if (!confirm('¿Eliminar la novedad ' + id + '? Esta accion no se puede deshacer.')) return;
-  google.script.run.withSuccessHandler(function() {
-    toast('Novedad eliminada.', 'success');
-    recargarNovedades();
-  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteNovedad(rowIndex);
+  var nov = novedades.find(function(n) { return n.id === id; });
+  confirmar({
+    titulo: 'Eliminar Novedad',
+    mensaje: '<p>¿Eliminar la novedad <strong>' + esc(id) + '</strong>?</p>' +
+      (nov ? '<p class="text-muted"><strong>' + esc(nov.tipo) + '</strong> — ' + esc(nov.mensaje) + '</p>' : '') +
+      '<p class="text-danger mb-0"><small><i class="fas fa-exclamation-triangle me-1"></i>Esta accion no se puede deshacer.</small></p>',
+    btnTexto: 'Eliminar',
+    btnClase: 'btn-danger'
+  }, function() {
+    google.script.run.withSuccessHandler(function() {
+      toast('Novedad eliminada.', 'success');
+      recargarNovedades();
+    }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).deleteNovedad(rowIndex);
+  });
 }
 
 function recargarNovedades() {
@@ -2610,11 +2652,19 @@ function guardarSolicitud() {
 }
 
 function aprobarSolicitud(rowIndex) {
-  if (!confirm('¿Aprobar esta solicitud?')) return;
-  google.script.run.withSuccessHandler(function() {
-    toast('Solicitud aprobada.', 'success');
-    recargarSolicitudes();
-  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).responderSolicitud({ rowIndex: rowIndex, estado: 'APROBADO', motivoRechazo: '' });
+  var sol = solicitudes.find(function(s) { return s.rowIndex === rowIndex; });
+  confirmar({
+    titulo: 'Aprobar Solicitud',
+    mensaje: '<p>¿Aprobar esta solicitud?</p>' +
+      (sol ? '<p class="text-muted mb-0"><strong>' + esc(sol.staff) + '</strong> — ' + esc(sol.tipo) + '<br>' + esc(sol.descripcion) + '</p>' : ''),
+    btnTexto: 'Aprobar',
+    btnClase: 'btn-success'
+  }, function() {
+    google.script.run.withSuccessHandler(function() {
+      toast('Solicitud aprobada.', 'success');
+      recargarSolicitudes();
+    }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).responderSolicitud({ rowIndex: rowIndex, estado: 'APROBADO', motivoRechazo: '' });
+  });
 }
 
 function abrirRechazarSolicitud(rowIndex) {
@@ -3093,13 +3143,20 @@ function guardarGaleriaItem() {
 }
 
 function eliminarGaleriaItem(rowIndex) {
-  if (!confirm('Eliminar este contenido multimedia?')) return;
   var item = galeria.find(function(g) { return g.rowIndex === rowIndex; });
   var srvId = item ? item.idServicio : document.getElementById('galIdServicio').value;
-  google.script.run
-    .withSuccessHandler(function() { reloadGaleria(srvId); toast('Contenido eliminado.', 'success'); })
-    .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); })
-    .deleteGaleria(rowIndex);
+  confirmar({
+    titulo: 'Eliminar Multimedia',
+    mensaje: '<p>¿Eliminar este contenido multimedia?</p>' +
+      '<p class="text-danger mb-0"><small><i class="fas fa-exclamation-triangle me-1"></i>Esta accion no se puede deshacer.</small></p>',
+    btnTexto: 'Eliminar',
+    btnClase: 'btn-danger'
+  }, function() {
+    google.script.run
+      .withSuccessHandler(function() { reloadGaleria(srvId); toast('Contenido eliminado.', 'success'); })
+      .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); })
+      .deleteGaleria(rowIndex);
+  });
 }
 
 function reloadGaleria(idServicio) {
@@ -4002,17 +4059,23 @@ function finalizarBloqueo(btn, esEdicion) {
 }
 
 function eliminarBloqueo(rowIndex) {
-  if (!confirm('Eliminar este bloqueo de horario?')) return;
-  google.script.run
-    .withSuccessHandler(function() {
-      toast('Bloqueo eliminado', 'success');
-      google.script.run.withSuccessHandler(function(d) {
-        disponibilidad = d || [];
-        navigateTo('horarios');
-      }).getDisponibilidad();
-    })
-    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
-    .deleteBloqueo(rowIndex);
+  confirmar({
+    titulo: 'Eliminar Bloqueo',
+    mensaje: '<p>¿Eliminar este bloqueo de horario?</p>',
+    btnTexto: 'Eliminar',
+    btnClase: 'btn-danger'
+  }, function() {
+    google.script.run
+      .withSuccessHandler(function() {
+        toast('Bloqueo eliminado', 'success');
+        google.script.run.withSuccessHandler(function(d) {
+          disponibilidad = d || [];
+          navigateTo('horarios');
+        }).getDisponibilidad();
+      })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+      .deleteBloqueo(rowIndex);
+  });
 }
 
 function checkBloqueosVencidos() {
@@ -4035,19 +4098,26 @@ function checkBloqueosVencidos() {
 }
 
 function limpiarBloqueosVencidos() {
-  if (!confirm('Eliminar todos los bloqueos vencidos? Esta accion no se puede deshacer.')) return;
-  google.script.run
-    .withSuccessHandler(function(result) {
-      var t = document.getElementById('toastVencidos');
-      if (t) t.remove();
-      toast('Se eliminaron ' + result.count + ' bloqueo(s) vencido(s)', 'success');
-      google.script.run.withSuccessHandler(function(d) {
-        disponibilidad = d || [];
-        if (currentPage === 'horarios') navigateTo('horarios');
-      }).getDisponibilidad();
-    })
-    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
-    .limpiarBloqueosVencidos();
+  confirmar({
+    titulo: 'Limpiar Bloqueos Vencidos',
+    mensaje: '<p>¿Eliminar todos los bloqueos vencidos?</p>' +
+      '<p class="text-danger mb-0"><small><i class="fas fa-exclamation-triangle me-1"></i>Esta accion no se puede deshacer.</small></p>',
+    btnTexto: 'Limpiar vencidos',
+    btnClase: 'btn-warning'
+  }, function() {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        var t = document.getElementById('toastVencidos');
+        if (t) t.remove();
+        toast('Se eliminaron ' + result.count + ' bloqueo(s) vencido(s)', 'success');
+        google.script.run.withSuccessHandler(function(d) {
+          disponibilidad = d || [];
+          if (currentPage === 'horarios') navigateTo('horarios');
+        }).getDisponibilidad();
+      })
+      .withFailureHandler(function(err) { toast('Error: ' + err.message, 'danger'); })
+      .limpiarBloqueosVencidos();
+  });
 }
 
 // =============================================
@@ -4265,6 +4335,27 @@ function badgeTipoCliente(tipo) {
 function formatMoney(val) {
   var n = parseFloat(val) || 0;
   return '$' + n.toLocaleString('es-CO');
+}
+
+// ─── Modal de confirmacion reutilizable ───
+var _confirmarCallback = null;
+function confirmar(opts, callback) {
+  var titulo = opts.titulo || 'Confirmar accion';
+  var mensaje = opts.mensaje || '¿Estas seguro?';
+  var btnTexto = opts.btnTexto || 'Confirmar';
+  var btnClase = opts.btnClase || 'btn-danger';
+  document.getElementById('modalConfirmarTitulo').textContent = titulo;
+  document.getElementById('modalConfirmarBody').innerHTML = mensaje;
+  var btn = document.getElementById('btnConfirmarAccion');
+  btn.textContent = btnTexto;
+  btn.className = 'btn ' + btnClase;
+  _confirmarCallback = callback;
+  btn.onclick = function() {
+    bootstrap.Modal.getInstance(document.getElementById('modalConfirmar')).hide();
+    if (_confirmarCallback) _confirmarCallback();
+    _confirmarCallback = null;
+  };
+  new bootstrap.Modal(document.getElementById('modalConfirmar')).show();
 }
 
 function toast(msg, tipo) {
