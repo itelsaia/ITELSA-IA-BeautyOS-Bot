@@ -60,9 +60,10 @@ async function loadClientConfig(sheetId) {
             // Ubicacion del negocio
             businessAddress: configRaw['DIRECCION_NEGOCIO'] || '',
             locationLink: configRaw['ENLACE_UBICACION'] || '',
-            // Mensajes CRM
+            // Mensajes CRM y timing de recordatorio
             reminderMessage: configRaw['MENSAJE_RECORDATORIO'] || '',
             thankYouMessage: configRaw['MENSAJE_AGRADECIMIENTO'] || '',
+            reminderMinutes: parseInt(configRaw['MINUTOS_RECORDATORIO']) || 60,
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);

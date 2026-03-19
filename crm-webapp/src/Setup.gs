@@ -39,7 +39,8 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["UMBRAL_FRECUENTE", "4", "Citas EJECUTADO minimas para pasar a Frecuente"]);
   sheetConfig.appendRow(["UMBRAL_VIP", "9", "Citas EJECUTADO minimas para pasar a VIP"]);
   sheetConfig.appendRow(["MENSAJE_AGRADECIMIENTO", "¡Gracias {cliente}! Fue un placer atenderte con tu {servicio} en {negocio}. ¡Te esperamos pronto! 💅✨", "Template WhatsApp al cerrar cita. Variables: {cliente}, {servicio}, {negocio}"]);
-  sheetConfig.appendRow(["MENSAJE_RECORDATORIO", "¡Hola {cliente}! 🕐 Te recordamos que tienes tu cita de {servicio} hoy a las {hora} con {profesional} en {negocio}. Si no puedes asistir, responde este mensaje para cancelar o reagendar. ¡Te esperamos!", "Template recordatorio 1h antes. Variables: {cliente}, {servicio}, {hora}, {profesional}, {negocio}"]);
+  sheetConfig.appendRow(["MENSAJE_RECORDATORIO", "¡Hola {cliente}! 🕐 Te recordamos que tienes tu cita de {servicio} hoy a las {hora} con {profesional} en {negocio}. Si no puedes asistir, responde este mensaje para cancelar o reagendar. ¡Te esperamos!", "Template recordatorio antes de cita. Variables: {cliente}, {servicio}, {hora}, {profesional}, {negocio}"]);
+  sheetConfig.appendRow(["MINUTOS_RECORDATORIO", "60", "Minutos de anticipacion para enviar recordatorio de cita (ej: 60 = 1 hora antes)"]);
   sheetConfig.appendRow(["URL_BOT_API", "", "URL del servidor Bot Express (ej: http://localhost:3000)"]);
   sheetConfig.appendRow(["API_KEY_BOT", "", "Clave secreta para autenticar llamadas desde CRM al Bot"]);
   sheetConfig.appendRow(["INSTANCE_NAME", "", "Nombre de la instancia Evolution API del tenant"]);

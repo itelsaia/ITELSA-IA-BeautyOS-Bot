@@ -480,8 +480,9 @@ async function checkAndSendReminders(tenant, tenantId) {
             const nowMin = now.getHours() * 60 + now.getMinutes();
             const diffMin = citaMin - nowMin;
 
-            // Ventana: entre 55 y 65 minutos antes (captura ~1 hora con sync cada 5 min)
-            if (diffMin < 55 || diffMin > 65) continue;
+            // Ventana configurable centrada en reminderMinutes (±5 min para cubrir el sync cada 5 min)
+            const reminderMin = configObj.reminderMinutes || 60;
+            if (diffMin < (reminderMin - 5) || diffMin > (reminderMin + 5)) continue;
 
             const mensaje = template
                 .replace(/\{cliente\}/g, cita.cliente || '')
