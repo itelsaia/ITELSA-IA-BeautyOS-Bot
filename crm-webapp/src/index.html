@@ -1474,24 +1474,33 @@ function renderMiAgenda() {
   html += '<input type="date" class="form-control" style="width:auto;" id="miAgendaFecha" value="' + hoyISO + '" onchange="updateMiAgendaCards()">';
   if (isAdmin) {
     html += '<select class="form-select" style="width:auto;" id="miAgendaProf" onchange="updateMiAgendaCards()">';
-    html += '<option value="">Todos</option>';
+    html += '<option value="">Todos los profesionales</option>';
     var profs = [];
     colaboradores.forEach(function(c) { if (c.estado === 'ACTIVO' && profs.indexOf(c.nombre) === -1) profs.push(c.nombre); });
     profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
+    html += '</select>';
+    html += '<select class="form-select" style="width:auto;" id="miAgendaEstado" onchange="updateMiAgendaCards()">';
+    html += '<option value="">Todos los estados</option>';
+    html += '<option value="PENDIENTE">Pendiente</option>';
+    html += '<option value="EJECUTADO">Ejecutado</option>';
+    html += '<option value="REAGENDADO">Reagendado</option>';
+    html += '<option value="CANCELADA">Cancelada</option>';
+    html += '<option value="RECHAZADO">Rechazado</option>';
     html += '</select>';
   }
   html += '</div>';
 
   html += '<div id="miAgendaCards">';
-  html += renderMiAgendaCards(hoyStr, nombreFiltro);
+  html += renderMiAgendaCards(hoyStr, nombreFiltro, '');
   html += '</div>';
   return html;
 }
 
-function renderMiAgendaCards(fechaStr, profFiltro) {
+function renderMiAgendaCards(fechaStr, profFiltro, estadoFiltro) {
   var filtered = agenda.filter(function(a) {
     if (a.fecha !== fechaStr) return false;
     if (profFiltro && a.profesional !== profFiltro) return false;
+    if (estadoFiltro && a.estado !== estadoFiltro) return false;
     return true;
   });
 
@@ -1504,6 +1513,8 @@ function renderMiAgendaCards(fechaStr, profFiltro) {
 
   var pendientes = filtered.filter(function(a) { return a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO'; }).length;
   var ejecutados = filtered.filter(function(a) { return a.estado === 'EJECUTADO'; }).length;
+  var canceladas = filtered.filter(function(a) { return a.estado === 'CANCELADA'; }).length;
+  var rechazadas = filtered.filter(function(a) { return a.estado === 'RECHAZADO'; }).length;
 
   // Resumen por servicio + total del dia
   var servicioCount = {};
@@ -1517,6 +1528,8 @@ function renderMiAgendaCards(fechaStr, profFiltro) {
   var html = '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">';
   html += '<span class="badge bg-warning text-dark" style="font-size:.82rem;">' + pendientes + ' pendiente(s)</span>';
   html += '<span class="badge bg-success" style="font-size:.82rem;">' + ejecutados + ' cerrada(s)</span>';
+  if (canceladas > 0) html += '<span class="badge bg-secondary" style="font-size:.82rem;">' + canceladas + ' cancelada(s)</span>';
+  if (rechazadas > 0) html += '<span class="badge bg-danger" style="font-size:.82rem;">' + rechazadas + ' rechazada(s)</span>';
   html += '<span class="badge bg-light text-dark" style="font-size:.82rem;">' + filtered.length + ' total</span>';
   html += '<span class="badge" style="font-size:.82rem; background:var(--brand); color:#fff;">' + formatMoney(totalDia) + ' del dia</span>';
   html += '</div>';
@@ -1564,6 +1577,7 @@ function renderMiAgendaCards(fechaStr, profFiltro) {
 function updateMiAgendaCards() {
   var fechaInput = document.getElementById('miAgendaFecha');
   var profSelect = document.getElementById('miAgendaProf');
+  var estadoSelect = document.getElementById('miAgendaEstado');
   if (!fechaInput) return;
 
   // Convertir YYYY-MM-DD a DD/MM/YYYY
@@ -1574,8 +1588,10 @@ function updateMiAgendaCards() {
   if (profSelect) profFiltro = profSelect.value;
   else if (userSession && userSession.rol !== 'ADMIN') profFiltro = userSession.nombre;
 
+  var estadoFiltro = estadoSelect ? estadoSelect.value : '';
+
   var container = document.getElementById('miAgendaCards');
-  if (container) container.innerHTML = renderMiAgendaCards(fechaStr, profFiltro);
+  if (container) container.innerHTML = renderMiAgendaCards(fechaStr, profFiltro, estadoFiltro);
 }
 
 // =============================================
