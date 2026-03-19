@@ -2222,7 +2222,9 @@ function renderNovedades() {
   html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
   html += '<div class="modal-body">';
   html += '<div class="mb-3"><label class="form-label fw-semibold">Tipo *</label>';
-  html += '<select class="form-select" id="novTipo"><option value="Insumo">Insumo (se acabo producto)</option><option value="Equipo">Equipo (daño o falla)</option><option value="Limpieza">Limpieza</option><option value="Otro">Otro</option></select></div>';
+  html += '<select class="form-select" id="novTipo" onchange="updateNovTipoHelp()">';
+  html += '<option value="Insumo">Insumo</option><option value="Equipo">Equipo</option><option value="Limpieza">Limpieza</option><option value="Otro">Otro</option></select>';
+  html += '<div id="novTipoHelp" class="form-text mt-1"></div></div>';
   html += '<div class="mb-3"><label class="form-label fw-semibold">Descripcion *</label>';
   html += '<textarea class="form-control" id="novMensaje" rows="4" placeholder="Describe la novedad con detalle..."></textarea></div>';
   html += '</div>';
@@ -2298,9 +2300,23 @@ function filtrarNovedades() {
   document.getElementById('novedadesCards').innerHTML = renderNovedadesCards(filtered);
 }
 
+var novTipoDescripciones = {
+  'Insumo': 'Se acabo o esta por acabarse un producto (shampoo, tinte, esmalte, crema, toallas, etc.)',
+  'Equipo': 'Daño, falla o mal funcionamiento de un equipo (secador, plancha, silla, cepillo, lampara UV, etc.)',
+  'Limpieza': 'Problema de limpieza, higiene o mantenimiento del espacio de trabajo',
+  'Otro': 'Cualquier otra novedad que no encaje en las categorias anteriores'
+};
+
+function updateNovTipoHelp() {
+  var tipo = document.getElementById('novTipo').value;
+  var helpEl = document.getElementById('novTipoHelp');
+  if (helpEl) helpEl.innerHTML = '<i class="fas fa-info-circle me-1"></i>' + (novTipoDescripciones[tipo] || '');
+}
+
 function abrirModalNovedad() {
   document.getElementById('novTipo').value = 'Insumo';
   document.getElementById('novMensaje').value = '';
+  updateNovTipoHelp();
   new bootstrap.Modal(document.getElementById('modalNovedad')).show();
 }
 
