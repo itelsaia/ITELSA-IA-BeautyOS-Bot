@@ -2017,6 +2017,17 @@ function updateAgendaStatus(citaId, nuevoEstado) {
   return handleUpdateAgendaStatus(ss, { id: citaId, nuevoEstado: nuevoEstado });
 }
 
+function deleteCita(rowIndex) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("AGENDA");
+  if (!sheet) throw new Error("La hoja AGENDA no existe.");
+  if (rowIndex < 2) throw new Error("No se puede eliminar la fila de encabezados.");
+  var estado = (sheet.getRange(rowIndex, 11).getValue() || '').toString().toUpperCase();
+  if (estado === 'PENDIENTE' || estado === 'REAGENDADO') throw new Error("No se pueden eliminar citas pendientes o reagendadas.");
+  sheet.deleteRow(rowIndex);
+  return { status: 'ok' };
+}
+
 // ─── Autenticación PIN para CRM ───
 
 function validatePin(pin) {
