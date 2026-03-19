@@ -105,13 +105,19 @@ function inicializarEntorno() {
   sheetPromociones.appendRow(["Cumpleanos Especial", "Feliz cumpleanos {nombre}! En {negocio} te regalamos un {descuento} de descuento en el servicio que desees. Escribenos para agendar tu cita de cumpleanos!", "CUMPLEANOS", 20, "TODOS", "08:00,13:00,19:00", "", "ACTIVO", "Frecuente,VIP", "", "", "", "NO", "", "", ""]);
   formatHeaders(sheetPromociones);
 
-  // 8. NOVEDADES
+  // 8. NOVEDADES (reportes de staff → gestion admin)
   let sheetNovedades = getOrCreateSheet(ss, "NOVEDADES");
   sheetNovedades.clear();
-  sheetNovedades.appendRow(["FECHA", "HORA", "STAFF", "TIPO", "MENSAJE", "ESTADO"]);
+  sheetNovedades.appendRow(["ID", "FECHA", "HORA", "STAFF", "TIPO", "MENSAJE", "ESTADO", "RESPUESTA", "FECHA_CIERRE"]);
   formatHeaders(sheetNovedades);
 
-  // 9. CONOCIMIENTO (RAG y Multimedia extra)
+  // 9. SOLICITUDES (permisos, vacaciones, etc.)
+  let sheetSolicitudes = getOrCreateSheet(ss, "SOLICITUDES");
+  sheetSolicitudes.clear();
+  sheetSolicitudes.appendRow(["ID", "FECHA", "STAFF", "TIPO", "DESCRIPCION", "FECHA_DESDE", "FECHA_HASTA", "ESTADO", "MOTIVO_RECHAZO", "FECHA_RESPUESTA"]);
+  formatHeaders(sheetSolicitudes);
+
+  // 10. CONOCIMIENTO (RAG y Multimedia extra)
   let sheetConocimiento = getOrCreateSheet(ss, "CONOCIMIENTO");
   sheetConocimiento.clear();
   sheetConocimiento.appendRow(["INTENCION", "RESPUESTA", "TIPO_MEDIA", "URL"]);

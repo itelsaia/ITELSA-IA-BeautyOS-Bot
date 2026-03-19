@@ -297,6 +297,8 @@
       <div class="nav-section nav-admin">Principal</div>
       <a href="#" class="active nav-admin" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
       <a href="#" data-page="miagenda"><i class="fas fa-calendar-check"></i> Mi Agenda</a>
+      <a href="#" data-page="novedades"><i class="fas fa-exclamation-triangle"></i> Novedades</a>
+      <a href="#" data-page="solicitudes"><i class="fas fa-paper-plane"></i> Solicitudes</a>
       <a href="#" class="nav-admin" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
       <a href="#" class="nav-admin" data-page="clientes"><i class="fas fa-users"></i> Clientes</a>
       <a href="#" class="nav-admin" data-page="equipo"><i class="fas fa-user-friends"></i> Equipo</a>
@@ -737,6 +739,8 @@ var colaboradores = [];
 var serviciosNombres = [];
 var galeria = [];
 var festivosConfig = [];
+var novedades = [];
+var solicitudes = [];
 var analyticsData = null;
 var analyticsCharts = {};
 var currentPage = 'dashboard';
@@ -748,7 +752,7 @@ var userSession = null; // { nombre, rol, id, competencias }
 // Inicializacion
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
-  pendingLoads = 9;
+  pendingLoads = 11;
   google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
   google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
   google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
@@ -758,6 +762,8 @@ document.addEventListener('DOMContentLoaded', function() {
   google.script.run.withSuccessHandler(onColaboradoresLoaded).withFailureHandler(onLoadErr).getColaboradores();
   google.script.run.withSuccessHandler(onGaleriaLoaded).withFailureHandler(onLoadErr).getGaleria();
   google.script.run.withSuccessHandler(onFestivosLoaded).withFailureHandler(onLoadErr).getFestivosConfig();
+  google.script.run.withSuccessHandler(onNovedadesLoaded).withFailureHandler(onLoadErr).getNovedades();
+  google.script.run.withSuccessHandler(onSolicitudesLoaded).withFailureHandler(onLoadErr).getSolicitudes();
 
   // Nav click
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
@@ -846,6 +852,8 @@ function onDisponibilidadLoaded(data) { disponibilidad = data || []; checkBloque
 function onColaboradoresLoaded(data) { colaboradores = data || []; checkLoaded(); }
 function onGaleriaLoaded(data) { galeria = data || []; checkLoaded(); }
 function onFestivosLoaded(data) { festivosConfig = data || []; checkLoaded(); }
+function onNovedadesLoaded(data) { novedades = data || []; checkLoaded(); }
+function onSolicitudesLoaded(data) { solicitudes = data || []; checkLoaded(); }
 function onLoadErr(err) { console.error('Error carga:', err); checkLoaded(); }
 
 function checkLoaded() {
@@ -1297,6 +1305,8 @@ function navigateTo(page) {
     case 'analisis': area.innerHTML = renderAnalisis(); loadAnalyticsCharts(); break;
     case 'config': area.innerHTML = renderConfig(); break;
     case 'miagenda': area.innerHTML = renderMiAgenda(); break;
+    case 'novedades': area.innerHTML = renderNovedades(); break;
+    case 'solicitudes': area.innerHTML = renderSolicitudes(); break;
   }
 }
 
@@ -1493,7 +1503,33 @@ function renderMiAgendaCards(fechaStr, profFiltro) {
   }
 
   var pendientes = filtered.filter(function(a) { return a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO'; }).length;
-  var html = '<div class="mb-3"><span class="badge bg-warning text-dark" style="font-size:.82rem;">' + pendientes + ' pendiente(s)</span> <span class="badge bg-light text-dark" style="font-size:.82rem;">' + filtered.length + ' total</span></div>';
+  var ejecutados = filtered.filter(function(a) { return a.estado === 'EJECUTADO'; }).length;
+
+  // Resumen por servicio + total del dia
+  var servicioCount = {};
+  var totalDia = 0;
+  filtered.forEach(function(a) {
+    var srv = a.servicio || 'Sin servicio';
+    servicioCount[srv] = (servicioCount[srv] || 0) + 1;
+    if (a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO' || a.estado === 'EJECUTADO') totalDia += (parseFloat(a.precio) || 0);
+  });
+
+  var html = '<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">';
+  html += '<span class="badge bg-warning text-dark" style="font-size:.82rem;">' + pendientes + ' pendiente(s)</span>';
+  html += '<span class="badge bg-success" style="font-size:.82rem;">' + ejecutados + ' cerrada(s)</span>';
+  html += '<span class="badge bg-light text-dark" style="font-size:.82rem;">' + filtered.length + ' total</span>';
+  html += '<span class="badge" style="font-size:.82rem; background:var(--brand); color:#fff;">' + formatMoney(totalDia) + ' del dia</span>';
+  html += '</div>';
+
+  // Mini-cards por servicio
+  var srvKeys = Object.keys(servicioCount);
+  if (srvKeys.length > 0) {
+    html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+    srvKeys.forEach(function(srv) {
+      html += '<span class="badge bg-light text-dark border" style="font-size:.78rem;"><i class="fas fa-concierge-bell me-1" style="opacity:.5;"></i>' + esc(srv) + ': ' + servicioCount[srv] + '</span>';
+    });
+    html += '</div>';
+  }
 
   filtered.forEach(function(a) {
     var extraClass = '';
@@ -1506,10 +1542,13 @@ function renderMiAgendaCards(fechaStr, profFiltro) {
     html += '<div class="ac-time">' + esc(a.inicio) + ' - ' + esc(a.fin) + '</div>';
     html += badgeEstadoCita(a.estado);
     html += '</div>';
-    html += '<div class="ac-client">' + esc(a.cliente) + '</div>';
+    html += '<div class="ac-client">' + esc(a.cliente);
+    if (a.celularCliente) html += ' <a href="tel:' + esc(a.celularCliente) + '" style="color:var(--brand); font-size:.8rem; text-decoration:none;" title="Llamar"><i class="fas fa-phone-alt"></i> ' + esc(a.celularCliente) + '</a>';
+    html += '</div>';
     html += '<div class="ac-detail">' + esc(a.servicio) + ' &bull; ' + formatMoney(a.precio);
     if (a.profesional) html += ' &bull; ' + esc(a.profesional);
     html += '</div>';
+    if (a.notas) html += '<div class="ac-detail" style="font-style:italic; margin-top:4px;"><i class="fas fa-sticky-note me-1" style="opacity:.4;"></i>' + esc(a.notas) + '</div>';
 
     if (a.estado === 'PENDIENTE' || a.estado === 'REAGENDADO') {
       html += '<div class="ac-actions">';
@@ -2143,6 +2182,388 @@ function renderHorarios() {
   setTimeout(function() { renderFestivosYear(defaultYear); }, 0);
 
   return html;
+}
+
+// =============================================
+// RENDER: Novedades
+// =============================================
+function renderNovedades() {
+  var isAdmin = userSession && userSession.rol === 'ADMIN';
+  var miNombre = userSession ? userSession.nombre : '';
+
+  // Filtrar: STAFF solo ve las suyas, ADMIN ve todas
+  var filtered = isAdmin ? novedades.slice() : novedades.filter(function(n) { return n.staff === miNombre; });
+
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div><h5 style="font-weight:700; margin:0;"><i class="fas fa-exclamation-triangle me-2" style="color:#f59e0b;"></i>Novedades</h5>';
+  html += '<small class="text-muted">' + (isAdmin ? 'Todas las novedades del equipo' : 'Mis reportes de novedades') + '</small></div>';
+  html += '<button class="btn btn-brand btn-sm" onclick="abrirModalNovedad()"><i class="fas fa-plus me-1"></i> Nueva Novedad</button></div>';
+
+  // Filtros admin
+  if (isAdmin) {
+    html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+    html += '<select class="form-select form-select-sm" style="width:auto;" id="filtroNovedadEstado" onchange="filtrarNovedades()">';
+    html += '<option value="">Todos los estados</option><option value="ABIERTO">ABIERTO</option><option value="CERRADO">CERRADO</option></select>';
+    html += '<select class="form-select form-select-sm" style="width:auto;" id="filtroNovedadProf" onchange="filtrarNovedades()">';
+    html += '<option value="">Todos los profesionales</option>';
+    var profs = [];
+    novedades.forEach(function(n) { if (n.staff && profs.indexOf(n.staff) === -1) profs.push(n.staff); });
+    profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
+    html += '</select></div>';
+  }
+
+  html += '<div id="novedadesCards">';
+  html += renderNovedadesCards(filtered);
+  html += '</div>';
+
+  // Modal Nueva Novedad
+  html += '<div class="modal fade" id="modalNovedad" tabindex="-1"><div class="modal-dialog"><div class="modal-content">';
+  html += '<div class="modal-header" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;"><h5 class="modal-title"><i class="fas fa-exclamation-triangle me-2"></i>Nueva Novedad</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Tipo *</label>';
+  html += '<select class="form-select" id="novTipo"><option value="Insumo">Insumo (se acabo producto)</option><option value="Equipo">Equipo (daño o falla)</option><option value="Limpieza">Limpieza</option><option value="Otro">Otro</option></select></div>';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Descripcion *</label>';
+  html += '<textarea class="form-control" id="novMensaje" rows="4" placeholder="Describe la novedad con detalle..."></textarea></div>';
+  html += '</div>';
+  html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-warning text-dark" onclick="guardarNovedad()" id="btnGuardarNov"><i class="fas fa-save me-1"></i> Reportar</button></div>';
+  html += '</div></div></div>';
+
+  // Modal Cerrar Novedad (admin)
+  html += '<div class="modal fade" id="modalCerrarNovedad" tabindex="-1"><div class="modal-dialog"><div class="modal-content">';
+  html += '<div class="modal-header" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;"><h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Cerrar Novedad</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<div id="cerrarNovResumen" class="mb-3"></div>';
+  html += '<input type="hidden" id="cerrarNovRowIndex">';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Respuesta / Solucion *</label>';
+  html += '<textarea class="form-control" id="cerrarNovRespuesta" rows="3" placeholder="Describe la solucion o gestion realizada..."></textarea></div>';
+  html += '</div>';
+  html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-success" onclick="confirmarCerrarNovedad()" id="btnCerrarNov"><i class="fas fa-check me-1"></i> Cerrar Novedad</button></div>';
+  html += '</div></div></div>';
+
+  return html;
+}
+
+function renderNovedadesCards(items) {
+  if (items.length === 0) return '<div class="empty-state"><i class="fas fa-clipboard-check"></i><p>No hay novedades reportadas.</p></div>';
+
+  var abiertas = items.filter(function(n) { return n.estado === 'ABIERTO'; }).length;
+  var html = '<div class="mb-3"><span class="badge bg-warning text-dark" style="font-size:.82rem;">' + abiertas + ' abierta(s)</span> <span class="badge bg-light text-dark" style="font-size:.82rem;">' + items.length + ' total</span></div>';
+
+  // Ordenar: abiertas primero, luego por fecha descendente
+  items.sort(function(a, b) {
+    if (a.estado === 'ABIERTO' && b.estado !== 'ABIERTO') return -1;
+    if (a.estado !== 'ABIERTO' && b.estado === 'ABIERTO') return 1;
+    return (b.id || '').localeCompare(a.id || '');
+  });
+
+  items.forEach(function(n) {
+    var isCerrado = n.estado === 'CERRADO';
+    html += '<div class="agenda-card' + (isCerrado ? ' ac-ejecutado' : '') + '">';
+    html += '<div class="d-flex justify-content-between align-items-start">';
+    html += '<div><span class="badge bg-light text-dark border me-1" style="font-size:.75rem;">' + esc(n.tipo) + '</span>';
+    html += '<small class="text-muted">' + esc(n.fecha) + ' ' + esc(n.hora) + '</small></div>';
+    var badgeCls = isCerrado ? 'badge-ejecutado' : 'badge-pendiente';
+    html += '<span class="badge-status ' + badgeCls + '">' + esc(n.estado) + '</span>';
+    html += '</div>';
+    html += '<div class="ac-client">' + esc(n.staff) + '</div>';
+    html += '<div class="ac-detail">' + esc(n.mensaje) + '</div>';
+
+    if (isCerrado && n.respuesta) {
+      html += '<div style="background:#d4edda; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:.85rem;">';
+      html += '<strong style="color:#155724;"><i class="fas fa-check-circle me-1"></i>Respuesta:</strong> ' + esc(n.respuesta);
+      if (n.fechaCierre) html += '<br><small class="text-muted">Cerrado: ' + esc(n.fechaCierre) + '</small>';
+      html += '</div>';
+    }
+
+    if (!isCerrado && userSession && userSession.rol === 'ADMIN') {
+      html += '<div class="ac-actions"><button class="btn btn-success" onclick="abrirCerrarNovedad(' + n.rowIndex + ')"><i class="fas fa-check me-1"></i>Cerrar Novedad</button></div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+function filtrarNovedades() {
+  var estado = document.getElementById('filtroNovedadEstado') ? document.getElementById('filtroNovedadEstado').value : '';
+  var prof = document.getElementById('filtroNovedadProf') ? document.getElementById('filtroNovedadProf').value : '';
+  var filtered = novedades.filter(function(n) {
+    if (estado && n.estado !== estado) return false;
+    if (prof && n.staff !== prof) return false;
+    return true;
+  });
+  document.getElementById('novedadesCards').innerHTML = renderNovedadesCards(filtered);
+}
+
+function abrirModalNovedad() {
+  document.getElementById('novTipo').value = 'Insumo';
+  document.getElementById('novMensaje').value = '';
+  new bootstrap.Modal(document.getElementById('modalNovedad')).show();
+}
+
+function guardarNovedad() {
+  var mensaje = document.getElementById('novMensaje').value.trim();
+  if (!mensaje) { toast('Describe la novedad.', 'warning'); return; }
+
+  var data = { staff: userSession ? userSession.nombre : '', tipo: document.getElementById('novTipo').value, mensaje: mensaje };
+  var btn = document.getElementById('btnGuardarNov');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+  google.script.run.withSuccessHandler(function() {
+    bootstrap.Modal.getInstance(document.getElementById('modalNovedad')).hide();
+    toast('Novedad reportada.', 'success');
+    resetBtn(btn, 'Reportar');
+    recargarNovedades();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Reportar'); }).saveNovedad(data);
+}
+
+function abrirCerrarNovedad(rowIndex) {
+  var nov = novedades.find(function(n) { return n.rowIndex === rowIndex; });
+  if (!nov) return;
+  document.getElementById('cerrarNovRowIndex').value = rowIndex;
+  document.getElementById('cerrarNovRespuesta').value = '';
+  document.getElementById('cerrarNovResumen').innerHTML = '<div class="p-2 bg-light rounded"><strong>' + esc(nov.staff) + '</strong> — ' + esc(nov.tipo) + '<br><span class="text-muted small">' + esc(nov.fecha) + ' ' + esc(nov.hora) + '</span><br>' + esc(nov.mensaje) + '</div>';
+  new bootstrap.Modal(document.getElementById('modalCerrarNovedad')).show();
+}
+
+function confirmarCerrarNovedad() {
+  var respuesta = document.getElementById('cerrarNovRespuesta').value.trim();
+  if (!respuesta) { toast('Escribe la respuesta o solucion.', 'warning'); return; }
+
+  var data = { rowIndex: parseInt(document.getElementById('cerrarNovRowIndex').value), respuesta: respuesta };
+  var btn = document.getElementById('btnCerrarNov');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Cerrando...';
+
+  google.script.run.withSuccessHandler(function() {
+    bootstrap.Modal.getInstance(document.getElementById('modalCerrarNovedad')).hide();
+    toast('Novedad cerrada.', 'success');
+    resetBtn(btn, 'Cerrar Novedad');
+    recargarNovedades();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Cerrar Novedad'); }).cerrarNovedad(data);
+}
+
+function recargarNovedades() {
+  google.script.run.withSuccessHandler(function(data) {
+    novedades = data || [];
+    if (currentPage === 'novedades') navigateTo('novedades');
+  }).getNovedades();
+}
+
+// =============================================
+// RENDER: Solicitudes
+// =============================================
+function renderSolicitudes() {
+  var isAdmin = userSession && userSession.rol === 'ADMIN';
+  var miNombre = userSession ? userSession.nombre : '';
+
+  var filtered = isAdmin ? solicitudes.slice() : solicitudes.filter(function(s) { return s.staff === miNombre; });
+
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  html += '<div><h5 style="font-weight:700; margin:0;"><i class="fas fa-paper-plane me-2" style="color:#6366f1;"></i>Solicitudes</h5>';
+  html += '<small class="text-muted">' + (isAdmin ? 'Todas las solicitudes del equipo' : 'Mis solicitudes') + '</small></div>';
+  html += '<button class="btn btn-brand btn-sm" onclick="abrirModalSolicitud()"><i class="fas fa-plus me-1"></i> Nueva Solicitud</button></div>';
+
+  // Filtros admin
+  if (isAdmin) {
+    html += '<div class="d-flex flex-wrap gap-2 mb-3">';
+    html += '<select class="form-select form-select-sm" style="width:auto;" id="filtroSolEstado" onchange="filtrarSolicitudes()">';
+    html += '<option value="">Todos los estados</option><option value="PENDIENTE">PENDIENTE</option><option value="APROBADO">APROBADO</option><option value="NO APROBADO">NO APROBADO</option></select>';
+    html += '<select class="form-select form-select-sm" style="width:auto;" id="filtroSolProf" onchange="filtrarSolicitudes()">';
+    html += '<option value="">Todos los profesionales</option>';
+    var profs = [];
+    solicitudes.forEach(function(s) { if (s.staff && profs.indexOf(s.staff) === -1) profs.push(s.staff); });
+    profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
+    html += '</select></div>';
+  }
+
+  html += '<div id="solicitudesCards">';
+  html += renderSolicitudesCards(filtered);
+  html += '</div>';
+
+  // Modal Nueva Solicitud
+  html += '<div class="modal fade" id="modalSolicitud" tabindex="-1"><div class="modal-dialog"><div class="modal-content">';
+  html += '<div class="modal-header" style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;"><h5 class="modal-title"><i class="fas fa-paper-plane me-2"></i>Nueva Solicitud</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Tipo *</label>';
+  html += '<select class="form-select" id="solTipo" onchange="toggleSolFechas()">';
+  html += '<option value="Permiso">Permiso</option><option value="Vacaciones">Vacaciones</option><option value="Cambio Horario">Cambio Horario</option><option value="Otro">Otro</option></select></div>';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Descripcion *</label>';
+  html += '<textarea class="form-control" id="solDescripcion" rows="3" placeholder="Describe tu solicitud..."></textarea></div>';
+  html += '<div class="row g-3" id="solFechasRow">';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Desde</label><input type="date" class="form-control" id="solFechaDesde"></div>';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Hasta</label><input type="date" class="form-control" id="solFechaHasta"></div>';
+  html += '</div>';
+  html += '</div>';
+  html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-primary" onclick="guardarSolicitud()" id="btnGuardarSol"><i class="fas fa-save me-1"></i> Enviar</button></div>';
+  html += '</div></div></div>';
+
+  // Modal Rechazar Solicitud (admin)
+  html += '<div class="modal fade" id="modalRechazarSol" tabindex="-1"><div class="modal-dialog"><div class="modal-content">';
+  html += '<div class="modal-header" style="background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;"><h5 class="modal-title"><i class="fas fa-times-circle me-2"></i>No Aprobar Solicitud</h5>';
+  html += '<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>';
+  html += '<div class="modal-body">';
+  html += '<div id="rechazarSolResumen" class="mb-3"></div>';
+  html += '<input type="hidden" id="rechazarSolRowIndex">';
+  html += '<div class="mb-3"><label class="form-label fw-semibold">Motivo del rechazo (opcional)</label>';
+  html += '<textarea class="form-control" id="rechazarSolMotivo" rows="3" placeholder="Explica el motivo..."></textarea></div>';
+  html += '</div>';
+  html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
+  html += '<button type="button" class="btn btn-danger" onclick="confirmarRechazarSolicitud()" id="btnRechazarSol"><i class="fas fa-times me-1"></i> No Aprobar</button></div>';
+  html += '</div></div></div>';
+
+  return html;
+}
+
+function renderSolicitudesCards(items) {
+  if (items.length === 0) return '<div class="empty-state"><i class="fas fa-inbox"></i><p>No hay solicitudes.</p></div>';
+
+  var pendientes = items.filter(function(s) { return s.estado === 'PENDIENTE'; }).length;
+  var html = '<div class="mb-3"><span class="badge bg-warning text-dark" style="font-size:.82rem;">' + pendientes + ' pendiente(s)</span> <span class="badge bg-light text-dark" style="font-size:.82rem;">' + items.length + ' total</span></div>';
+
+  items.sort(function(a, b) {
+    if (a.estado === 'PENDIENTE' && b.estado !== 'PENDIENTE') return -1;
+    if (a.estado !== 'PENDIENTE' && b.estado === 'PENDIENTE') return 1;
+    return (b.id || '').localeCompare(a.id || '');
+  });
+
+  items.forEach(function(s) {
+    var extraClass = '';
+    if (s.estado === 'APROBADO') extraClass = ' ac-ejecutado';
+    else if (s.estado === 'NO APROBADO') extraClass = ' ac-rechazado';
+
+    html += '<div class="agenda-card' + extraClass + '">';
+    html += '<div class="d-flex justify-content-between align-items-start">';
+    html += '<div><span class="badge bg-light text-dark border me-1" style="font-size:.75rem;">' + esc(s.tipo) + '</span>';
+    html += '<small class="text-muted">' + esc(s.fecha) + '</small></div>';
+    var badgeCls = s.estado === 'PENDIENTE' ? 'badge-pendiente' : (s.estado === 'APROBADO' ? 'badge-ejecutado' : 'badge-rechazado');
+    html += '<span class="badge-status ' + badgeCls + '">' + esc(s.estado) + '</span>';
+    html += '</div>';
+    html += '<div class="ac-client">' + esc(s.staff) + '</div>';
+    html += '<div class="ac-detail">' + esc(s.descripcion) + '</div>';
+
+    if (s.fechaDesde || s.fechaHasta) {
+      html += '<div class="ac-detail"><i class="fas fa-calendar me-1" style="opacity:.4;"></i>';
+      if (s.fechaDesde) html += 'Desde: ' + esc(s.fechaDesde);
+      if (s.fechaHasta) html += ' — Hasta: ' + esc(s.fechaHasta);
+      html += '</div>';
+    }
+
+    if (s.estado === 'NO APROBADO' && s.motivoRechazo) {
+      html += '<div style="background:#f8d7da; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:.85rem;">';
+      html += '<strong style="color:#721c24;"><i class="fas fa-times-circle me-1"></i>Motivo:</strong> ' + esc(s.motivoRechazo);
+      if (s.fechaRespuesta) html += '<br><small class="text-muted">Respondido: ' + esc(s.fechaRespuesta) + '</small>';
+      html += '</div>';
+    }
+
+    if (s.estado === 'APROBADO' && s.fechaRespuesta) {
+      html += '<div style="background:#d4edda; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:.85rem;">';
+      html += '<strong style="color:#155724;"><i class="fas fa-check-circle me-1"></i>Aprobado</strong>';
+      html += '<br><small class="text-muted">Respondido: ' + esc(s.fechaRespuesta) + '</small></div>';
+    }
+
+    if (s.estado === 'PENDIENTE' && userSession && userSession.rol === 'ADMIN') {
+      html += '<div class="ac-actions">';
+      html += '<button class="btn btn-success" onclick="aprobarSolicitud(' + s.rowIndex + ')"><i class="fas fa-check me-1"></i>Aprobar</button>';
+      html += '<button class="btn btn-outline-danger" onclick="abrirRechazarSolicitud(' + s.rowIndex + ')"><i class="fas fa-times me-1"></i>No Aprobar</button>';
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  return html;
+}
+
+function filtrarSolicitudes() {
+  var estado = document.getElementById('filtroSolEstado') ? document.getElementById('filtroSolEstado').value : '';
+  var prof = document.getElementById('filtroSolProf') ? document.getElementById('filtroSolProf').value : '';
+  var filtered = solicitudes.filter(function(s) {
+    if (estado && s.estado !== estado) return false;
+    if (prof && s.staff !== prof) return false;
+    return true;
+  });
+  document.getElementById('solicitudesCards').innerHTML = renderSolicitudesCards(filtered);
+}
+
+function toggleSolFechas() {
+  var tipo = document.getElementById('solTipo').value;
+  var show = (tipo === 'Permiso' || tipo === 'Vacaciones');
+  document.getElementById('solFechasRow').style.display = show ? '' : 'none';
+}
+
+function abrirModalSolicitud() {
+  document.getElementById('solTipo').value = 'Permiso';
+  document.getElementById('solDescripcion').value = '';
+  document.getElementById('solFechaDesde').value = '';
+  document.getElementById('solFechaHasta').value = '';
+  toggleSolFechas();
+  new bootstrap.Modal(document.getElementById('modalSolicitud')).show();
+}
+
+function guardarSolicitud() {
+  var desc = document.getElementById('solDescripcion').value.trim();
+  if (!desc) { toast('Describe tu solicitud.', 'warning'); return; }
+
+  var data = {
+    staff: userSession ? userSession.nombre : '',
+    tipo: document.getElementById('solTipo').value,
+    descripcion: desc,
+    fechaDesde: document.getElementById('solFechaDesde').value || '',
+    fechaHasta: document.getElementById('solFechaHasta').value || ''
+  };
+  var btn = document.getElementById('btnGuardarSol');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
+
+  google.script.run.withSuccessHandler(function() {
+    bootstrap.Modal.getInstance(document.getElementById('modalSolicitud')).hide();
+    toast('Solicitud enviada.', 'success');
+    resetBtn(btn, 'Enviar');
+    recargarSolicitudes();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'Enviar'); }).saveSolicitud(data);
+}
+
+function aprobarSolicitud(rowIndex) {
+  if (!confirm('¿Aprobar esta solicitud?')) return;
+  google.script.run.withSuccessHandler(function() {
+    toast('Solicitud aprobada.', 'success');
+    recargarSolicitudes();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).responderSolicitud({ rowIndex: rowIndex, estado: 'APROBADO', motivoRechazo: '' });
+}
+
+function abrirRechazarSolicitud(rowIndex) {
+  var sol = solicitudes.find(function(s) { return s.rowIndex === rowIndex; });
+  if (!sol) return;
+  document.getElementById('rechazarSolRowIndex').value = rowIndex;
+  document.getElementById('rechazarSolMotivo').value = '';
+  document.getElementById('rechazarSolResumen').innerHTML = '<div class="p-2 bg-light rounded"><strong>' + esc(sol.staff) + '</strong> — ' + esc(sol.tipo) + '<br><span class="text-muted small">' + esc(sol.fecha) + '</span><br>' + esc(sol.descripcion) + '</div>';
+  new bootstrap.Modal(document.getElementById('modalRechazarSol')).show();
+}
+
+function confirmarRechazarSolicitud() {
+  var data = {
+    rowIndex: parseInt(document.getElementById('rechazarSolRowIndex').value),
+    estado: 'NO APROBADO',
+    motivoRechazo: document.getElementById('rechazarSolMotivo').value.trim()
+  };
+  var btn = document.getElementById('btnRechazarSol');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+
+  google.script.run.withSuccessHandler(function() {
+    bootstrap.Modal.getInstance(document.getElementById('modalRechazarSol')).hide();
+    toast('Solicitud rechazada.', 'success');
+    resetBtn(btn, 'No Aprobar');
+    recargarSolicitudes();
+  }).withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); resetBtn(btn, 'No Aprobar'); }).responderSolicitud(data);
+}
+
+function recargarSolicitudes() {
+  google.script.run.withSuccessHandler(function(data) {
+    solicitudes = data || [];
+    if (currentPage === 'solicitudes') navigateTo('solicitudes');
+  }).getSolicitudes();
 }
 
 // =============================================

@@ -2109,6 +2109,130 @@ function enviarWhatsAppAgradecimiento(citaId, mensaje) {
   }
 }
 
+// ============================================
+// Controladores CRM Web App — Módulo Novedades
+// ============================================
+
+function getNovedades() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("NOVEDADES");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var data = sheet.getDataRange().getValues();
+  return data.slice(1).map(function(row, i) {
+    return {
+      rowIndex: i + 2,
+      id: (row[0] || '').toString(),
+      fecha: (row[1] || '').toString(),
+      hora: (row[2] || '').toString(),
+      staff: (row[3] || '').toString(),
+      tipo: (row[4] || '').toString(),
+      mensaje: (row[5] || '').toString(),
+      estado: (row[6] || '').toString(),
+      respuesta: (row[7] || '').toString(),
+      fechaCierre: (row[8] || '').toString()
+    };
+  }).filter(function(n) { return n.id !== ''; });
+}
+
+function saveNovedad(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("NOVEDADES");
+  if (!sheet) throw new Error("La hoja NOVEDADES no existe.");
+
+  // Generar ID
+  var allData = sheet.getDataRange().getValues();
+  var maxNum = 0;
+  for (var i = 1; i < allData.length; i++) {
+    var id = (allData[i][0] || '').toString();
+    var match = id.match(/NOV-(\d+)/);
+    if (match) maxNum = Math.max(maxNum, parseInt(match[1]));
+  }
+  var newId = 'NOV-' + String(maxNum + 1).padStart(3, '0');
+
+  var ahora = new Date();
+  var fecha = Utilities.formatDate(ahora, Session.getScriptTimeZone(), "dd/MM/yyyy");
+  var hora = Utilities.formatDate(ahora, Session.getScriptTimeZone(), "HH:mm");
+
+  sheet.appendRow([newId, fecha, hora, data.staff || '', data.tipo || '', data.mensaje || '', 'ABIERTO', '', '']);
+  return { status: 'ok', id: newId };
+}
+
+function cerrarNovedad(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("NOVEDADES");
+  if (!sheet) throw new Error("La hoja NOVEDADES no existe.");
+  var row = data.rowIndex;
+  if (!row || row < 2) throw new Error("Fila invalida.");
+
+  var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+  sheet.getRange(row, 7).setValue('CERRADO');
+  sheet.getRange(row, 8).setValue(data.respuesta || '');
+  sheet.getRange(row, 9).setValue(ahora);
+  return { status: 'ok' };
+}
+
+// ============================================
+// Controladores CRM Web App — Módulo Solicitudes
+// ============================================
+
+function getSolicitudes() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("SOLICITUDES");
+  if (!sheet || sheet.getLastRow() <= 1) return [];
+
+  var data = sheet.getDataRange().getValues();
+  return data.slice(1).map(function(row, i) {
+    return {
+      rowIndex: i + 2,
+      id: (row[0] || '').toString(),
+      fecha: (row[1] || '').toString(),
+      staff: (row[2] || '').toString(),
+      tipo: (row[3] || '').toString(),
+      descripcion: (row[4] || '').toString(),
+      fechaDesde: (row[5] || '').toString(),
+      fechaHasta: (row[6] || '').toString(),
+      estado: (row[7] || '').toString(),
+      motivoRechazo: (row[8] || '').toString(),
+      fechaRespuesta: (row[9] || '').toString()
+    };
+  }).filter(function(s) { return s.id !== ''; });
+}
+
+function saveSolicitud(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("SOLICITUDES");
+  if (!sheet) throw new Error("La hoja SOLICITUDES no existe.");
+
+  var allData = sheet.getDataRange().getValues();
+  var maxNum = 0;
+  for (var i = 1; i < allData.length; i++) {
+    var id = (allData[i][0] || '').toString();
+    var match = id.match(/SOL-(\d+)/);
+    if (match) maxNum = Math.max(maxNum, parseInt(match[1]));
+  }
+  var newId = 'SOL-' + String(maxNum + 1).padStart(3, '0');
+
+  var fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy");
+
+  sheet.appendRow([newId, fecha, data.staff || '', data.tipo || '', data.descripcion || '', data.fechaDesde || '', data.fechaHasta || '', 'PENDIENTE', '', '']);
+  return { status: 'ok', id: newId };
+}
+
+function responderSolicitud(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("SOLICITUDES");
+  if (!sheet) throw new Error("La hoja SOLICITUDES no existe.");
+  var row = data.rowIndex;
+  if (!row || row < 2) throw new Error("Fila invalida.");
+
+  var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+  sheet.getRange(row, 8).setValue(data.estado || 'APROBADO');
+  sheet.getRange(row, 9).setValue(data.motivoRechazo || '');
+  sheet.getRange(row, 10).setValue(ahora);
+  return { status: 'ok' };
+}
+
 function responseJSON(code, message, data = null) {
   const out = { code: code, message: message };
   if (data) out.data = data;
