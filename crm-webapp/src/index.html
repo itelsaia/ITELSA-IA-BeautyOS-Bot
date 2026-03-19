@@ -244,6 +244,29 @@
     .agenda-card.ac-ejecutado { border-left-color:#155724; opacity:.7; }
     .agenda-card.ac-rechazado { border-left-color:#721C24; opacity:.6; }
     .agenda-card.ac-cancelada { border-left-color:#495057; opacity:.5; }
+
+    /* ─── Welcome Overlay ─── */
+    #welcomeOverlay {
+      position:fixed; inset:0; z-index:10002;
+      background:linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      display:flex; align-items:center; justify-content:center; flex-direction:column;
+      opacity:1; transition: opacity 0.6s ease;
+    }
+    #welcomeOverlay.fade-out { opacity:0; pointer-events:none; }
+    .welcome-content { text-align:center; animation: welcomeIn 0.8s ease-out; }
+    .welcome-icon { font-size:3.5rem; margin-bottom:16px; animation: welcomePulse 2s infinite; }
+    .welcome-nombre { font-size:1.8rem; font-weight:700; color:#fff; margin-bottom:8px; }
+    .welcome-rol { font-size:.9rem; color:rgba(255,255,255,.5); text-transform:uppercase; letter-spacing:2px; margin-bottom:24px; }
+    .welcome-frase { font-size:1.05rem; color:rgba(255,255,255,.75); font-style:italic; max-width:400px; line-height:1.5; }
+    .welcome-negocio { font-size:.8rem; color:rgba(255,255,255,.3); margin-top:32px; letter-spacing:1px; }
+    @keyframes welcomeIn {
+      from { opacity:0; transform:translateY(30px) scale(0.95); }
+      to { opacity:1; transform:translateY(0) scale(1); }
+    }
+    @keyframes welcomePulse {
+      0%, 100% { transform:scale(1); }
+      50% { transform:scale(1.1); }
+    }
   </style>
 </head>
 <body>
@@ -273,6 +296,9 @@
     </div>
   </div>
 </div>
+
+<!-- Welcome Overlay -->
+<div id="welcomeOverlay" style="display:none;"></div>
 
 <!-- Login Overlay -->
 <div id="loginOverlay" style="display:none;">
@@ -883,7 +909,7 @@ function checkLoaded() {
     if (saved) {
       try {
         userSession = JSON.parse(saved);
-        iniciarApp();
+        iniciarApp(false);
       } catch (e) {
         sessionStorage.removeItem('beautyosSession');
         mostrarLogin();
@@ -1235,7 +1261,7 @@ function pinSubmit() {
       if (result && result.valid) {
         userSession = { nombre: result.nombre, rol: result.rol, id: result.id, competencias: result.competencias || '' };
         sessionStorage.setItem('beautyosSession', JSON.stringify(userSession));
-        iniciarApp();
+        iniciarApp(true);
       } else {
         dots.forEach(function(d) { d.classList.add('error'); });
         document.getElementById('pinDots').classList.add('shake');
@@ -1270,12 +1296,64 @@ function mostrarLogin() {
   }
 }
 
-function iniciarApp() {
+var frasesBelleza = [
+  'La belleza comienza en el momento en que decides ser tu misma.',
+  'Cada cliente que sale feliz es una obra de arte que camina.',
+  'Tus manos tienen el poder de transformar dias grises en momentos brillantes.',
+  'No solo cambias looks, cambias actitudes y sonrisas.',
+  'Hoy es un gran dia para hacer sentir especial a alguien.',
+  'Detras de cada gran estilo hay un profesional apasionado.',
+  'La confianza que das a tus clientes es el mejor accesorio.',
+  'Tu talento hace que el mundo sea un lugar mas bonito.',
+  'Cada dia es una nueva oportunidad para crear algo hermoso.',
+  'El arte de la belleza esta en hacer brillar lo mejor de cada persona.'
+];
+
+function mostrarBienvenida(callback) {
+  var overlay = document.getElementById('welcomeOverlay');
+  var nombre = userSession ? userSession.nombre : '';
+  var rol = userSession ? userSession.rol : '';
+  var rolLabel = rol === 'ADMIN' ? 'Administrador' : 'Profesional';
+  var frase = frasesBelleza[Math.floor(Math.random() * frasesBelleza.length)];
+  var negocio = (config.flat && config.flat.NOMBRE_NEGOCIO) ? config.flat.NOMBRE_NEGOCIO : '';
+  var hora = new Date().getHours();
+  var saludo = hora < 12 ? 'Buenos dias' : (hora < 18 ? 'Buenas tardes' : 'Buenas noches');
+
+  overlay.innerHTML =
+    '<div class="welcome-content">' +
+      '<div class="welcome-icon">&#10024;</div>' +
+      '<div class="welcome-nombre">' + saludo + ', ' + esc(nombre) + '</div>' +
+      '<div class="welcome-rol">' + esc(rolLabel) + '</div>' +
+      '<div class="welcome-frase">&ldquo;' + esc(frase) + '&rdquo;</div>' +
+      (negocio ? '<div class="welcome-negocio">' + esc(negocio) + '</div>' : '') +
+    '</div>';
+  overlay.style.display = 'flex';
+
+  setTimeout(function() {
+    overlay.classList.add('fade-out');
+    setTimeout(function() {
+      overlay.style.display = 'none';
+      overlay.classList.remove('fade-out');
+      if (callback) callback();
+    }, 600);
+  }, 2800);
+}
+
+function iniciarApp(showWelcome) {
   document.getElementById('loginOverlay').style.display = 'none';
-  document.getElementById('appWrapper').style.display = '';
-  aplicarRol();
-  var startPage = (userSession.rol === 'ADMIN') ? 'dashboard' : 'miagenda';
-  navigateTo(startPage);
+  if (showWelcome) {
+    mostrarBienvenida(function() {
+      document.getElementById('appWrapper').style.display = '';
+      aplicarRol();
+      var startPage = (userSession.rol === 'ADMIN') ? 'dashboard' : 'miagenda';
+      navigateTo(startPage);
+    });
+  } else {
+    document.getElementById('appWrapper').style.display = '';
+    aplicarRol();
+    var startPage = (userSession.rol === 'ADMIN') ? 'dashboard' : 'miagenda';
+    navigateTo(startPage);
+  }
   iniciarAutoRefresh();
 }
 
