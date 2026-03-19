@@ -296,7 +296,7 @@
     <nav class="sidebar-nav" id="sidebarNav">
       <div class="nav-section nav-admin">Principal</div>
       <a href="#" class="active nav-admin" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a>
-      <a href="#" data-page="miagenda"><i class="fas fa-calendar-check"></i> Mi Agenda</a>
+      <a href="#" class="nav-staff" data-page="miagenda"><i class="fas fa-calendar-check"></i> Mi Agenda</a>
       <a href="#" data-page="novedades"><i class="fas fa-exclamation-triangle"></i> Novedades</a>
       <a href="#" data-page="solicitudes"><i class="fas fa-paper-plane"></i> Solicitudes</a>
       <a href="#" class="nav-admin" data-page="agenda"><i class="fas fa-calendar-alt"></i> Agenda <span class="nav-badge" id="badgePendientes">0</span></a>
@@ -1268,6 +1268,9 @@ function aplicarRol() {
   document.querySelectorAll('.nav-admin').forEach(function(el) {
     el.style.display = isAdmin ? '' : 'none';
   });
+  document.querySelectorAll('.nav-staff').forEach(function(el) {
+    el.style.display = isAdmin ? 'none' : '';
+  });
   document.getElementById('sidebarUser').textContent = userSession.nombre + ' (' + userSession.rol + ')';
 }
 
@@ -1281,10 +1284,14 @@ function cerrarSesion() {
 // Navegacion
 // =============================================
 function navigateTo(page) {
-  // Proteger rutas ADMIN
+  // Proteger rutas por rol
   var adminPages = ['dashboard', 'agenda', 'clientes', 'equipo', 'servicios', 'promociones', 'horarios', 'analisis', 'config'];
   if (userSession && userSession.rol !== 'ADMIN' && adminPages.indexOf(page) !== -1) {
     page = 'miagenda';
+  }
+  // ADMIN no usa Mi Agenda — redirigir a Agenda
+  if (userSession && userSession.rol === 'ADMIN' && page === 'miagenda') {
+    page = 'agenda';
   }
 
   currentPage = page;
