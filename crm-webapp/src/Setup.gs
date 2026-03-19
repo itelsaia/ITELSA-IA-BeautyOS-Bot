@@ -114,7 +114,7 @@ function inicializarEntorno() {
   // 9. SOLICITUDES (permisos, vacaciones, etc.)
   let sheetSolicitudes = getOrCreateSheet(ss, "SOLICITUDES");
   sheetSolicitudes.clear();
-  sheetSolicitudes.appendRow(["ID", "FECHA", "STAFF", "TIPO", "DESCRIPCION", "FECHA_DESDE", "FECHA_HASTA", "ESTADO", "MOTIVO_RECHAZO", "FECHA_RESPUESTA"]);
+  sheetSolicitudes.appendRow(["ID", "FECHA", "STAFF", "TIPO", "DESCRIPCION", "FECHA_DESDE", "FECHA_HASTA", "HORA_DESDE", "HORA_HASTA", "ESTADO", "MOTIVO_RECHAZO", "FECHA_RESPUESTA"]);
   formatHeaders(sheetSolicitudes);
 
   // 10. CONOCIMIENTO (RAG y Multimedia extra)

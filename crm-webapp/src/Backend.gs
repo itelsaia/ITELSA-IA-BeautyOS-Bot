@@ -2192,9 +2192,11 @@ function getSolicitudes() {
       descripcion: (row[4] || '').toString(),
       fechaDesde: (row[5] || '').toString(),
       fechaHasta: (row[6] || '').toString(),
-      estado: (row[7] || '').toString(),
-      motivoRechazo: (row[8] || '').toString(),
-      fechaRespuesta: (row[9] || '').toString()
+      horaDesde: (row[7] || '').toString(),
+      horaHasta: (row[8] || '').toString(),
+      estado: (row[9] || '').toString(),
+      motivoRechazo: (row[10] || '').toString(),
+      fechaRespuesta: (row[11] || '').toString()
     };
   }).filter(function(s) { return s.id !== ''; });
 }
@@ -2215,7 +2217,7 @@ function saveSolicitud(data) {
 
   var fecha = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy");
 
-  sheet.appendRow([newId, fecha, data.staff || '', data.tipo || '', data.descripcion || '', data.fechaDesde || '', data.fechaHasta || '', 'PENDIENTE', '', '']);
+  sheet.appendRow([newId, fecha, data.staff || '', data.tipo || '', data.descripcion || '', data.fechaDesde || '', data.fechaHasta || '', data.horaDesde || '', data.horaHasta || '', 'PENDIENTE', '', '']);
   return { status: 'ok', id: newId };
 }
 
@@ -2227,9 +2229,9 @@ function responderSolicitud(data) {
   if (!row || row < 2) throw new Error("Fila invalida.");
 
   var ahora = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
-  sheet.getRange(row, 8).setValue(data.estado || 'APROBADO');
-  sheet.getRange(row, 9).setValue(data.motivoRechazo || '');
-  sheet.getRange(row, 10).setValue(ahora);
+  sheet.getRange(row, 10).setValue(data.estado || 'APROBADO');
+  sheet.getRange(row, 11).setValue(data.motivoRechazo || '');
+  sheet.getRange(row, 12).setValue(ahora);
   return { status: 'ok' };
 }
 

@@ -2410,8 +2410,13 @@ function renderSolicitudes() {
   html += '<div class="mb-3"><label class="form-label fw-semibold">Descripcion *</label>';
   html += '<textarea class="form-control" id="solDescripcion" rows="3" placeholder="Describe tu solicitud..."></textarea></div>';
   html += '<div class="row g-3" id="solFechasRow">';
-  html += '<div class="col-6"><label class="form-label fw-semibold">Desde</label><input type="date" class="form-control" id="solFechaDesde"></div>';
-  html += '<div class="col-6"><label class="form-label fw-semibold">Hasta</label><input type="date" class="form-control" id="solFechaHasta"></div>';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Fecha desde</label><input type="date" class="form-control" id="solFechaDesde"></div>';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Fecha hasta</label><input type="date" class="form-control" id="solFechaHasta"></div>';
+  html += '</div>';
+  html += '<div class="row g-3 mt-1" id="solHorasRow">';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Hora desde</label><input type="time" class="form-control" id="solHoraDesde"></div>';
+  html += '<div class="col-6"><label class="form-label fw-semibold">Hora hasta</label><input type="time" class="form-control" id="solHoraHasta"></div>';
+  html += '<div class="col-12"><div class="form-text"><i class="fas fa-info-circle me-1"></i>Si es todo el dia, deja las horas vacias. Si es solo unas horas (ej: 9:00 a 14:00), indicalo aqui.</div></div>';
   html += '</div>';
   html += '</div>';
   html += '<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>';
@@ -2465,7 +2470,9 @@ function renderSolicitudesCards(items) {
     if (s.fechaDesde || s.fechaHasta) {
       html += '<div class="ac-detail"><i class="fas fa-calendar me-1" style="opacity:.4;"></i>';
       if (s.fechaDesde) html += 'Desde: ' + esc(s.fechaDesde);
+      if (s.horaDesde) html += ' ' + esc(s.horaDesde);
       if (s.fechaHasta) html += ' — Hasta: ' + esc(s.fechaHasta);
+      if (s.horaHasta) html += ' ' + esc(s.horaHasta);
       html += '</div>';
     }
 
@@ -2506,8 +2513,9 @@ function filtrarSolicitudes() {
 
 function toggleSolFechas() {
   var tipo = document.getElementById('solTipo').value;
-  var show = (tipo === 'Permiso' || tipo === 'Vacaciones');
-  document.getElementById('solFechasRow').style.display = show ? '' : 'none';
+  var showFechas = (tipo === 'Permiso' || tipo === 'Vacaciones' || tipo === 'Cambio Horario');
+  document.getElementById('solFechasRow').style.display = showFechas ? '' : 'none';
+  document.getElementById('solHorasRow').style.display = showFechas ? '' : 'none';
 }
 
 function abrirModalSolicitud() {
@@ -2515,6 +2523,8 @@ function abrirModalSolicitud() {
   document.getElementById('solDescripcion').value = '';
   document.getElementById('solFechaDesde').value = '';
   document.getElementById('solFechaHasta').value = '';
+  document.getElementById('solHoraDesde').value = '';
+  document.getElementById('solHoraHasta').value = '';
   toggleSolFechas();
   new bootstrap.Modal(document.getElementById('modalSolicitud')).show();
 }
@@ -2528,7 +2538,9 @@ function guardarSolicitud() {
     tipo: document.getElementById('solTipo').value,
     descripcion: desc,
     fechaDesde: document.getElementById('solFechaDesde').value || '',
-    fechaHasta: document.getElementById('solFechaHasta').value || ''
+    fechaHasta: document.getElementById('solFechaHasta').value || '',
+    horaDesde: document.getElementById('solHoraDesde').value || '',
+    horaHasta: document.getElementById('solHoraHasta').value || ''
   };
   var btn = document.getElementById('btnGuardarSol');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Enviando...';
