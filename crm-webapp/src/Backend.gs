@@ -4,6 +4,14 @@
  */
 
 function doGet(e) {
+  var page = (e && e.parameter && e.parameter.page) || '';
+  if (page === 'registro') {
+    return HtmlService.createTemplateFromFile('landing')
+      .evaluate()
+      .setTitle('Registro de Clientes')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
     .setTitle('ITELSA BeautyOS CRM')
@@ -2253,6 +2261,340 @@ function responderSolicitud(data) {
   sheet.getRange(row, 11).setValue(data.motivoRechazo || '');
   sheet.getRange(row, 12).setValue(ahora);
   return { status: 'ok' };
+}
+
+// ============================================
+// Controladores CRM Web App — Registro Manual
+// ============================================
+
+/**
+ * Registra un cliente desde el CRM (ADMIN).
+ * Reutiliza handleCreateCliente con validacion de celular unico.
+ */
+function saveCliente(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("CLIENTES");
+  if (!sheet) throw new Error("La hoja CLIENTES no existe.");
+
+  // Validar celular unico
+  var celular = (data.celular || '').toString().trim();
+  if (!celular) throw new Error("El celular es obligatorio.");
+  var allData = sheet.getDataRange().getValues();
+  for (var i = 1; i < allData.length; i++) {
+    if ((allData[i][1] || '').toString().trim() === celular) {
+      throw new Error("Ya existe un cliente con el celular " + celular);
+    }
+  }
+
+  return handleCreateCliente(ss, {
+    celular: celular,
+    nombre: (data.nombre || '').trim(),
+    correo: (data.correo || '').trim(),
+    cumple: (data.cumple || '').trim(),
+    direccion: (data.direccion || '').trim(),
+    tipo: data.tipo || 'Nuevo'
+  });
+}
+
+/**
+ * Registra un cliente desde la landing page publica (sin sesion).
+ * Campos basicos, tipo fijo "Nuevo".
+ */
+function saveClientePublico(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("CLIENTES");
+  if (!sheet) throw new Error("La hoja CLIENTES no existe.");
+
+  var celular = (data.celular || '').toString().trim();
+  if (!celular) throw new Error("El celular es obligatorio.");
+  if (celular.length < 10) throw new Error("El celular debe tener al menos 10 digitos.");
+
+  // Validar celular unico
+  var allData = sheet.getDataRange().getValues();
+  for (var i = 1; i < allData.length; i++) {
+    if ((allData[i][1] || '').toString().trim() === celular) {
+      throw new Error("Este numero ya esta registrado. ¡Ya eres parte de nuestra familia!");
+    }
+  }
+
+  return handleCreateCliente(ss, {
+    celular: celular,
+    nombre: (data.nombre || '').trim(),
+    correo: (data.correo || '').trim(),
+    cumple: (data.cumple || '').trim(),
+    direccion: '',
+    tipo: 'Nuevo'
+  });
+}
+
+/**
+ * Agenda una cita manual desde el CRM (ADMIN).
+ * Reutiliza handleCreateAgenda que ya incluye validarDisponibilidad.
+ */
+function saveCitaManual(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  return handleCreateAgenda(ss, {
+    fecha: (data.fecha || '').trim(),
+    inicio: (data.inicio || '').trim(),
+    fin: (data.fin || '').trim(),
+    cliente: (data.cliente || '').trim(),
+    celularCliente: (data.celularCliente || '').trim(),
+    servicio: (data.servicio || '').trim(),
+    precio: data.precio || 0,
+    profesional: (data.profesional || 'Por asignar').trim(),
+    notas: data.notas || 'Cita manual desde CRM',
+    exentoAnticipo: data.exentoAnticipo || '',
+    montoAnticipo: 0,
+    montoPagado: 0,
+    saldoRestante: data.precio || 0,
+    estadoPago: '',
+    refComprobante: '',
+    fechaPago: '',
+    promo: '',
+    tipoPromo: ''
+  });
+}
+
+/**
+ * Calcula slots horarios disponibles para auto-agendamiento publico.
+ * @param {string} fechaStr Fecha en DD/MM/YYYY
+ * @param {string} profesional Nombre del profesional
+ * @param {number} duracionMin Duracion del servicio en minutos
+ * @returns {Array} Array de {inicio, fin} disponibles
+ */
+function getSlotsDisponibles(fechaStr, profesional, duracionMin) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var dispSheet = ss.getSheetByName("DISPONIBILIDAD");
+  if (!dispSheet || dispSheet.getLastRow() <= 1) return [];
+
+  var dispData = dispSheet.getDataRange().getValues();
+  var dias = ['Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado'];
+
+  // Determinar dia de la semana
+  var diaSemana = '';
+  if (typeof fechaStr === 'string' && fechaStr.indexOf('/') !== -1) {
+    var parts = fechaStr.split('/');
+    if (parts.length === 3) {
+      var d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      diaSemana = dias[d.getDay()];
+    }
+  }
+  if (!diaSemana) return [];
+
+  // Chequeo festivo
+  var festivoSheet = ss.getSheetByName('FESTIVOS_CONFIG');
+  if (festivoSheet && festivoSheet.getLastRow() > 1) {
+    var festivoData = festivoSheet.getDataRange().getValues();
+    for (var fi = 1; fi < festivoData.length; fi++) {
+      var fFecha = festivoData[fi][1];
+      var fFechaStr = fFecha instanceof Date ? Utilities.formatDate(fFecha, Session.getScriptTimeZone(), "dd/MM/yyyy") : (fFecha || '').toString().trim();
+      if (fFechaStr === fechaStr) {
+        var trabaja = (festivoData[fi][3] || 'NO').toString().toUpperCase().trim();
+        if (trabaja !== 'SI') return [];
+        break;
+      }
+    }
+  }
+
+  // Buscar jornada
+  var jornadaIniMin = -1, jornadaFinMin = -1;
+  for (var i = 1; i < dispData.length; i++) {
+    var tipo = (dispData[i][0] || '').toString().trim();
+    var dia = (dispData[i][1] || '').toString().trim();
+    if (tipo === 'Jornada' && normalizarTexto(dia) === normalizarTexto(diaSemana)) {
+      var hi = dispData[i][2];
+      var hf = dispData[i][3];
+      jornadaIniMin = horaAMinutos(hi instanceof Date ? Utilities.formatDate(hi, Session.getScriptTimeZone(), "HH:mm") : hi.toString());
+      jornadaFinMin = horaAMinutos(hf instanceof Date ? Utilities.formatDate(hf, Session.getScriptTimeZone(), "HH:mm") : hf.toString());
+      break;
+    }
+  }
+  if (jornadaIniMin < 0) return []; // Dia no laboral
+
+  // Recopilar intervalos bloqueados (bloqueos + citas existentes)
+  var bloqueados = [];
+
+  // Bloqueos de DISPONIBILIDAD
+  for (var b = 1; b < dispData.length; b++) {
+    if ((dispData[b][0] || '').toString().trim() !== 'Bloqueo') continue;
+    var bloqueoDia = (dispData[b][1] || '').toString().trim();
+    var horario = (dispData[b][6] || '').toString().trim();
+    var aplicaA = (dispData[b][5] || '').toString().trim();
+
+    // Filtrar por profesional
+    if (aplicaA !== 'TODOS' && profesional) {
+      var colSheet = ss.getSheetByName("COLABORADORES");
+      var profesionalId = '';
+      if (colSheet && colSheet.getLastRow() > 1) {
+        var colData = colSheet.getDataRange().getValues();
+        for (var c = 1; c < colData.length; c++) {
+          if ((colData[c][1] || '').toString().trim().toLowerCase() === profesional.toLowerCase()) {
+            profesionalId = (colData[c][0] || '').toString().trim();
+            break;
+          }
+        }
+      }
+      if (profesionalId && aplicaA !== profesionalId) continue;
+    }
+
+    var aplica = false;
+    if (horario === 'DIARIO' && normalizarTexto(bloqueoDia) === normalizarTexto(diaSemana)) aplica = true;
+    else if (horario === 'UNICO' && bloqueoDia === fechaStr) aplica = true;
+    else if (horario.indexOf('RANGO:') === 0) {
+      var fechaFinRango = horario.replace('RANGO:', '');
+      var pf = function(f) { var p = f.split('/'); return p.length === 3 ? new Date(p[2], p[1] - 1, p[0]) : null; };
+      var fIni = pf(bloqueoDia), fFin = pf(fechaFinRango), fCita = pf(fechaStr);
+      if (fIni && fFin && fCita && fCita >= fIni && fCita <= fFin) aplica = true;
+    }
+
+    if (aplica) {
+      var bhi = dispData[b][2], bhf = dispData[b][3];
+      bloqueados.push({
+        ini: horaAMinutos(bhi instanceof Date ? Utilities.formatDate(bhi, Session.getScriptTimeZone(), "HH:mm") : bhi.toString()),
+        fin: horaAMinutos(bhf instanceof Date ? Utilities.formatDate(bhf, Session.getScriptTimeZone(), "HH:mm") : bhf.toString())
+      });
+    }
+  }
+
+  // Citas existentes del profesional para esta fecha
+  var agendaSheet = ss.getSheetByName("AGENDA");
+  if (agendaSheet && agendaSheet.getLastRow() > 1) {
+    var agendaData = agendaSheet.getDataRange().getValues();
+    for (var a = 1; a < agendaData.length; a++) {
+      var estado = (agendaData[a][10] || '').toString().toUpperCase().trim();
+      if (estado !== 'PENDIENTE' && estado !== 'REAGENDADO') continue;
+      var prof = (agendaData[a][9] || '').toString().trim();
+      if (prof.toLowerCase() !== profesional.toLowerCase()) continue;
+      var fechaCita = agendaData[a][1];
+      var fechaCitaStr = fechaCita instanceof Date ? Utilities.formatDate(fechaCita, Session.getScriptTimeZone(), "dd/MM/yyyy") : (fechaCita || '').toString().trim();
+      if (fechaCitaStr !== fechaStr) continue;
+      var ci = agendaData[a][3], cf = agendaData[a][4];
+      bloqueados.push({
+        ini: horaAMinutos(ci instanceof Date ? Utilities.formatDate(ci, Session.getScriptTimeZone(), "HH:mm") : ci.toString()),
+        fin: horaAMinutos(cf instanceof Date ? Utilities.formatDate(cf, Session.getScriptTimeZone(), "HH:mm") : cf.toString())
+      });
+    }
+  }
+
+  // Generar slots cada 30 min y filtrar los que no se solapan
+  var slots = [];
+  var step = 30;
+  for (var t = jornadaIniMin; t + duracionMin <= jornadaFinMin; t += step) {
+    var slotIni = t;
+    var slotFin = t + duracionMin;
+    var libre = true;
+    for (var bl = 0; bl < bloqueados.length; bl++) {
+      if (slotIni < bloqueados[bl].fin && slotFin > bloqueados[bl].ini) { libre = false; break; }
+    }
+    if (libre) {
+      slots.push({
+        inicio: String(Math.floor(slotIni / 60)).padStart(2, '0') + ':' + String(slotIni % 60).padStart(2, '0'),
+        fin: String(Math.floor(slotFin / 60)).padStart(2, '0') + ':' + String(slotFin % 60).padStart(2, '0')
+      });
+    }
+  }
+
+  return slots;
+}
+
+/**
+ * Carga todos los datos publicos para la landing page en una sola llamada.
+ */
+function getDatosLanding() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Config
+  var configSheet = ss.getSheetByName("CONFIGURACION");
+  var cfg = {};
+  if (configSheet && configSheet.getLastRow() > 1) {
+    var configData = configSheet.getDataRange().getValues();
+    for (var i = 1; i < configData.length; i++) {
+      var key = (configData[i][0] || '').toString().trim();
+      if (key) cfg[key] = (configData[i][1] !== undefined && configData[i][1] !== null) ? configData[i][1].toString() : '';
+    }
+  }
+
+  // Servicios activos (campos publicos)
+  var srvSheet = ss.getSheetByName("CONFIG_SERVICIOS");
+  var servicios = [];
+  if (srvSheet && srvSheet.getLastRow() > 1) {
+    var srvData = srvSheet.getDataRange().getValues();
+    for (var s = 1; s < srvData.length; s++) {
+      var estado = (srvData[s][8] || '').toString().toUpperCase().trim();
+      if (estado !== 'ACTIVO') continue;
+      servicios.push({
+        nombre: (srvData[s][1] || '').toString(),
+        categoria: (srvData[s][2] || '').toString(),
+        duracion: srvData[s][3] || 0,
+        precio: srvData[s][4] || 0
+      });
+    }
+  }
+
+  // Colaboradores activos (sin PIN, sin rowIndex)
+  var colSheet = ss.getSheetByName("COLABORADORES");
+  var colaboradores = [];
+  if (colSheet && colSheet.getLastRow() > 1) {
+    var colData = colSheet.getDataRange().getValues();
+    for (var c = 1; c < colData.length; c++) {
+      var estCol = (colData[c][5] || '').toString().toUpperCase().trim();
+      if (estCol !== 'ACTIVO') continue;
+      colaboradores.push({
+        nombre: (colData[c][1] || '').toString(),
+        competencias: (colData[c][6] || '').toString()
+      });
+    }
+  }
+
+  // Galeria
+  var galSheet = ss.getSheetByName("GALERIA_SERVICIOS");
+  var galeria = [];
+  if (galSheet && galSheet.getLastRow() > 1) {
+    var galData = galSheet.getDataRange().getValues();
+    for (var g = 1; g < galData.length; g++) {
+      if (!(galData[g][1] || '').toString()) continue;
+      galeria.push({
+        servicio: (galData[g][1] || '').toString(),
+        categoria: (galData[g][2] || '').toString(),
+        tipo: (galData[g][3] || '').toString(),
+        titulo: (galData[g][4] || '').toString(),
+        descripcion: (galData[g][5] || '').toString(),
+        url: (galData[g][6] || '').toString()
+      });
+    }
+  }
+
+  // Disponibilidad (jornadas)
+  var dispSheet = ss.getSheetByName("DISPONIBILIDAD");
+  var horarios = [];
+  if (dispSheet && dispSheet.getLastRow() > 1) {
+    var dispData = dispSheet.getDataRange().getValues();
+    for (var d = 1; d < dispData.length; d++) {
+      if ((dispData[d][0] || '').toString().trim() !== 'Jornada') continue;
+      var hi = dispData[d][2], hf = dispData[d][3];
+      horarios.push({
+        dia: (dispData[d][1] || '').toString(),
+        inicio: hi instanceof Date ? Utilities.formatDate(hi, Session.getScriptTimeZone(), "HH:mm") : hi.toString(),
+        fin: hf instanceof Date ? Utilities.formatDate(hf, Session.getScriptTimeZone(), "HH:mm") : hf.toString()
+      });
+    }
+  }
+
+  return {
+    config: cfg,
+    servicios: servicios,
+    colaboradores: colaboradores,
+    galeria: galeria,
+    horarios: horarios
+  };
+}
+
+/**
+ * Retorna la URL de la landing page del deployment actual.
+ */
+function getLandingUrl() {
+  var url = ScriptApp.getService().getUrl();
+  return url ? url + '?page=registro' : '';
 }
 
 function responseJSON(code, message, data = null) {

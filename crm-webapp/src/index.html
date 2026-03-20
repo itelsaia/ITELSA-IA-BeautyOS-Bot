@@ -267,9 +267,30 @@
       0%, 100% { transform:scale(1); }
       50% { transform:scale(1.1); }
     }
+
+    /* ── Modo Offline ── */
+    .offline-banner {
+      display:none; position:fixed; top:0; left:0; right:0; z-index:2000;
+      padding:8px 16px; text-align:center; font-size:.85rem; font-weight:500;
+      transition:transform .3s ease, opacity .3s ease; transform:translateY(-100%); opacity:0;
+    }
+    .offline-banner.show { display:block; transform:translateY(0); opacity:1; }
+    .offline-banner.offline { background:#fef2f2; color:#991b1b; border-bottom:2px solid #ef4444; }
+    .offline-banner.syncing { background:#eff6ff; color:#1e40af; border-bottom:2px solid #3b82f6; }
+    .offline-banner i { margin-right:6px; }
+    .offline-banner .dismiss-btn { background:none; border:none; font-size:1rem; cursor:pointer; margin-left:12px; opacity:.6; }
+    .offline-banner .dismiss-btn:hover { opacity:1; }
+    body.offline-mode .btn-write-action { opacity:.5; pointer-events:none; }
   </style>
 </head>
 <body>
+
+<!-- Offline Banner -->
+<div id="offlineBanner" class="offline-banner">
+  <i id="offlineBannerIcon" class="fas fa-wifi-slash"></i>
+  <span id="offlineBannerText">Sin conexion</span>
+  <button class="dismiss-btn" onclick="document.getElementById('offlineBanner').classList.remove('show')" title="Cerrar">&times;</button>
+</div>
 
 <!-- Loading -->
 <div id="loadingOverlay">
@@ -759,6 +780,114 @@
   </div>
 </div>
 
+<!-- MODAL: Nuevo Cliente (ADMIN) -->
+<div class="modal fade" id="modalCliente" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--brand);color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-user-plus me-1"></i> Nuevo Cliente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Celular <span class="text-danger">*</span></label>
+          <input type="tel" class="form-control" id="cliCelular" placeholder="Ej: 573001234567" maxlength="15">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Nombre <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="cliNombre" placeholder="Nombre completo">
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Correo</label>
+          <input type="email" class="form-control" id="cliCorreo" placeholder="correo@email.com">
+        </div>
+        <div class="row">
+          <div class="col-6 mb-3">
+            <label class="form-label fw-semibold">Cumpleanos</label>
+            <input type="date" class="form-control" id="cliCumple">
+          </div>
+          <div class="col-6 mb-3">
+            <label class="form-label fw-semibold">Tipo</label>
+            <select class="form-select" id="cliTipo">
+              <option value="Nuevo">Nuevo</option>
+              <option value="Ocasional">Ocasional</option>
+              <option value="Frecuente">Frecuente</option>
+              <option value="VIP">VIP</option>
+            </select>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Direccion</label>
+          <input type="text" class="form-control" id="cliDireccion" placeholder="Direccion (opcional)">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-brand btn-sm" id="btnGuardarCliente" onclick="guardarCliente()"><i class="fas fa-save me-1"></i> Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Nueva Cita Manual (ADMIN) -->
+<div class="modal fade" id="modalCita" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--brand);color:#fff;">
+        <h5 class="modal-title"><i class="fas fa-calendar-plus me-1"></i> Nueva Cita</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">Fecha <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="citaFecha">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">Hora inicio <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="citaInicio" onchange="calcularHoraFin()">
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">Hora fin <span class="text-danger">*</span></label>
+            <input type="time" class="form-control" id="citaFin">
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">Cliente <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="citaClienteBuscar" placeholder="Buscar cliente por nombre o celular..." oninput="filtrarClientesCita(this.value)" autocomplete="off">
+            <input type="hidden" id="citaCliente">
+            <input type="hidden" id="citaCelular">
+            <div id="citaClienteDropdown" class="list-group position-absolute shadow" style="z-index:1060;max-height:200px;overflow-y:auto;display:none;width:calc(100% - 24px);"></div>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label fw-semibold">Profesional <span class="text-danger">*</span></label>
+            <select class="form-select" id="citaProfesional"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-8 mb-3">
+            <label class="form-label fw-semibold">Servicio <span class="text-danger">*</span></label>
+            <select class="form-select" id="citaServicio" onchange="onCitaServicioChange()"></select>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label fw-semibold">Precio</label>
+            <input type="number" class="form-control" id="citaPrecio" readonly>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Notas</label>
+          <textarea class="form-control" id="citaNotas" rows="2" placeholder="Observaciones (opcional)"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-brand btn-sm" id="btnGuardarCita" onclick="guardarCitaManual()"><i class="fas fa-save me-1"></i> Agendar Cita</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ── Fix: Bootstrap 5 stacked modals ──
@@ -792,21 +921,157 @@ var currentPin = '';
 var userSession = null; // { nombre, rol, id, competencias }
 
 // =============================================
+// Cache Manager (localStorage) — Modo Offline
+// =============================================
+var isOffline = false;
+var lastSyncTimestamp = null;
+var failedCallsCount = 0;
+var OFFLINE_THRESHOLD = 2;
+var CACHE_PREFIX = 'beautyos_';
+
+var CACHE_KEYS = {
+  config: CACHE_PREFIX + 'config', clientes: CACHE_PREFIX + 'clientes', agenda: CACHE_PREFIX + 'agenda',
+  servicios: CACHE_PREFIX + 'servicios', promociones: CACHE_PREFIX + 'promociones', disponibilidad: CACHE_PREFIX + 'disponibilidad',
+  colaboradores: CACHE_PREFIX + 'colaboradores', galeria: CACHE_PREFIX + 'galeria', festivos: CACHE_PREFIX + 'festivos',
+  novedades: CACHE_PREFIX + 'novedades', solicitudes: CACHE_PREFIX + 'solicitudes', meta: CACHE_PREFIX + 'meta'
+};
+
+function cacheSet(key, data) {
+  try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: data })); }
+  catch (e) { if (e.name === 'QuotaExceededError' || e.code === 22) { localStorage.removeItem(CACHE_KEYS.galeria); localStorage.removeItem(CACHE_KEYS.festivos); try { localStorage.setItem(key, JSON.stringify({ ts: Date.now(), data: data })); } catch(e2) {} } }
+}
+
+function cacheGet(key) {
+  try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+}
+
+function cacheAllData() {
+  cacheSet(CACHE_KEYS.config, config); cacheSet(CACHE_KEYS.clientes, clientes); cacheSet(CACHE_KEYS.agenda, agenda);
+  cacheSet(CACHE_KEYS.servicios, servicios); cacheSet(CACHE_KEYS.promociones, promociones); cacheSet(CACHE_KEYS.disponibilidad, disponibilidad);
+  cacheSet(CACHE_KEYS.colaboradores, colaboradores); cacheSet(CACHE_KEYS.galeria, galeria); cacheSet(CACHE_KEYS.festivos, festivosConfig);
+  cacheSet(CACHE_KEYS.novedades, novedades); cacheSet(CACHE_KEYS.solicitudes, solicitudes);
+  cacheSet(CACHE_KEYS.meta, { lastSync: new Date().toISOString() });
+  lastSyncTimestamp = Date.now();
+}
+
+function loadFromCache() {
+  var loaded = 0;
+  var c = cacheGet(CACHE_KEYS.config); if (c) { config = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.clientes); if (c) { clientes = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.agenda); if (c) { agenda = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.servicios); if (c) { servicios = c.data; serviciosNombres = servicios.map(function(s){return s.tipoServicio;}).filter(Boolean); loaded++; }
+  c = cacheGet(CACHE_KEYS.promociones); if (c) { promociones = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.disponibilidad); if (c) { disponibilidad = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.colaboradores); if (c) { colaboradores = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.galeria); if (c) { galeria = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.festivos); if (c) { festivosConfig = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.novedades); if (c) { novedades = c.data; loaded++; }
+  c = cacheGet(CACHE_KEYS.solicitudes); if (c) { solicitudes = c.data; loaded++; }
+  var meta = cacheGet(CACHE_KEYS.meta);
+  if (meta && meta.data) lastSyncTimestamp = new Date(meta.data.lastSync).getTime();
+  return loaded;
+}
+
+function formatCacheAge() {
+  if (!lastSyncTimestamp) return 'sin cache';
+  var mins = Math.floor((Date.now() - lastSyncTimestamp) / 60000);
+  if (mins < 1) return 'hace menos de 1 min';
+  if (mins < 60) return 'hace ' + mins + ' min';
+  var hours = Math.floor(mins / 60);
+  if (hours < 24) return 'hace ' + hours + 'h';
+  return 'hace ' + Math.floor(hours / 24) + ' dia(s)';
+}
+
+// ── Connection Monitor ──
+function onGasCallSuccess() {
+  failedCallsCount = 0;
+  if (isOffline) { isOffline = false; exitOfflineMode(); }
+}
+
+function onGasCallFailure(err) {
+  failedCallsCount++;
+  var msg = (err && err.message) ? err.message.toLowerCase() : '';
+  var isNetErr = msg.indexOf('hoja') === -1 && msg.indexOf('fila') === -1 && msg.indexOf('invalido') === -1;
+  if (isNetErr && failedCallsCount >= OFFLINE_THRESHOLD && !isOffline) { isOffline = true; enterOfflineMode(); }
+}
+
+function enterOfflineMode() {
+  document.body.classList.add('offline-mode');
+  var banner = document.getElementById('offlineBanner');
+  if (banner) { banner.className = 'offline-banner show offline'; document.getElementById('offlineBannerText').textContent = 'Sin conexion — Datos en cache (' + formatCacheAge() + ') — Solo lectura'; }
+  var dot = document.getElementById('statusDot');
+  if (dot) { dot.style.background = '#ef4444'; dot.title = 'Offline'; }
+}
+
+function exitOfflineMode() {
+  var banner = document.getElementById('offlineBanner');
+  if (banner) { banner.className = 'offline-banner show syncing'; document.getElementById('offlineBannerText').textContent = 'Reconectado — Sincronizando datos...'; }
+  fullDataRefresh(function() {
+    if (banner) banner.className = 'offline-banner';
+    document.body.classList.remove('offline-mode');
+    toast('Datos sincronizados', 'success');
+    var dot = document.getElementById('statusDot');
+    var estado = (config.flat.ESTADO_SERVICIO || '').toUpperCase();
+    if (dot) { dot.style.background = estado === 'ACTIVO' ? '#22c55e' : '#ef4444'; }
+  });
+}
+
+function fullDataRefresh(callback) {
+  var remaining = 11;
+  function done() { remaining--; if (remaining <= 0) { cacheAllData(); updateBadgePendientes(); navigateTo(currentPage); if (callback) callback(); } }
+  google.script.run.withSuccessHandler(function(d) { config = d || {flat:{},detailed:[]}; aplicarBranding(); done(); }).withFailureHandler(done).getConfiguracion();
+  google.script.run.withSuccessHandler(function(d) { clientes = d || []; done(); }).withFailureHandler(done).getClientes();
+  google.script.run.withSuccessHandler(function(d) { agenda = d || []; done(); }).withFailureHandler(done).getAgenda();
+  google.script.run.withSuccessHandler(function(d) { servicios = d || []; serviciosNombres = servicios.map(function(s){return s.tipoServicio;}).filter(Boolean); done(); }).withFailureHandler(done).getServicios();
+  google.script.run.withSuccessHandler(function(d) { promociones = d || []; done(); }).withFailureHandler(done).getPromociones();
+  google.script.run.withSuccessHandler(function(d) { disponibilidad = d || []; done(); }).withFailureHandler(done).getDisponibilidad();
+  google.script.run.withSuccessHandler(function(d) { colaboradores = d || []; done(); }).withFailureHandler(done).getColaboradores();
+  google.script.run.withSuccessHandler(function(d) { galeria = d || []; done(); }).withFailureHandler(done).getGaleria();
+  google.script.run.withSuccessHandler(function(d) { festivosConfig = d || []; done(); }).withFailureHandler(done).getFestivosConfig();
+  google.script.run.withSuccessHandler(function(d) { novedades = d || []; done(); }).withFailureHandler(done).getNovedades();
+  google.script.run.withSuccessHandler(function(d) { solicitudes = d || []; done(); }).withFailureHandler(done).getSolicitudes();
+}
+
+function checkOnlineForWrite(action) {
+  if (isOffline) { toast('Sin conexion. No se puede ' + action + ' en modo offline.', 'warning'); return false; }
+  return true;
+}
+
+window.addEventListener('offline', function() { if (!isOffline) { isOffline = true; enterOfflineMode(); } });
+window.addEventListener('online', function() { if (isOffline) { google.script.run.withSuccessHandler(function() { onGasCallSuccess(); }).withFailureHandler(function() {}).getAgenda(); } });
+
+// =============================================
 // Inicializacion
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
-  pendingLoads = 11;
-  google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
-  google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
-  google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
-  google.script.run.withSuccessHandler(onServiciosLoaded).withFailureHandler(onLoadErr).getServicios();
-  google.script.run.withSuccessHandler(onPromocionesLoaded).withFailureHandler(onLoadErr).getPromociones();
-  google.script.run.withSuccessHandler(onDisponibilidadLoaded).withFailureHandler(onLoadErr).getDisponibilidad();
-  google.script.run.withSuccessHandler(onColaboradoresLoaded).withFailureHandler(onLoadErr).getColaboradores();
-  google.script.run.withSuccessHandler(onGaleriaLoaded).withFailureHandler(onLoadErr).getGaleria();
-  google.script.run.withSuccessHandler(onFestivosLoaded).withFailureHandler(onLoadErr).getFestivosConfig();
-  google.script.run.withSuccessHandler(onNovedadesLoaded).withFailureHandler(onLoadErr).getNovedades();
-  google.script.run.withSuccessHandler(onSolicitudesLoaded).withFailureHandler(onLoadErr).getSolicitudes();
+  // Intentar carga rapida desde cache si hay sesion guardada
+  var cachedItems = loadFromCache();
+  var hasSavedSession = !!sessionStorage.getItem('beautyosSession');
+  if (cachedItems >= 5 && hasSavedSession) {
+    // Arranque instantaneo con datos cacheados, luego refrescar en background
+    document.getElementById('loadingOverlay').style.display = 'none';
+    try {
+      userSession = JSON.parse(sessionStorage.getItem('beautyosSession'));
+      aplicarBranding();
+      iniciarApp(false);
+    } catch (e) { sessionStorage.removeItem('beautyosSession'); mostrarLogin(); }
+    // Refrescar datos en background sin spinner
+    fullDataRefresh();
+  } else {
+    // Flujo tradicional: cargar todo desde servidor
+    pendingLoads = 11;
+    google.script.run.withSuccessHandler(onConfigLoaded).withFailureHandler(onLoadErr).getConfiguracion();
+    google.script.run.withSuccessHandler(onClientesLoaded).withFailureHandler(onLoadErr).getClientes();
+    google.script.run.withSuccessHandler(onAgendaLoaded).withFailureHandler(onLoadErr).getAgenda();
+    google.script.run.withSuccessHandler(onServiciosLoaded).withFailureHandler(onLoadErr).getServicios();
+    google.script.run.withSuccessHandler(onPromocionesLoaded).withFailureHandler(onLoadErr).getPromociones();
+    google.script.run.withSuccessHandler(onDisponibilidadLoaded).withFailureHandler(onLoadErr).getDisponibilidad();
+    google.script.run.withSuccessHandler(onColaboradoresLoaded).withFailureHandler(onLoadErr).getColaboradores();
+    google.script.run.withSuccessHandler(onGaleriaLoaded).withFailureHandler(onLoadErr).getGaleria();
+    google.script.run.withSuccessHandler(onFestivosLoaded).withFailureHandler(onLoadErr).getFestivosConfig();
+    google.script.run.withSuccessHandler(onNovedadesLoaded).withFailureHandler(onLoadErr).getNovedades();
+    google.script.run.withSuccessHandler(onSolicitudesLoaded).withFailureHandler(onLoadErr).getSolicitudes();
+  }
 
   // Nav click
   document.querySelectorAll('.sidebar-nav a[data-page]').forEach(function(a) {
@@ -903,6 +1168,8 @@ function checkLoaded() {
   pendingLoads--;
   if (pendingLoads <= 0) {
     document.getElementById('loadingOverlay').style.display = 'none';
+    cacheAllData();
+    onGasCallSuccess();
 
     // Restaurar sesion si existe
     var saved = sessionStorage.getItem('beautyosSession');
@@ -928,23 +1195,26 @@ function agendaFingerprint(data) {
 }
 
 function iniciarAutoRefresh() {
+  var refreshInterval = 20000;
   setInterval(function() {
+    if (isOffline) return; // No intentar si ya estamos offline
     var prevAgendaFP = agendaFingerprint(agenda);
     var prevClientesCount = clientes.length;
 
     google.script.run.withSuccessHandler(function(data) {
+      onGasCallSuccess();
       data = data || [];
       var newFP = agendaFingerprint(data);
       var changed = newFP !== prevAgendaFP;
       var nuevas = data.length - agenda.length;
       agenda = data;
+      cacheSet(CACHE_KEYS.agenda, agenda);
       updateBadgePendientes();
 
       if (changed) {
         if (nuevas > 0) toast('Nueva(s) cita(s): +' + nuevas, 'info');
         else toast('Agenda actualizada', 'info');
 
-        // Actualizar vista actual sin recargar toda la pagina
         if (currentPage === 'agenda') {
           updateAgendaView();
         } else if (currentPage === 'miagenda') {
@@ -953,17 +1223,19 @@ function iniciarAutoRefresh() {
           navigateTo('dashboard');
         }
       }
-    }).getAgenda();
+    }).withFailureHandler(function(err) { onGasCallFailure(err); }).getAgenda();
 
     google.script.run.withSuccessHandler(function(data) {
+      onGasCallSuccess();
       clientes = data || [];
+      cacheSet(CACHE_KEYS.clientes, clientes);
       if (data.length > prevClientesCount) {
         var nuevos = data.length - prevClientesCount;
         toast('Nuevo(s) cliente(s): +' + nuevos, 'info');
         if (currentPage === 'dashboard' || currentPage === 'clientes') navigateTo(currentPage);
       }
-    }).getClientes();
-  }, 20000);
+    }).withFailureHandler(function(err) { onGasCallFailure(err); }).getClientes();
+  }, refreshInterval);
 }
 
 // =============================================
@@ -1522,6 +1794,8 @@ function renderAgenda() {
   profs.forEach(function(p) { html += '<option value="' + esc(p) + '">' + esc(p) + '</option>'; });
   html += '</select>';
   html += '<select class="form-select" style="width:auto;display:none;" id="filtroEstadoAgenda"></select>';
+  var isAdmin = userSession && userSession.rol === 'ADMIN';
+  if (isAdmin) html += '<button class="btn btn-brand btn-sm" onclick="abrirModalCita()"><i class="fas fa-calendar-plus me-1"></i> Nueva Cita</button>';
   html += '</div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table" id="tablaAgenda">';
@@ -1727,6 +2001,7 @@ function abrirCerrarCita(citaId) {
 }
 
 function confirmarCerrarCita() {
+  if (!checkOnlineForWrite('cerrar cita')) return;
   var citaId = document.getElementById('cerrarCitaId').value;
   var enviarWA = document.getElementById('cerrarCitaEnviarWA').checked;
   var mensaje = document.getElementById('cerrarCitaMensaje').value.trim();
@@ -1779,6 +2054,7 @@ function finalizarCerrarCita(btn, citaId, whatsappOk) {
 }
 
 function marcarNoAsistio(citaId) {
+  if (!checkOnlineForWrite('marcar no asistio')) return;
   var cita = agenda.find(function(a) { return a.id === citaId; });
   confirmar({
     titulo: 'Marcar como No Asistio',
@@ -1802,6 +2078,7 @@ function marcarNoAsistio(citaId) {
 }
 
 function eliminarCita(citaId, rowIndex) {
+  if (!checkOnlineForWrite('eliminar cita')) return;
   var cita = agenda.find(function(a) { return a.id === citaId; });
   if (!cita) { toast('Cita no encontrada', 'danger'); return; }
   if (cita.estado === 'PENDIENTE' || cita.estado === 'REAGENDADO') {
@@ -1832,9 +2109,13 @@ function eliminarCita(citaId, rowIndex) {
 // RENDER: Clientes
 // =============================================
 function renderClientes() {
-  var html = '<div class="d-flex justify-content-between align-items-center mb-3">';
+  var isAdmin = userSession && userSession.rol === 'ADMIN';
+  var html = '<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">';
   html += '<div class="search-box"><i class="fas fa-search"></i><input type="text" class="form-control" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)"></div>';
-  html += '<span class="text-muted" style="font-size:.85rem;">' + clientes.length + ' cliente(s)</span></div>';
+  html += '<div class="d-flex align-items-center gap-2">';
+  html += '<span class="text-muted" style="font-size:.85rem;">' + clientes.length + ' cliente(s)</span>';
+  if (isAdmin) html += '<button class="btn btn-brand btn-sm" onclick="abrirModalCliente()"><i class="fas fa-user-plus me-1"></i> Nuevo Cliente</button>';
+  html += '</div></div>';
 
   html += '<div class="card-custom"><div class="table-responsive"><table class="table-clean table">';
   html += '<thead><tr><th>ID</th><th>Nombre</th><th>Celular</th><th>Correo</th><th class="d-none d-md-table-cell">Cumple</th><th class="d-none d-md-table-cell">Direccion</th><th>Tipo</th><th>Anticipo</th><th class="d-none d-md-table-cell">Registro</th></tr></thead>';
@@ -1867,6 +2148,7 @@ function renderClienteRows(data) {
 }
 
 function toggleExentoAnticipo(celular, checked) {
+  if (!checkOnlineForWrite('cambiar exento anticipo')) { document.getElementById('exento-' + celular).checked = !checked; return; }
   var nuevoEstado = checked ? 'SI' : 'NO';
   var label = document.querySelector('label[for="exento-' + celular + '"]');
   if (label) label.textContent = checked ? 'Exento' : 'Cobra';
@@ -1875,6 +2157,217 @@ function toggleExentoAnticipo(celular, checked) {
     .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); })
     .toggleClienteExento(celular, nuevoEstado);
 }
+
+function abrirModalCliente() {
+  document.getElementById('cliCelular').value = '';
+  document.getElementById('cliNombre').value = '';
+  document.getElementById('cliCorreo').value = '';
+  document.getElementById('cliCumple').value = '';
+  document.getElementById('cliDireccion').value = '';
+  document.getElementById('cliTipo').value = 'Nuevo';
+  new bootstrap.Modal(document.getElementById('modalCliente')).show();
+}
+
+function guardarCliente() {
+  if (!checkOnlineForWrite('guardar cliente')) return;
+  var celular = document.getElementById('cliCelular').value.trim();
+  var nombre = document.getElementById('cliNombre').value.trim();
+  if (!celular || celular.length < 10) { toast('Celular obligatorio (min 10 digitos)', 'warning'); return; }
+  if (!nombre) { toast('Nombre obligatorio', 'warning'); return; }
+
+  // Verificar duplicado local
+  var dup = clientes.find(function(c) { return c.celular === celular; });
+  if (dup) { toast('Ya existe un cliente con ese celular: ' + dup.nombre, 'warning'); return; }
+
+  var data = {
+    celular: celular,
+    nombre: nombre,
+    correo: document.getElementById('cliCorreo').value.trim(),
+    cumple: document.getElementById('cliCumple').value,
+    direccion: document.getElementById('cliDireccion').value.trim(),
+    tipo: document.getElementById('cliTipo').value
+  };
+
+  // Formatear cumple de YYYY-MM-DD a DD/MM/YYYY para GAS
+  if (data.cumple) {
+    var p = data.cumple.split('-');
+    if (p.length === 3) data.cumple = p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  var btn = document.getElementById('btnGuardarCliente');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+  google.script.run
+    .withSuccessHandler(function() {
+      bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
+      toast('Cliente registrado exitosamente', 'success');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i> Guardar';
+      google.script.run.withSuccessHandler(function(d) { clientes = d || []; navigateTo('clientes'); }).getClientes();
+    })
+    .withFailureHandler(function(e) {
+      toast('Error: ' + e.message, 'danger');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i> Guardar';
+    })
+    .saveCliente(data);
+}
+
+// =============================================
+// FUNCIONES: Nueva Cita Manual
+// =============================================
+function abrirModalCita() {
+  document.getElementById('citaFecha').value = '';
+  document.getElementById('citaInicio').value = '';
+  document.getElementById('citaFin').value = '';
+  document.getElementById('citaClienteBuscar').value = '';
+  document.getElementById('citaCliente').value = '';
+  document.getElementById('citaCelular').value = '';
+  document.getElementById('citaNotas').value = '';
+  document.getElementById('citaPrecio').value = '';
+  document.getElementById('citaClienteDropdown').style.display = 'none';
+
+  // Poblar select de profesionales
+  var selProf = document.getElementById('citaProfesional');
+  selProf.innerHTML = '<option value="">Seleccionar...</option>';
+  colaboradores.forEach(function(c) {
+    if (c.estado === 'ACTIVO') selProf.innerHTML += '<option value="' + esc(c.nombre) + '">' + esc(c.nombre) + '</option>';
+  });
+
+  // Poblar select de servicios
+  var selSrv = document.getElementById('citaServicio');
+  selSrv.innerHTML = '<option value="">Seleccionar...</option>';
+  servicios.forEach(function(s) {
+    if ((s.estado || '').toUpperCase() === 'ACTIVO') {
+      selSrv.innerHTML += '<option value="' + esc(s.tipoServicio) + '" data-precio="' + (s.precio || 0) + '" data-duracion="' + (s.tiempoServicio || 0) + '">' + esc(s.tipoServicio) + ' ($' + Number(s.precio || 0).toLocaleString() + ')</option>';
+    }
+  });
+
+  // Fecha minima: hoy
+  var hoy = new Date();
+  var yyyy = hoy.getFullYear();
+  var mm = String(hoy.getMonth() + 1).padStart(2, '0');
+  var dd = String(hoy.getDate()).padStart(2, '0');
+  document.getElementById('citaFecha').min = yyyy + '-' + mm + '-' + dd;
+
+  new bootstrap.Modal(document.getElementById('modalCita')).show();
+}
+
+function filtrarClientesCita(query) {
+  var dropdown = document.getElementById('citaClienteDropdown');
+  if (!query || query.length < 2) { dropdown.style.display = 'none'; return; }
+  var q = query.toLowerCase();
+  var matches = clientes.filter(function(c) {
+    return c.nombre.toLowerCase().indexOf(q) !== -1 || c.celular.indexOf(q) !== -1;
+  }).slice(0, 8);
+
+  if (matches.length === 0) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = matches.map(function(c) {
+    return '<a href="#" class="list-group-item list-group-item-action py-2 px-3" onclick="seleccionarClienteCita(\'' + esc(c.nombre) + '\',\'' + esc(c.celular) + '\');return false;">' +
+      '<strong>' + esc(c.nombre) + '</strong> <small class="text-muted">(' + esc(c.celular) + ')</small></a>';
+  }).join('');
+  dropdown.style.display = 'block';
+}
+
+function seleccionarClienteCita(nombre, celular) {
+  document.getElementById('citaClienteBuscar').value = nombre;
+  document.getElementById('citaCliente').value = nombre;
+  document.getElementById('citaCelular').value = celular;
+  document.getElementById('citaClienteDropdown').style.display = 'none';
+}
+
+function onCitaServicioChange() {
+  var sel = document.getElementById('citaServicio');
+  var opt = sel.options[sel.selectedIndex];
+  var precio = opt ? opt.getAttribute('data-precio') : '';
+  var duracion = opt ? parseInt(opt.getAttribute('data-duracion')) : 0;
+  document.getElementById('citaPrecio').value = precio || '';
+  if (duracion > 0) calcularHoraFin();
+}
+
+function calcularHoraFin() {
+  var inicio = document.getElementById('citaInicio').value;
+  if (!inicio) return;
+  var sel = document.getElementById('citaServicio');
+  var opt = sel.options[sel.selectedIndex];
+  var duracion = opt ? parseInt(opt.getAttribute('data-duracion')) : 0;
+  if (!duracion) return;
+
+  var parts = inicio.split(':');
+  var minutos = parseInt(parts[0]) * 60 + parseInt(parts[1]) + duracion;
+  var h = Math.floor(minutos / 60);
+  var m = minutos % 60;
+  document.getElementById('citaFin').value = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+}
+
+function guardarCitaManual() {
+  if (!checkOnlineForWrite('guardar cita')) return;
+  var fecha = document.getElementById('citaFecha').value;
+  var inicio = document.getElementById('citaInicio').value;
+  var fin = document.getElementById('citaFin').value;
+  var cliente = document.getElementById('citaCliente').value;
+  var celular = document.getElementById('citaCelular').value;
+  var servicio = document.getElementById('citaServicio').value;
+  var precio = parseFloat(document.getElementById('citaPrecio').value) || 0;
+  var profesional = document.getElementById('citaProfesional').value;
+
+  if (!fecha) { toast('Selecciona una fecha', 'warning'); return; }
+  if (!inicio || !fin) { toast('Hora de inicio y fin son obligatorias', 'warning'); return; }
+  if (inicio >= fin) { toast('La hora fin debe ser posterior a la hora inicio', 'warning'); return; }
+  if (!cliente) { toast('Selecciona un cliente de la lista', 'warning'); return; }
+  if (!servicio) { toast('Selecciona un servicio', 'warning'); return; }
+  if (!profesional) { toast('Selecciona un profesional', 'warning'); return; }
+
+  // Formatear fecha de YYYY-MM-DD a DD/MM/YYYY
+  var fp = fecha.split('-');
+  var fechaFormateada = fp[2] + '/' + fp[1] + '/' + fp[0];
+
+  // Buscar si el cliente es exento de anticipo
+  var clienteObj = clientes.find(function(c) { return c.celular === celular; });
+  var exento = (clienteObj && clienteObj.exentoAnticipo === 'SI') ? 'SI' : '';
+
+  var data = {
+    fecha: fechaFormateada,
+    inicio: inicio,
+    fin: fin,
+    cliente: cliente,
+    celularCliente: celular,
+    servicio: servicio,
+    precio: precio,
+    profesional: profesional,
+    notas: document.getElementById('citaNotas').value.trim() || 'Cita manual desde CRM',
+    exentoAnticipo: exento
+  };
+
+  var btn = document.getElementById('btnGuardarCita');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Agendando...';
+
+  google.script.run
+    .withSuccessHandler(function() {
+      bootstrap.Modal.getInstance(document.getElementById('modalCita')).hide();
+      toast('Cita agendada exitosamente', 'success');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i> Agendar Cita';
+      google.script.run.withSuccessHandler(function(d) { agenda = d || []; updateBadgePendientes(); navigateTo('agenda'); }).getAgenda();
+    })
+    .withFailureHandler(function(e) {
+      toast('Error: ' + e.message, 'danger');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i> Agendar Cita';
+    })
+    .saveCitaManual(data);
+}
+
+// Cerrar dropdown de clientes al hacer click fuera
+document.addEventListener('click', function(e) {
+  var dropdown = document.getElementById('citaClienteDropdown');
+  if (dropdown && !e.target.closest('#citaClienteBuscar') && !e.target.closest('#citaClienteDropdown')) {
+    dropdown.style.display = 'none';
+  }
+});
 
 // =============================================
 // RENDER: Equipo (Colaboradores)
@@ -2480,6 +2973,7 @@ function abrirModalNovedad() {
 }
 
 function guardarNovedad() {
+  if (!checkOnlineForWrite('guardar novedad')) return;
   var mensaje = document.getElementById('novMensaje').value.trim();
   if (!mensaje) { toast('Describe la novedad.', 'warning'); return; }
 
@@ -2505,6 +2999,7 @@ function abrirCerrarNovedad(rowIndex) {
 }
 
 function confirmarCerrarNovedad() {
+  if (!checkOnlineForWrite('cerrar novedad')) return;
   var respuesta = document.getElementById('cerrarNovRespuesta').value.trim();
   if (!respuesta) { toast('Escribe la respuesta o solucion.', 'warning'); return; }
 
@@ -2521,6 +3016,7 @@ function confirmarCerrarNovedad() {
 }
 
 function eliminarNovedad(rowIndex, id) {
+  if (!checkOnlineForWrite('eliminar novedad')) return;
   var nov = novedades.find(function(n) { return n.id === id; });
   confirmar({
     titulo: 'Eliminar Novedad',
@@ -2706,6 +3202,7 @@ function abrirModalSolicitud() {
 }
 
 function guardarSolicitud() {
+  if (!checkOnlineForWrite('guardar solicitud')) return;
   var desc = document.getElementById('solDescripcion').value.trim();
   if (!desc) { toast('Describe tu solicitud.', 'warning'); return; }
 
@@ -2730,6 +3227,7 @@ function guardarSolicitud() {
 }
 
 function aprobarSolicitud(rowIndex) {
+  if (!checkOnlineForWrite('aprobar solicitud')) return;
   var sol = solicitudes.find(function(s) { return s.rowIndex === rowIndex; });
   confirmar({
     titulo: 'Aprobar Solicitud',
@@ -2755,6 +3253,7 @@ function abrirRechazarSolicitud(rowIndex) {
 }
 
 function confirmarRechazarSolicitud() {
+  if (!checkOnlineForWrite('rechazar solicitud')) return;
   var data = {
     rowIndex: parseInt(document.getElementById('rechazarSolRowIndex').value),
     estado: 'NO APROBADO',
@@ -2900,6 +3399,13 @@ function renderConfig() {
 
   html += '</div>';
 
+  // ── Landing Page Publica ──
+  html += '<div class="row g-3 mt-1"><div class="col-lg-12"><div class="config-card">';
+  html += '<h6><i class="fas fa-globe me-1" style="color:#0ea5e9;"></i> Landing Page — Pagina publica del negocio</h6>';
+  html += '<p class="text-muted small mb-3">Comparte este enlace con tus clientes para que conozcan tus servicios, vean la galeria y agenden citas directamente.</p>';
+  html += '<div id="landingUrlContainer"><button class="btn btn-outline-primary btn-sm" onclick="cargarLandingUrl()"><i class="fas fa-link me-1"></i> Obtener enlace</button></div>';
+  html += '</div></div></div>';
+
   // ── Clasificacion de Clientes ──
   html += '<div class="row g-3 mt-1">';
   var umbOcasional = f.UMBRAL_OCASIONAL || '1';
@@ -2992,6 +3498,7 @@ function abrirModalColaboradorEditar(rowIndex) {
 }
 
 function guardarColaborador() {
+  if (!checkOnlineForWrite('guardar colaborador')) return;
   var nombre = document.getElementById('colNombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio.', 'warning'); return; }
 
@@ -3076,6 +3583,7 @@ function abrirModalServicioEditar(rowIndex) {
 }
 
 function guardarServicio() {
+  if (!checkOnlineForWrite('guardar servicio')) return;
   var nombre = document.getElementById('srvTipoServicio').value.trim();
   if (!nombre) { toast('El nombre del servicio es obligatorio.', 'warning'); return; }
 
@@ -3187,6 +3695,7 @@ function editarGaleriaItem(rowIndex) {
 }
 
 function guardarGaleriaItem() {
+  if (!checkOnlineForWrite('guardar galeria')) return;
   var cat = document.getElementById('galCategoria').value;
   var isRec = cat === 'recomendacion';
   var data = {
@@ -3353,6 +3862,7 @@ function abrirModalPromoEditar(rowIndex) {
 }
 
 function guardarPromocion() {
+  if (!checkOnlineForWrite('guardar promocion')) return;
   var nombre = document.getElementById('promoNombre').value.trim();
   if (!nombre) { toast('El nombre es obligatorio.', 'warning'); return; }
   var sel = document.getElementById('promoServicio'); var srvArr = [];
@@ -3418,6 +3928,7 @@ function abrirModalActivar(rowIndex, nombre) {
   new bootstrap.Modal(document.getElementById('modalActivar')).show();
 }
 function confirmarActivar() {
+  if (!checkOnlineForWrite('activar promocion')) return;
   var rowIndex = parseInt(document.getElementById('activarRowIndex').value);
   var fInput = document.getElementById('activarFechaVence').value;
   if (!fInput) { toast('Selecciona una fecha.', 'warning'); return; }
@@ -3426,6 +3937,7 @@ function confirmarActivar() {
     .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).togglePromocionEstado(rowIndex, 'ACTIVO', fechaVence);
 }
 function desactivarPromo(rowIndex) {
+  if (!checkOnlineForWrite('desactivar promocion')) return;
   google.script.run.withSuccessHandler(function() { toast('Promocion DESACTIVADA.', 'secondary'); reloadData('promociones'); })
     .withFailureHandler(function(e) { toast('Error: ' + e.message, 'danger'); }).togglePromocionEstado(rowIndex, 'INACTIVO', null);
 }
@@ -3500,6 +4012,7 @@ function abrirEliminar(rowIndex, nombre, tipo) {
   new bootstrap.Modal(document.getElementById('modalEliminar')).show();
 }
 function confirmarEliminar() {
+  if (!checkOnlineForWrite('eliminar registro')) return;
   var rowIndex = parseInt(document.getElementById('eliminarRowIndex').value);
   var tipo = document.getElementById('eliminarTipo').value;
   if (tipo === 'servicio') {
@@ -3518,6 +4031,7 @@ function confirmarEliminar() {
 // CONFIGURACION SAVE
 // =============================================
 function guardarConfiguracion() {
+  if (!checkOnlineForWrite('guardar configuracion')) return;
   var updates = {};
   document.querySelectorAll('.config-input').forEach(function(input) {
     var key = input.getAttribute('data-key');
@@ -3582,6 +4096,46 @@ function descargarQR() {
   a.click();
 }
 
+function cargarLandingUrl() {
+  var container = document.getElementById('landingUrlContainer');
+  container.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Obteniendo enlace...';
+  google.script.run
+    .withSuccessHandler(function(url) {
+      if (!url) { container.innerHTML = '<p class="text-muted small">No se pudo obtener la URL del deployment.</p>'; return; }
+      var nombreNegocio = (config.flat && config.flat.NOMBRE_NEGOCIO) || 'nuestro salon';
+      var qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=' + encodeURIComponent(url);
+      var mensajeWA = 'Conoce nuestros servicios y agenda tu cita en ' + nombreNegocio + ': ' + url;
+      var html = '<div class="input-group mb-2">';
+      html += '<input type="text" class="form-control" value="' + esc(url) + '" id="landingUrlInput" readonly>';
+      html += '<button class="btn btn-outline-primary" onclick="copiarLandingUrl()" title="Copiar enlace"><i class="fas fa-copy"></i></button>';
+      html += '</div>';
+      html += '<div class="text-center mb-3"><img src="' + qrUrl + '" alt="QR Landing" style="max-width:180px; border-radius:12px; border:2px solid #e5e7eb; padding:8px; background:#fff;" class="mb-2">';
+      html += '<p class="text-muted small mb-1">Escanea o comparte este QR</p></div>';
+      html += '<div class="d-flex justify-content-center gap-2 flex-wrap">';
+      html += '<a href="https://wa.me/?text=' + encodeURIComponent(mensajeWA) + '" target="_blank" class="btn btn-success btn-sm"><i class="fab fa-whatsapp me-1"></i> WhatsApp</a>';
+      html += '<a href="https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(url) + '" target="_blank" class="btn btn-primary btn-sm"><i class="fab fa-facebook me-1"></i> Facebook</a>';
+      html += '<button class="btn btn-outline-dark btn-sm" onclick="copiarLandingUrl()"><i class="fas fa-link me-1"></i> Copiar Link</button>';
+      html += '</div>';
+      container.innerHTML = html;
+    })
+    .withFailureHandler(function(e) {
+      container.innerHTML = '<p class="text-danger small">Error: ' + e.message + '</p>';
+    })
+    .getLandingUrl();
+}
+
+function copiarLandingUrl() {
+  var input = document.getElementById('landingUrlInput');
+  if (!input) return;
+  navigator.clipboard.writeText(input.value).then(function() {
+    toast('Enlace copiado al portapapeles', 'success');
+  }).catch(function() {
+    input.select();
+    document.execCommand('copy');
+    toast('Enlace copiado', 'success');
+  });
+}
+
 function abrirEvolutionManager() {
   var input = document.querySelector('[data-key="URL_EVOLUTION_MANAGER"]');
   var url = (input && input.value) ? input.value.trim() : 'http://localhost:8080';
@@ -3624,6 +4178,7 @@ function toggleDia(dia) {
 }
 
 function toggleFestivo(rowIndex) {
+  if (!checkOnlineForWrite('cambiar festivo')) { var cb = document.getElementById('toggleFestivo-' + rowIndex); if (cb) cb.checked = !cb.checked; return; }
   var checkbox = document.getElementById('toggleFestivo-' + rowIndex);
   var nuevoEstado = checkbox.checked ? 'SI' : 'NO';
   var card = document.getElementById('cardFestivo-' + rowIndex);
@@ -3659,6 +4214,7 @@ function toggleFestivo(rowIndex) {
 }
 
 function guardarHorarioFestivo(rowIndex) {
+  if (!checkOnlineForWrite('guardar horario festivo')) return;
   var horaIni = document.getElementById('horaIniFestivo-' + rowIndex).value;
   var horaFin = document.getElementById('horaFinFestivo-' + rowIndex).value;
 
@@ -3751,6 +4307,7 @@ function renderFestivosYear(year) {
 }
 
 function agregarAnoFestivo() {
+  if (!checkOnlineForWrite('agregar ano festivo')) return;
   // Determinar siguiente año disponible
   var existingYears = {};
   festivosConfig.forEach(function(f) { if (f.ano) existingYears[f.ano] = true; });
@@ -3804,6 +4361,7 @@ function agregarAnoFestivo() {
 }
 
 function guardarHorarios() {
+  if (!checkOnlineForWrite('guardar horarios')) return;
   var diasSemana = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
   var btn = document.getElementById('btnGuardarHorarios');
   btn.disabled = true;
@@ -4031,6 +4589,7 @@ function formatearFechaInput(fechaInput) {
 }
 
 function guardarBloqueo() {
+  if (!checkOnlineForWrite('guardar bloqueo')) return;
   var tipo = document.getElementById('bloqueoTipo').value;
   var todoDia = document.getElementById('bloqueoTodoDia').checked;
   var horaIni = todoDia ? '00:00' : document.getElementById('bloqueoHoraIni').value;
@@ -4137,6 +4696,7 @@ function finalizarBloqueo(btn, esEdicion) {
 }
 
 function eliminarBloqueo(rowIndex) {
+  if (!checkOnlineForWrite('eliminar bloqueo')) return;
   confirmar({
     titulo: 'Eliminar Bloqueo',
     mensaje: '<p>¿Eliminar este bloqueo de horario?</p>',

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cargando...</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root { --brand: #1a1a2e; --accent: #c9a96e; --accent-light: #e8d5b0; --bg: #fafaf8; --text: #2d2d2d; --muted: #777; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+    h1,h2,h3 { font-family:'Playfair Display',serif; }
+
+    /* ── Loading ── */
+    #loadingLanding { position:fixed; inset:0; z-index:9999; background:var(--brand); display:flex; align-items:center; justify-content:center; flex-direction:column; color:#fff; }
+    #loadingLanding .spinner-border { width:2.5rem; height:2.5rem; }
+
+    /* ── Nav ── */
+    .landing-nav { position:fixed; top:0; width:100%; z-index:100; background:rgba(26,26,46,0.95); backdrop-filter:blur(8px); padding:12px 20px; display:flex; align-items:center; justify-content:space-between; }
+    .landing-nav .nav-logo { display:flex; align-items:center; gap:10px; color:#fff; text-decoration:none; }
+    .landing-nav .nav-logo img { width:36px; height:36px; border-radius:50%; object-fit:cover; }
+    .landing-nav .nav-logo span { font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:600; }
+    .landing-nav .nav-links { display:flex; gap:20px; }
+    .landing-nav .nav-links a { color:var(--accent-light); text-decoration:none; font-size:.85rem; font-weight:500; transition:color .2s; }
+    .landing-nav .nav-links a:hover { color:var(--accent); }
+    @media(max-width:768px) { .landing-nav .nav-links { display:none; } }
+
+    /* ── Hero ── */
+    .hero { min-height:80vh; display:flex; align-items:center; justify-content:center; text-align:center; background:linear-gradient(135deg, var(--brand) 0%, #16213e 50%, #0f3460 100%); color:#fff; padding:100px 20px 60px; }
+    .hero h1 { font-size:clamp(2rem,5vw,3.5rem); margin-bottom:16px; }
+    .hero p { font-size:1.1rem; color:var(--accent-light); max-width:600px; margin:0 auto 30px; }
+    .hero .hero-logo { width:100px; height:100px; border-radius:50%; object-fit:cover; border:3px solid var(--accent); margin-bottom:20px; }
+    .btn-cta { display:inline-block; padding:14px 36px; background:var(--accent); color:var(--brand); font-weight:600; border-radius:30px; text-decoration:none; font-size:1rem; transition:transform .2s, box-shadow .2s; }
+    .btn-cta:hover { transform:translateY(-2px); box-shadow:0 8px 25px rgba(201,169,110,.4); }
+
+    /* ── Sections ── */
+    section { padding:80px 20px; max-width:1100px; margin:0 auto; }
+    .section-title { text-align:center; margin-bottom:50px; }
+    .section-title h2 { font-size:2rem; margin-bottom:10px; }
+    .section-title p { color:var(--muted); }
+    .section-divider { width:60px; height:3px; background:var(--accent); margin:12px auto 0; border-radius:2px; }
+
+    /* ── Services Grid ── */
+    .services-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:24px; }
+    .service-card { background:#fff; border-radius:16px; padding:28px; box-shadow:0 2px 15px rgba(0,0,0,.05); transition:transform .2s, box-shadow .2s; cursor:pointer; border:2px solid transparent; }
+    .service-card:hover { transform:translateY(-4px); box-shadow:0 8px 30px rgba(0,0,0,.1); }
+    .service-card.selected { border-color:var(--accent); background:#fdf8ef; }
+    .service-card .cat { font-size:.75rem; color:var(--accent); font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:8px; }
+    .service-card h3 { font-size:1.15rem; margin-bottom:12px; }
+    .service-card .meta { display:flex; justify-content:space-between; color:var(--muted); font-size:.85rem; }
+    .service-card .price { font-size:1.3rem; font-weight:700; color:var(--brand); }
+
+    /* ── Gallery ── */
+    .gallery-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+    .gallery-item { border-radius:12px; overflow:hidden; aspect-ratio:1; position:relative; }
+    .gallery-item img { width:100%; height:100%; object-fit:cover; transition:transform .3s; }
+    .gallery-item:hover img { transform:scale(1.05); }
+    .gallery-item .overlay { position:absolute; bottom:0; left:0; right:0; padding:12px; background:linear-gradient(transparent,rgba(0,0,0,.7)); color:#fff; font-size:.8rem; }
+
+    /* ── Schedule ── */
+    .schedule-table { width:100%; max-width:500px; margin:0 auto; border-collapse:collapse; }
+    .schedule-table td { padding:12px 20px; border-bottom:1px solid #eee; }
+    .schedule-table td:first-child { font-weight:600; }
+    .schedule-table td:last-child { text-align:right; color:var(--muted); }
+
+    /* ── Contact ── */
+    .contact-grid { display:grid; grid-template-columns:1fr 1fr; gap:30px; align-items:start; }
+    @media(max-width:768px) { .contact-grid { grid-template-columns:1fr; } }
+    .contact-info { display:flex; flex-direction:column; gap:16px; }
+    .contact-item { display:flex; align-items:center; gap:12px; font-size:.95rem; }
+    .contact-item i { width:36px; height:36px; display:flex; align-items:center; justify-content:center; background:var(--accent-light); color:var(--brand); border-radius:50%; font-size:.9rem; }
+    .contact-map { border-radius:12px; overflow:hidden; min-height:250px; }
+    .contact-map iframe { width:100%; height:100%; min-height:250px; border:0; }
+    .btn-wa { display:inline-flex; align-items:center; gap:8px; padding:12px 28px; background:#25D366; color:#fff; border-radius:30px; text-decoration:none; font-weight:600; margin-top:16px; transition:transform .2s; }
+    .btn-wa:hover { transform:translateY(-2px); }
+
+    /* ── Registro ── */
+    .form-section { max-width:500px; margin:0 auto; background:#fff; padding:40px; border-radius:16px; box-shadow:0 2px 20px rgba(0,0,0,.06); }
+    .form-section input { width:100%; padding:12px 16px; border:1px solid #ddd; border-radius:10px; font-size:.95rem; margin-bottom:14px; font-family:'Inter',sans-serif; }
+    .form-section input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(201,169,110,.15); }
+    .btn-submit { width:100%; padding:14px; background:var(--accent); color:var(--brand); border:none; border-radius:30px; font-weight:600; font-size:1rem; cursor:pointer; transition:transform .2s; }
+    .btn-submit:hover { transform:translateY(-2px); }
+    .btn-submit:disabled { opacity:.6; cursor:wait; }
+
+    /* ── Wizard Agendar ── */
+    .wizard { max-width:700px; margin:0 auto; background:#fff; padding:40px; border-radius:16px; box-shadow:0 2px 20px rgba(0,0,0,.06); }
+    .wizard-steps { display:flex; justify-content:center; gap:8px; margin-bottom:30px; }
+    .wizard-step { width:10px; height:10px; border-radius:50%; background:#ddd; transition:background .3s; }
+    .wizard-step.active { background:var(--accent); width:30px; border-radius:5px; }
+    .wizard-step.done { background:var(--brand); }
+    .wizard-panel { display:none; }
+    .wizard-panel.active { display:block; }
+    .wizard-nav { display:flex; justify-content:space-between; margin-top:30px; }
+    .btn-wizard { padding:10px 24px; border-radius:30px; border:none; font-weight:600; cursor:pointer; font-size:.9rem; transition:transform .2s; }
+    .btn-wizard-back { background:#eee; color:var(--text); }
+    .btn-wizard-next { background:var(--accent); color:var(--brand); }
+    .btn-wizard:hover { transform:translateY(-1px); }
+
+    .slot-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:10px; margin-top:16px; }
+    .slot-btn { padding:10px; border:2px solid #ddd; border-radius:10px; background:#fff; cursor:pointer; text-align:center; font-weight:500; transition:all .2s; }
+    .slot-btn:hover { border-color:var(--accent); }
+    .slot-btn.selected { border-color:var(--accent); background:#fdf8ef; }
+
+    .prof-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; }
+    .prof-card { padding:20px; border:2px solid #eee; border-radius:12px; text-align:center; cursor:pointer; transition:all .2s; }
+    .prof-card:hover { border-color:var(--accent); }
+    .prof-card.selected { border-color:var(--accent); background:#fdf8ef; }
+    .prof-card i { font-size:2rem; color:var(--accent); margin-bottom:8px; display:block; }
+
+    .resumen-card { background:#f8f9fa; border-radius:12px; padding:20px; }
+    .resumen-card .item { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid #eee; }
+    .resumen-card .item:last-child { border:none; }
+
+    .msg-success { text-align:center; padding:40px 20px; }
+    .msg-success i { font-size:4rem; color:#22c55e; margin-bottom:16px; }
+
+    /* ── Footer ── */
+    .landing-footer { text-align:center; padding:30px 20px; background:var(--brand); color:var(--accent-light); font-size:.8rem; }
+
+    /* ── Toast ── */
+    .landing-toast { position:fixed; bottom:20px; right:20px; z-index:10000; padding:14px 24px; border-radius:12px; color:#fff; font-size:.9rem; font-weight:500; opacity:0; transform:translateY(20px); transition:all .3s; }
+    .landing-toast.show { opacity:1; transform:translateY(0); }
+    .landing-toast.success { background:#22c55e; }
+    .landing-toast.error { background:#ef4444; }
+  </style>
+</head>
+<body>
+
+<div id="loadingLanding">
+  <div class="spinner-border text-light mb-3" role="status"></div>
+  <p style="font-size:.9rem;opacity:.7;">Cargando...</p>
+</div>
+
+<nav class="landing-nav" id="landingNav" style="display:none;">
+  <a href="#hero" class="nav-logo">
+    <img id="navLogo" src="" alt="" onerror="this.style.display='none'">
+    <span id="navName">Salon</span>
+  </a>
+  <div class="nav-links">
+    <a href="#servicios">Servicios</a>
+    <a href="#galeria">Galeria</a>
+    <a href="#horarios">Horarios</a>
+    <a href="#contacto">Contacto</a>
+    <a href="#agendar" style="color:var(--accent);font-weight:600;">Agendar Cita</a>
+  </div>
+</nav>
+
+<div id="landingContent" style="display:none;">
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <div>
+    <img class="hero-logo" id="heroLogo" src="" alt="" onerror="this.style.display='none'">
+    <h1 id="heroTitle">Bienvenido</h1>
+    <p>Descubre nuestros servicios, conoce nuestro equipo y agenda tu cita de forma facil y rapida.</p>
+    <a href="#agendar" class="btn-cta"><i class="fas fa-calendar-check me-2"></i>Agenda tu cita</a>
+  </div>
+</section>
+
+<!-- SERVICIOS -->
+<section id="servicios">
+  <div class="section-title">
+    <h2>Nuestros Servicios</h2>
+    <p>Tratamientos profesionales para realzar tu belleza</p>
+    <div class="section-divider"></div>
+  </div>
+  <div class="services-grid" id="serviciosGrid"></div>
+</section>
+
+<!-- GALERIA -->
+<section id="galeria" style="background:#f0ede8;">
+  <div class="section-title">
+    <h2>Galeria</h2>
+    <p>Nuestros trabajos hablan por nosotros</p>
+    <div class="section-divider"></div>
+  </div>
+  <div class="gallery-grid" id="galeriaGrid"></div>
+</section>
+
+<!-- HORARIOS -->
+<section id="horarios">
+  <div class="section-title">
+    <h2>Horarios de Atencion</h2>
+    <p>Te esperamos en los siguientes horarios</p>
+    <div class="section-divider"></div>
+  </div>
+  <table class="schedule-table" id="horariosTable"></table>
+</section>
+
+<!-- CONTACTO -->
+<section id="contacto" style="background:#f0ede8;">
+  <div class="section-title">
+    <h2>Contacto y Ubicacion</h2>
+    <p>Visitanos o escribenos</p>
+    <div class="section-divider"></div>
+  </div>
+  <div class="contact-grid">
+    <div class="contact-info" id="contactoInfo"></div>
+    <div class="contact-map" id="contactoMap"></div>
+  </div>
+</section>
+
+<!-- REGISTRO -->
+<section id="registro">
+  <div class="section-title">
+    <h2>Registrate</h2>
+    <p>Unete a nuestra familia y recibe atencion personalizada</p>
+    <div class="section-divider"></div>
+  </div>
+  <div class="form-section" id="formRegistro">
+    <div class="mb-3" style="text-align:center;margin-bottom:20px;">
+      <i class="fas fa-user-plus" style="font-size:2rem;color:var(--accent);"></i>
+    </div>
+    <input type="tel" id="regCelular" placeholder="Celular (ej: 573001234567)" maxlength="15">
+    <input type="text" id="regNombre" placeholder="Nombre completo">
+    <input type="email" id="regCorreo" placeholder="Correo electronico (opcional)">
+    <input type="date" id="regCumple" placeholder="Fecha de cumpleanos">
+    <button class="btn-submit" id="btnRegistro" onclick="registrarCliente()"><i class="fas fa-check me-2"></i>Registrarme</button>
+  </div>
+  <div id="registroExito" style="display:none;" class="msg-success">
+    <i class="fas fa-check-circle"></i>
+    <h3>¡Registro exitoso!</h3>
+    <p style="color:var(--muted);margin-top:8px;">Ya eres parte de nuestra familia. Ahora puedes agendar tu primera cita.</p>
+    <a href="#agendar" class="btn-cta" style="margin-top:20px;display:inline-block;"><i class="fas fa-calendar-check me-2"></i>Agendar mi cita</a>
+  </div>
+</section>
+
+<!-- AGENDAR CITA (Wizard) -->
+<section id="agendar" style="background:#f0ede8;">
+  <div class="section-title">
+    <h2>Agenda tu Cita</h2>
+    <p>Elige tu servicio, profesional y horario en pocos pasos</p>
+    <div class="section-divider"></div>
+  </div>
+  <div class="wizard" id="wizardContainer">
+    <div class="wizard-steps" id="wizardSteps">
+      <div class="wizard-step active"></div>
+      <div class="wizard-step"></div>
+      <div class="wizard-step"></div>
+      <div class="wizard-step"></div>
+    </div>
+
+    <!-- Paso 1: Servicio -->
+    <div class="wizard-panel active" id="wizStep1">
+      <h3 style="text-align:center;margin-bottom:20px;">1. Elige tu servicio</h3>
+      <div class="services-grid" id="wizServicios"></div>
+    </div>
+
+    <!-- Paso 2: Profesional -->
+    <div class="wizard-panel" id="wizStep2">
+      <h3 style="text-align:center;margin-bottom:20px;">2. Elige tu profesional</h3>
+      <div class="prof-grid" id="wizProfesionales"></div>
+    </div>
+
+    <!-- Paso 3: Fecha y Hora -->
+    <div class="wizard-panel" id="wizStep3">
+      <h3 style="text-align:center;margin-bottom:20px;">3. Elige fecha y hora</h3>
+      <div style="text-align:center;">
+        <input type="date" id="wizFecha" style="padding:12px 20px;border:2px solid #ddd;border-radius:12px;font-size:1rem;font-family:'Inter',sans-serif;" onchange="cargarSlots()">
+        <div id="wizSlotsContainer" style="margin-top:20px;"></div>
+      </div>
+    </div>
+
+    <!-- Paso 4: Datos + Confirmar -->
+    <div class="wizard-panel" id="wizStep4">
+      <h3 style="text-align:center;margin-bottom:20px;">4. Confirma tu cita</h3>
+      <div id="wizDatosCliente" style="margin-bottom:20px;">
+        <input type="tel" id="wizCelular" placeholder="Tu celular" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin-bottom:10px;font-family:'Inter',sans-serif;">
+        <input type="text" id="wizNombre" placeholder="Tu nombre" style="width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;margin-bottom:16px;font-family:'Inter',sans-serif;">
+      </div>
+      <div class="resumen-card" id="wizResumen"></div>
+      <button class="btn-submit" id="btnConfirmarCita" onclick="confirmarCitaPublica()" style="margin-top:20px;"><i class="fas fa-check me-2"></i>Confirmar Cita</button>
+    </div>
+
+    <!-- Exito -->
+    <div class="wizard-panel" id="wizExito">
+      <div class="msg-success">
+        <i class="fas fa-calendar-check"></i>
+        <h3>¡Cita agendada!</h3>
+        <p id="wizExitoDetalle" style="color:var(--muted);margin-top:8px;"></p>
+        <button class="btn-cta" onclick="reiniciarWizard()" style="margin-top:20px;"><i class="fas fa-redo me-2"></i>Agendar otra cita</button>
+      </div>
+    </div>
+
+    <div class="wizard-nav" id="wizardNav">
+      <button class="btn-wizard btn-wizard-back" id="wizBtnBack" onclick="wizardBack()" style="display:none;"><i class="fas fa-arrow-left me-1"></i> Atras</button>
+      <div></div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- Footer -->
+<footer class="landing-footer" id="landingFooter" style="display:none;">
+  <p id="footerText">Powered by ITELSA BeautyOS</p>
+</footer>
+
+<!-- Toast -->
+<div class="landing-toast" id="landingToast"></div>
+
+<script>
+// =============================================
+// Estado
+// =============================================
+var landingData = null;
+var wizState = { step: 1, servicio: null, profesional: null, fecha: '', slot: null, celular: '', nombre: '' };
+
+// =============================================
+// Carga de datos
+// =============================================
+google.script.run
+  .withSuccessHandler(function(data) {
+    landingData = data;
+    renderLanding();
+  })
+  .withFailureHandler(function(err) {
+    document.getElementById('loadingLanding').innerHTML = '<p style="color:#ef4444;">Error al cargar: ' + err.message + '</p>';
+  })
+  .getDatosLanding();
+
+function renderLanding() {
+  var cfg = landingData.config || {};
+  var nombre = cfg.NOMBRE_NEGOCIO || 'Nuestro Salon';
+
+  // Titulo
+  document.title = nombre;
+
+  // Nav
+  document.getElementById('navName').textContent = nombre;
+  if (cfg.ENLACE_LOGO) {
+    var logoUrl = convertDriveUrl(cfg.ENLACE_LOGO);
+    document.getElementById('navLogo').src = logoUrl;
+    document.getElementById('heroLogo').src = logoUrl;
+  }
+
+  // Hero
+  document.getElementById('heroTitle').textContent = nombre;
+
+  // Servicios
+  renderServicios();
+
+  // Galeria
+  renderGaleria();
+
+  // Horarios
+  renderHorarios();
+
+  // Contacto
+  renderContacto(cfg);
+
+  // Wizard: fecha minima = hoy
+  var hoy = new Date();
+  document.getElementById('wizFecha').min = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-' + String(hoy.getDate()).padStart(2,'0');
+
+  // Footer
+  document.getElementById('footerText').textContent = nombre + ' — Powered by ITELSA BeautyOS';
+
+  // Mostrar contenido
+  document.getElementById('loadingLanding').style.display = 'none';
+  document.getElementById('landingNav').style.display = '';
+  document.getElementById('landingContent').style.display = '';
+  document.getElementById('landingFooter').style.display = '';
+}
+
+// =============================================
+// Render Servicios
+// =============================================
+function renderServicios() {
+  var grid = document.getElementById('serviciosGrid');
+  var wiz = document.getElementById('wizServicios');
+  var html = '';
+  var wizHtml = '';
+  (landingData.servicios || []).forEach(function(s, i) {
+    var card = '<div class="service-card" data-idx="' + i + '">' +
+      '<div class="cat">' + esc(s.categoria || 'General') + '</div>' +
+      '<h3>' + esc(s.nombre) + '</h3>' +
+      '<div class="meta"><span><i class="far fa-clock me-1"></i>' + s.duracion + ' min</span><span class="price">$' + Number(s.precio).toLocaleString() + '</span></div></div>';
+    html += card;
+    wizHtml += '<div class="service-card" data-idx="' + i + '" onclick="wizSelServicio(' + i + ')">' +
+      '<div class="cat">' + esc(s.categoria || 'General') + '</div>' +
+      '<h3>' + esc(s.nombre) + '</h3>' +
+      '<div class="meta"><span><i class="far fa-clock me-1"></i>' + s.duracion + ' min</span><span class="price">$' + Number(s.precio).toLocaleString() + '</span></div></div>';
+  });
+  grid.innerHTML = html || '<p style="text-align:center;color:var(--muted);">No hay servicios disponibles.</p>';
+  wiz.innerHTML = wizHtml || '<p style="text-align:center;color:var(--muted);">No hay servicios disponibles.</p>';
+}
+
+// =============================================
+// Render Galeria
+// =============================================
+function renderGaleria() {
+  var grid = document.getElementById('galeriaGrid');
+  var fotos = (landingData.galeria || []).filter(function(g) { return g.url && g.tipo === 'imagen'; });
+  if (fotos.length === 0) {
+    document.getElementById('galeria').style.display = 'none';
+    return;
+  }
+  grid.innerHTML = fotos.map(function(g) {
+    var url = convertDriveUrl(g.url);
+    return '<div class="gallery-item"><img src="' + esc(url) + '" alt="' + esc(g.titulo) + '" loading="lazy">' +
+      '<div class="overlay">' + esc(g.titulo || g.servicio) + '</div></div>';
+  }).join('');
+}
+
+// =============================================
+// Render Horarios
+// =============================================
+function renderHorarios() {
+  var table = document.getElementById('horariosTable');
+  var dias = landingData.horarios || [];
+  if (dias.length === 0) {
+    document.getElementById('horarios').style.display = 'none';
+    return;
+  }
+  var orden = ['Lunes','Martes','Miercoles','Jueves','Viernes','Sabado','Domingo'];
+  dias.sort(function(a,b) { return orden.indexOf(a.dia) - orden.indexOf(b.dia); });
+  table.innerHTML = dias.map(function(d) {
+    return '<tr><td><i class="far fa-clock me-2" style="color:var(--accent);"></i>' + esc(d.dia) + '</td><td>' + esc(d.inicio) + ' - ' + esc(d.fin) + '</td></tr>';
+  }).join('');
+}
+
+// =============================================
+// Render Contacto
+// =============================================
+function renderContacto(cfg) {
+  var info = document.getElementById('contactoInfo');
+  var mapDiv = document.getElementById('contactoMap');
+  var html = '';
+
+  if (cfg.DIRECCION_NEGOCIO) html += '<div class="contact-item"><i class="fas fa-map-marker-alt"></i><span>' + esc(cfg.DIRECCION_NEGOCIO) + '</span></div>';
+
+  var cel = (cfg['CELULAR_DUEÑA'] || cfg['CELULAR_DUEA'] || '').replace(/\D/g, '');
+  if (cel) {
+    html += '<div class="contact-item"><i class="fas fa-phone"></i><span>' + esc(cel) + '</span></div>';
+    html += '<a href="https://wa.me/' + cel + '?text=Hola,%20quiero%20info%20sobre%20sus%20servicios" target="_blank" class="btn-wa"><i class="fab fa-whatsapp fa-lg"></i> Escribenos por WhatsApp</a>';
+  }
+
+  if (cfg.CORREO) html += '<div class="contact-item"><i class="fas fa-envelope"></i><span>' + esc(cfg.CORREO) + '</span></div>';
+
+  info.innerHTML = html || '<p style="color:var(--muted);">Informacion de contacto no disponible.</p>';
+
+  // Mapa
+  if (cfg.ENLACE_UBICACION) {
+    var mapUrl = cfg.ENLACE_UBICACION;
+    if (mapUrl.indexOf('maps.app.goo.gl') !== -1 || mapUrl.indexOf('google.com/maps') !== -1) {
+      mapDiv.innerHTML = '<iframe src="https://maps.google.com/maps?q=' + encodeURIComponent(cfg.DIRECCION_NEGOCIO || '') + '&output=embed" allowfullscreen loading="lazy"></iframe>';
+    }
+  } else if (cfg.DIRECCION_NEGOCIO) {
+    mapDiv.innerHTML = '<iframe src="https://maps.google.com/maps?q=' + encodeURIComponent(cfg.DIRECCION_NEGOCIO) + '&output=embed" allowfullscreen loading="lazy"></iframe>';
+  }
+}
+
+// =============================================
+// Registro de Cliente
+// =============================================
+function registrarCliente() {
+  var celular = document.getElementById('regCelular').value.trim();
+  var nombre = document.getElementById('regNombre').value.trim();
+  if (!celular || celular.length < 10) { showToast('Ingresa un celular valido (min 10 digitos)', 'error'); return; }
+  if (!nombre) { showToast('Ingresa tu nombre', 'error'); return; }
+
+  var btn = document.getElementById('btnRegistro');
+  btn.disabled = true;
+  btn.textContent = 'Registrando...';
+
+  var cumple = document.getElementById('regCumple').value;
+  if (cumple) {
+    var p = cumple.split('-');
+    if (p.length === 3) cumple = p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  google.script.run
+    .withSuccessHandler(function() {
+      document.getElementById('formRegistro').style.display = 'none';
+      document.getElementById('registroExito').style.display = '';
+      // Pre-llenar wizard con datos del registro
+      wizState.celular = celular;
+      wizState.nombre = nombre;
+      document.getElementById('wizCelular').value = celular;
+      document.getElementById('wizNombre').value = nombre;
+    })
+    .withFailureHandler(function(e) {
+      showToast(e.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-2"></i>Registrarme';
+    })
+    .saveClientePublico({ celular: celular, nombre: nombre, correo: document.getElementById('regCorreo').value.trim(), cumple: cumple || '' });
+}
+
+// =============================================
+// Wizard Agendar Cita
+// =============================================
+function wizSelServicio(idx) {
+  wizState.servicio = landingData.servicios[idx];
+  document.querySelectorAll('#wizServicios .service-card').forEach(function(c, i) {
+    c.classList.toggle('selected', i === idx);
+  });
+  setTimeout(function() { wizardNext(); }, 300);
+}
+
+function wizSelProfesional(nombre) {
+  wizState.profesional = nombre;
+  document.querySelectorAll('#wizProfesionales .prof-card').forEach(function(c) {
+    c.classList.toggle('selected', c.getAttribute('data-nombre') === nombre);
+  });
+  setTimeout(function() { wizardNext(); }, 300);
+}
+
+function wizardNext() {
+  if (wizState.step === 1 && !wizState.servicio) { showToast('Elige un servicio', 'error'); return; }
+  if (wizState.step === 2 && !wizState.profesional) { showToast('Elige un profesional', 'error'); return; }
+  if (wizState.step === 3 && !wizState.slot) { showToast('Elige un horario', 'error'); return; }
+
+  wizState.step++;
+  if (wizState.step === 2) poblarProfesionales();
+  if (wizState.step === 4) poblarResumen();
+  updateWizardUI();
+}
+
+function wizardBack() {
+  if (wizState.step <= 1) return;
+  wizState.step--;
+  updateWizardUI();
+}
+
+function updateWizardUI() {
+  for (var i = 1; i <= 4; i++) {
+    var panel = document.getElementById('wizStep' + i);
+    if (panel) panel.classList.toggle('active', i === wizState.step);
+  }
+  document.getElementById('wizExito').classList.remove('active');
+
+  var steps = document.querySelectorAll('#wizardSteps .wizard-step');
+  steps.forEach(function(s, i) {
+    s.className = 'wizard-step';
+    if (i + 1 === wizState.step) s.classList.add('active');
+    else if (i + 1 < wizState.step) s.classList.add('done');
+  });
+
+  document.getElementById('wizBtnBack').style.display = wizState.step > 1 ? '' : 'none';
+  document.getElementById('wizardNav').style.display = wizState.step <= 4 ? '' : 'none';
+}
+
+function poblarProfesionales() {
+  var grid = document.getElementById('wizProfesionales');
+  var cat = (wizState.servicio.categoria || '').toLowerCase();
+  var profs = (landingData.colaboradores || []).filter(function(c) {
+    if (!cat) return true;
+    var comp = (c.competencias || '').toLowerCase();
+    return !comp || comp.indexOf(cat) !== -1;
+  });
+  if (profs.length === 0) profs = landingData.colaboradores || [];
+
+  grid.innerHTML = profs.map(function(p) {
+    return '<div class="prof-card" data-nombre="' + esc(p.nombre) + '" onclick="wizSelProfesional(\'' + esc(p.nombre) + '\')">' +
+      '<i class="fas fa-user-circle"></i><strong>' + esc(p.nombre) + '</strong></div>';
+  }).join('');
+}
+
+function cargarSlots() {
+  var fechaInput = document.getElementById('wizFecha').value;
+  if (!fechaInput) return;
+  var container = document.getElementById('wizSlotsContainer');
+  container.innerHTML = '<div class="spinner-border text-secondary" role="status"></div>';
+
+  var fp = fechaInput.split('-');
+  var fechaStr = fp[2] + '/' + fp[1] + '/' + fp[0];
+  wizState.fecha = fechaStr;
+  wizState.slot = null;
+
+  google.script.run
+    .withSuccessHandler(function(slots) {
+      if (!slots || slots.length === 0) {
+        container.innerHTML = '<p style="color:var(--muted);margin-top:16px;"><i class="fas fa-calendar-times me-1"></i>No hay horarios disponibles para esta fecha.</p>';
+        return;
+      }
+      container.innerHTML = '<p style="color:var(--muted);margin-bottom:12px;">Horarios disponibles:</p><div class="slot-grid">' +
+        slots.map(function(s) {
+          return '<div class="slot-btn" onclick="wizSelSlot(this,\'' + s.inicio + '\',\'' + s.fin + '\')">' + s.inicio + ' - ' + s.fin + '</div>';
+        }).join('') + '</div>';
+    })
+    .withFailureHandler(function(e) {
+      container.innerHTML = '<p style="color:#ef4444;">' + e.message + '</p>';
+    })
+    .getSlotsDisponibles(fechaStr, wizState.profesional, wizState.servicio.duracion || 60);
+}
+
+function wizSelSlot(el, inicio, fin) {
+  wizState.slot = { inicio: inicio, fin: fin };
+  document.querySelectorAll('.slot-btn').forEach(function(b) { b.classList.remove('selected'); });
+  el.classList.add('selected');
+  setTimeout(function() { wizardNext(); }, 300);
+}
+
+function poblarResumen() {
+  var html = '<div class="item"><span>Servicio</span><strong>' + esc(wizState.servicio.nombre) + '</strong></div>';
+  html += '<div class="item"><span>Precio</span><strong>$' + Number(wizState.servicio.precio).toLocaleString() + '</strong></div>';
+  html += '<div class="item"><span>Profesional</span><strong>' + esc(wizState.profesional) + '</strong></div>';
+  html += '<div class="item"><span>Fecha</span><strong>' + esc(wizState.fecha) + '</strong></div>';
+  html += '<div class="item"><span>Hora</span><strong>' + esc(wizState.slot.inicio) + ' - ' + esc(wizState.slot.fin) + '</strong></div>';
+  document.getElementById('wizResumen').innerHTML = html;
+
+  // Si ya tiene datos del registro
+  if (wizState.celular) document.getElementById('wizCelular').value = wizState.celular;
+  if (wizState.nombre) document.getElementById('wizNombre').value = wizState.nombre;
+}
+
+function confirmarCitaPublica() {
+  var celular = document.getElementById('wizCelular').value.trim();
+  var nombre = document.getElementById('wizNombre').value.trim();
+  if (!celular || celular.length < 10) { showToast('Ingresa un celular valido', 'error'); return; }
+  if (!nombre) { showToast('Ingresa tu nombre', 'error'); return; }
+
+  var btn = document.getElementById('btnConfirmarCita');
+  btn.disabled = true;
+  btn.textContent = 'Agendando...';
+
+  var data = {
+    fecha: wizState.fecha,
+    inicio: wizState.slot.inicio,
+    fin: wizState.slot.fin,
+    cliente: nombre,
+    celularCliente: celular,
+    servicio: wizState.servicio.nombre,
+    precio: wizState.servicio.precio,
+    profesional: wizState.profesional,
+    notas: 'Cita agendada desde landing page'
+  };
+
+  google.script.run
+    .withSuccessHandler(function(res) {
+      document.getElementById('wizExitoDetalle').textContent = wizState.servicio.nombre + ' con ' + wizState.profesional + ' el ' + wizState.fecha + ' a las ' + wizState.slot.inicio;
+      for (var i = 1; i <= 4; i++) document.getElementById('wizStep' + i).classList.remove('active');
+      document.getElementById('wizExito').classList.add('active');
+      document.getElementById('wizardNav').style.display = 'none';
+      document.querySelectorAll('#wizardSteps .wizard-step').forEach(function(s) { s.className = 'wizard-step done'; });
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Cita';
+    })
+    .withFailureHandler(function(e) {
+      showToast('Error: ' + e.message, 'error');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-2"></i>Confirmar Cita';
+    })
+    .saveCitaManual(data);
+}
+
+function reiniciarWizard() {
+  wizState = { step: 1, servicio: null, profesional: null, fecha: '', slot: null, celular: wizState.celular, nombre: wizState.nombre };
+  document.getElementById('wizFecha').value = '';
+  document.getElementById('wizSlotsContainer').innerHTML = '';
+  document.querySelectorAll('#wizServicios .service-card').forEach(function(c) { c.classList.remove('selected'); });
+  document.getElementById('wizExito').classList.remove('active');
+  updateWizardUI();
+}
+
+// =============================================
+// Utilidades
+// =============================================
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+function convertDriveUrl(url) {
+  if (!url) return '';
+  var match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) return 'https://lh3.googleusercontent.com/d/' + match[1];
+  return url;
+}
+
+function showToast(msg, type) {
+  var t = document.getElementById('landingToast');
+  t.textContent = msg;
+  t.className = 'landing-toast ' + (type || 'success') + ' show';
+  setTimeout(function() { t.classList.remove('show'); }, 3500);
+}
+</script>
+</body>
+</html>
