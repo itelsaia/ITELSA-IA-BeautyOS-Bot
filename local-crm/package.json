@@ -1,0 +1,17 @@
+{
+  "name": "beautyos-local-crm",
+  "version": "1.0.0",
+  "description": "BeautyOS CRM Local - Modo hibrido offline/online con Excel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "exceljs": "^4.4.0",
+    "google-spreadsheet": "^5.2.0",
+    "google-auth-library": "^10.6.1",
+    "axios": "^1.13.6",
+    "open": "^8.4.2"
+  }
+}

@@ -1,0 +1,5 @@
+/* Inter font — fallback a system fonts para uso offline */
+/* Si hay internet, se carga de Google Fonts; si no, usa la pila de sistema */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Fallback: si Google Fonts no carga, Inter se resuelve a system sans-serif */

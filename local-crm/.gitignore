@@ -1,0 +1,5 @@
+node_modules/
+data/
+credenciales-google.json
+*.xlsx
+*.xlsx.tmp

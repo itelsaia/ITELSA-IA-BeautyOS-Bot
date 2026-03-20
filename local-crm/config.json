@@ -1,0 +1,8 @@
+{
+  "sheetId": "ID_DEL_GOOGLE_SHEET_DEL_CLIENTE",
+  "credencialesPath": "./credenciales-google.json",
+  "webhookGasUrl": "https://script.google.com/macros/s/DEPLOY_ID/exec",
+  "port": 5000,
+  "syncIntervalMs": 300000,
+  "autoOpenBrowser": true
+}
