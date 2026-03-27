@@ -1249,18 +1249,26 @@ function aplicarBranding() {
     document.title = f.NOMBRE_NEGOCIO + ' - CRM';
   }
   if (f.ENLACE_LOGO) {
-    document.getElementById('brandLogo').src = convertDriveUrl(f.ENLACE_LOGO);
+    var brandImg = document.getElementById('brandLogo');
+    var logoUrl = convertDriveUrl(f.ENLACE_LOGO);
+    // Si no hay COLOR_MARCA, extraer color dominante del logo via Canvas
+    if (!f.COLOR_MARCA) {
+      brandImg.crossOrigin = 'anonymous';
+      brandImg.onload = function() {
+        this.style.display = 'block';
+        document.getElementById('brandIconFallback').style.display = 'none';
+        var color = extractDominantColor(this);
+        if (color) {
+          console.log('[Branding] Color extraido del logo:', color);
+          applyBrandColor(color);
+        }
+      };
+      brandImg.onerror = function() { this.style.display = 'none'; };
+    }
+    brandImg.src = logoUrl;
   }
   if (f.COLOR_MARCA) {
-    var c = f.COLOR_MARCA;
-    document.documentElement.style.setProperty('--brand', c);
-    document.documentElement.style.setProperty('--brand-dark', darkenColor(c, 20));
-    document.documentElement.style.setProperty('--brand-light', lightenColor(c, 85));
-    // Re-aplicar a todos los items activos del sidebar
-    document.querySelectorAll('.sidebar-nav a.active').forEach(function(a) { a.style.background = c; });
-    // Re-aplicar al icono de marca del sidebar
-    var brandIcon = document.getElementById('brandIconFallback');
-    if (brandIcon) brandIcon.style.background = c;
+    applyBrandColor(f.COLOR_MARCA);
   }
   var estado = (f.ESTADO_SERVICIO || '').toUpperCase();
   var dot = document.getElementById('statusDot');
@@ -5010,6 +5018,53 @@ function toast(msg, tipo) {
 function esc(str) {
   if (!str) return '';
   return str.toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Extraccion automatica de color dominante del logo ──
+// Que protege: Permite branding automatico sin configurar COLOR_MARCA manualmente
+// Como funciona: Canvas API lee pixeles del logo, agrupa por color, retorna el dominante
+function extractDominantColor(img) {
+  try {
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+    var scale = Math.min(50 / img.naturalWidth, 50 / img.naturalHeight, 1);
+    canvas.width = Math.floor(img.naturalWidth * scale) || 1;
+    canvas.height = Math.floor(img.naturalHeight * scale) || 1;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    var buckets = {};
+    for (var i = 0; i < data.length; i += 4) {
+      var r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+      if (a < 128) continue;
+      var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx < 40 || mn > 220 || (mx === 0 ? 0 : (mx - mn) / mx) < 0.15) continue;
+      var br = (r >> 5) << 5, bg = (g >> 5) << 5, bb = (b >> 5) << 5;
+      var key = br + ',' + bg + ',' + bb;
+      if (!buckets[key]) buckets[key] = { r: 0, g: 0, b: 0, count: 0 };
+      buckets[key].r += r; buckets[key].g += g; buckets[key].b += b; buckets[key].count++;
+    }
+    var best = null, bestCount = 0;
+    for (var k in buckets) {
+      if (buckets[k].count > bestCount) { bestCount = buckets[k].count; best = buckets[k]; }
+    }
+    if (!best || bestCount < 5) return null;
+    var rr = Math.round(best.r / best.count);
+    var gg = Math.round(best.g / best.count);
+    var bb = Math.round(best.b / best.count);
+    return '#' + ((1<<24)+(rr<<16)+(gg<<8)+bb).toString(16).slice(1);
+  } catch(e) {
+    console.warn('[Branding] No se pudo extraer color del logo:', e.message);
+    return null;
+  }
+}
+
+function applyBrandColor(hex) {
+  document.documentElement.style.setProperty('--brand', hex);
+  document.documentElement.style.setProperty('--brand-dark', darkenColor(hex, 20));
+  document.documentElement.style.setProperty('--brand-light', lightenColor(hex, 85));
+  document.querySelectorAll('.sidebar-nav a.active').forEach(function(a) { a.style.background = hex; });
+  var brandIcon = document.getElementById('brandIconFallback');
+  if (brandIcon) brandIcon.style.background = hex;
 }
 
 function darkenColor(hex, percent) {
