@@ -109,8 +109,11 @@ router.post('/evolution', async (req, res) => {
             || '';
 
         // ── Soporte de audios: transcribir con Whisper ──
-        const isAudio = !!(data.message?.audioMessage);
+        // Detecta audioMessage (archivos de audio) y pttMessage (notas de voz/PTT)
+        const isAudio = !!(data.message?.audioMessage || data.message?.pttMessage);
         if (isAudio && !messageText) {
+            console.log(`[${instance}] 🎤 Audio detectado: audioMessage=${!!data.message?.audioMessage}, pttMessage=${!!data.message?.pttMessage}, ptt=${data.message?.audioMessage?.ptt}`);
+
             // Resolver tenant primero para obtener la API key de OpenAI
             const tenantForAudio = getTenant(instance);
             if (!tenantForAudio || !tenantForAudio.config?.openApiKey) {
@@ -148,7 +151,12 @@ router.post('/evolution', async (req, res) => {
         const isImage = !!(data.message?.imageMessage);
         const imageCaption = data.message?.imageMessage?.caption || '';
 
-        if (!messageText && !isImage) return; // Ignorar mensajes sin texto, audio ni imagen (stickers, etc.)
+        // Log diagnostico para tipos de mensaje no procesados (stickers, contactos, ubicaciones, etc.)
+        if (!messageText && !isImage) {
+            const msgKeys = Object.keys(data.message || {}).filter(k => !['messageContextInfo', 'messageTimestamp'].includes(k));
+            if (msgKeys.length > 0) console.log(`[${instance}] Tipo de mensaje no procesado: ${msgKeys.join(', ')}`);
+            return;
+        }
 
         // ── Resolver tenant por nombre de instancia ──
         const tenant = getTenant(instance);
@@ -198,6 +206,11 @@ router.post('/evolution', async (req, res) => {
         const userData = session.datos
             ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true }
             : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false };
+
+        // ── GUARDRAIL: Deteccion temprana de intencion fuerte ──
+        // Que protege: Evita enviar saludo generico cuando el mensaje ya contiene intencion clara
+        // Como funciona: Regex detecta keywords de agendamiento, cancelacion, consulta de servicios
+        const INTENT_FUERTE_REGEX = /\b(agendar|agenda[mr]e|reservar|reserv[ae]me|cita|turno|cancelar(?:la)?|reagendar(?:la)?|reprogramar|cambiar\s*(?:la\s*)?(?:cita|hora|fecha)|mover\s*(?:la\s*)?(?:cita|hora)|que\s*servicios|cuanto\s*(?:cuesta|vale)|precios?|disponibilidad|horarios?\s*(?:disponibles?)?|quiero\s+(?:un[ao]?\s+)?(?:servicio|corte|manicur[ea]?|pedicur[ea]?|cejas|pestanas|tratamiento|arreglo)|necesito\s+(?:un[ao]?\s+)?(?:cita|turno|reserva)|para\s+(?:hoy|ma[nñ]ana|el\s+\w+))\b/i;
 
         // ── Saludo cálido para clientes REGISTRADOS (primer mensaje de sesión) ──
         const esClienteRegistrado = session.estado === 'REGISTRADO';
@@ -304,51 +317,84 @@ router.post('/evolution', async (req, res) => {
                 saludoPersonalizado = `🌟 ¡${saludo.charAt(0).toUpperCase() + saludo.slice(1)}, *${primerNombre}*! 💖 ¡Qué bueno verte por acá de nuevo!\n\n${complemento}`;
             }
 
-            session.history.push({ role: 'assistant', content: saludoPersonalizado });
-            await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
-
-            // Enviar media visual de promos del dia si tienen
-            const mediaEnviadaEnSaludo = [];
-            for (const p of promosHoy) {
-                console.log(`[${instanceName}] Promo "${p.nombre}" media: tipo=${p.tipoMediaPromo || 'NONE'}, url=${p.urlMediaPromo ? 'SI' : 'NO'}`);
-                if (p.tipoMediaPromo && p.urlMediaPromo) {
-                    try {
-                        const directUrl = convertDriveUrl(p.urlMediaPromo);
-                        const mediaType = p.tipoMediaPromo === 'imagen' ? 'image' : p.tipoMediaPromo === 'video' ? 'video' : 'document';
-                        const fileName = p.tipoMediaPromo === 'documento' ? (p.nombre.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
-                        const caption = `🎉 *${p.nombre}* — ¡Aprovecha esta promo!`;
-                        await new Promise(r => setTimeout(r, 1500));
-                        await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
-                        mediaEnviadaEnSaludo.push(p.nombre);
-                        console.log(`[${instanceName}] ✅ Media promo "${p.nombre}" enviada a ${phoneNumber}`);
-                    } catch (promoMediaErr) {
-                        console.error(`[${instanceName}] ❌ Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
-                    }
-                }
-            }
-
-            // Si se envió media de promos, registrarlo en el historial para que la IA lo sepa
-            if (mediaEnviadaEnSaludo.length > 0) {
-                session.history.push({ role: 'assistant', content: `[Ya se enviaron imágenes/videos de las promos: ${mediaEnviadaEnSaludo.join(', ')}. NO preguntar si quiere verlas ni volver a enviarlas.]` });
-            }
-
-            // Si el mensaje SOLO es un saludo corto, retornar. Si tiene contenido sustancial (ej: "Hola quiero agendar..."), continuar al procesamiento de IA.
+            // ── Deteccion temprana de intencion: decidir si enviar saludo o suprimir ──
             const msgSinSaludo = messageText.toLowerCase()
                 .replace(/\b(hola|buenos?\s*(dias|tardes|noches)|hey|hi|buenas|saludos|que\s*tal|buen\s*dia)\b/gi, '')
                 .replace(/[^\w\sáéíóúñ]/g, '')
                 .trim();
 
-            // Si el usuario solo pregunta por promos y el saludo ya las mostró, no pasar a IA
-            if (promosHoy.length > 0 && /promo(cion|ciones)?|descuento|oferta/.test(msgSinSaludo) && msgSinSaludo.length < 50) {
-                console.log(`[${instanceName}] Pregunta de promos ya cubierta por el saludo. No se pasa a IA.`);
-                return;
-            }
+            const tieneIntentFuerte = INTENT_FUERTE_REGEX.test(msgSinSaludo);
 
-            if (msgSinSaludo.length < 10) {
-                return; // Solo un saludo, no hay contenido sustancial
+            if (tieneIntentFuerte) {
+                // ── Intent detectado: NO enviar saludo, inyectar contexto silencioso para OpenAI ──
+                const contextParts = [`[CONTEXTO: Cliente registrado "${primerNombre}" inicio sesion con intencion directa.`];
+
+                if (userPendingAppointments.length === 1) {
+                    const c = userPendingAppointments[0];
+                    contextParts.push(`Tiene 1 cita pendiente: ${c.id} el ${c.fecha} a las ${c.inicio} para ${c.servicio} con ${c.profesional || 'Por asignar'}.`);
+                } else if (userPendingAppointments.length > 1) {
+                    const citasList = userPendingAppointments.map(c =>
+                        `${c.id}: ${c.fecha} ${c.inicio} - ${c.servicio}`
+                    ).join('; ');
+                    contextParts.push(`Tiene ${userPendingAppointments.length} citas pendientes: ${citasList}.`);
+                }
+
+                if (birthdayGreeting) {
+                    contextParts.push(`HOY es su cumpleanos - tiene descuento de cumpleanos disponible.`);
+                }
+
+                if (promosHoy.length > 0) {
+                    const promosList = promosHoy.map(p => `${p.nombre} (${p.tipoPromo} ${p.valorDescuento || ''})`).join(', ');
+                    contextParts.push(`Promos activas hoy: ${promosList}.`);
+                }
+
+                contextParts.push(']');
+                session.history.push({ role: 'assistant', content: contextParts.join(' ') });
+                console.log(`[${instanceName}] ⚡ Intent fuerte detectado en saludo: "${msgSinSaludo.substring(0, 80)}". Saludo suprimido, contexto inyectado.`);
+                // Continua al procesamiento de IA (intent detection + generateAIResponse)
+
+            } else {
+                // ── Sin intent fuerte: enviar saludo personalizado (comportamiento original) ──
+                session.history.push({ role: 'assistant', content: saludoPersonalizado });
+                await evolutionClient.sendText(instanceName, phoneNumber, saludoPersonalizado);
+
+                // Enviar media visual de promos del dia si tienen
+                const mediaEnviadaEnSaludo = [];
+                for (const p of promosHoy) {
+                    console.log(`[${instanceName}] Promo "${p.nombre}" media: tipo=${p.tipoMediaPromo || 'NONE'}, url=${p.urlMediaPromo ? 'SI' : 'NO'}`);
+                    if (p.tipoMediaPromo && p.urlMediaPromo) {
+                        try {
+                            const directUrl = convertDriveUrl(p.urlMediaPromo);
+                            const mediaType = p.tipoMediaPromo === 'imagen' ? 'image' : p.tipoMediaPromo === 'video' ? 'video' : 'document';
+                            const fileName = p.tipoMediaPromo === 'documento' ? (p.nombre.replace(/[^a-zA-Z0-9áéíóúñ ]/g, '') + '.pdf') : '';
+                            const caption = `🎉 *${p.nombre}* — ¡Aprovecha esta promo!`;
+                            await new Promise(r => setTimeout(r, 1500));
+                            await evolutionClient.sendMedia(instanceName, phoneNumber, mediaType, directUrl, caption, fileName);
+                            mediaEnviadaEnSaludo.push(p.nombre);
+                            console.log(`[${instanceName}] ✅ Media promo "${p.nombre}" enviada a ${phoneNumber}`);
+                        } catch (promoMediaErr) {
+                            console.error(`[${instanceName}] ❌ Error enviando media promo saludo "${p.nombre}":`, promoMediaErr.message);
+                        }
+                    }
+                }
+
+                // Si se envió media de promos, registrarlo en el historial para que la IA lo sepa
+                if (mediaEnviadaEnSaludo.length > 0) {
+                    session.history.push({ role: 'assistant', content: `[Ya se enviaron imágenes/videos de las promos: ${mediaEnviadaEnSaludo.join(', ')}. NO preguntar si quiere verlas ni volver a enviarlas.]` });
+                }
+
+                // Si el usuario solo pregunta por promos y el saludo ya las mostró, no pasar a IA
+                if (promosHoy.length > 0 && /promo(cion|ciones)?|descuento|oferta/.test(msgSinSaludo) && msgSinSaludo.length < 50) {
+                    console.log(`[${instanceName}] Pregunta de promos ya cubierta por el saludo. No se pasa a IA.`);
+                    return;
+                }
+
+                if (msgSinSaludo.length < 10) {
+                    return; // Solo un saludo, no hay contenido sustancial
+                }
+                // El mensaje tiene más contenido → continuar al procesamiento de IA
+                console.log(`[${instanceName}] Saludo + contenido detectado: "${msgSinSaludo.substring(0, 80)}". Continuando a IA.`);
             }
-            // El mensaje tiene más contenido → continuar al procesamiento de IA
-            console.log(`[${instanceName}] Saludo + contenido detectado: "${msgSinSaludo.substring(0, 80)}". Continuando a IA.`);
         }
 
         // ── PROCESAMIENTO DE COMPROBANTES DE PAGO (imagen) ──
