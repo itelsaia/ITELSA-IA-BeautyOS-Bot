@@ -2020,7 +2020,7 @@ function confirmarCerrarCita() {
           })
           .withFailureHandler(function(err) {
             console.error('Error WhatsApp:', err);
-            finalizarCerrarCita(btn, citaId, false);
+            finalizarCerrarCita(btn, citaId, false, err.message || 'Error desconocido');
           })
           .enviarWhatsAppAgradecimiento(citaId, mensaje);
       } else {
@@ -2035,7 +2035,7 @@ function confirmarCerrarCita() {
     .updateAgendaStatus(citaId, 'EJECUTADO');
 }
 
-function finalizarCerrarCita(btn, citaId, whatsappOk) {
+function finalizarCerrarCita(btn, citaId, whatsappOk, errorDetail) {
   btn.disabled = false;
   btn.innerHTML = '<i class="fas fa-check me-1"></i> Cerrar Cita';
   bootstrap.Modal.getInstance(document.getElementById('modalCerrarCita')).hide();
@@ -2049,7 +2049,7 @@ function finalizarCerrarCita(btn, citaId, whatsappOk) {
   else if (currentPage === 'dashboard') navigateTo('dashboard');
 
   if (whatsappOk === true) toast('Cita cerrada y WhatsApp enviado', 'success');
-  else if (whatsappOk === false) toast('Cita cerrada. Error enviando WhatsApp.', 'warning');
+  else if (whatsappOk === false) toast('Cita cerrada. Error WhatsApp: ' + (errorDetail || 'desconocido'), 'warning');
   else toast('Cita cerrada exitosamente', 'success');
 }
 
