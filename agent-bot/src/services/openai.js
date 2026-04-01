@@ -1924,41 +1924,48 @@ PASO 5 — POST-CONFIRMACIÓN:
 
             // ─── Herramientas comerciales (tenant type: comercial) ─────────
             else if (functionName === "capturar_lead") {
-                const crmUrl = config.crmBeautyosUrl;
-                if (!crmUrl) {
-                    toolResultText = '❌ CRM URL no configurada. No se pudo guardar el lead.';
+                // ── GUARDRAIL: Evitar leads duplicados en la misma conversación ──
+                if (session._leadCapturado) {
+                    toolResultText = `⚠️ Ya capturaste este lead (${session._leadCapturado}). No lo vuelvas a guardar. Continúa la conversación normalmente.`;
+                    console.log(`[openai] ⛔ Lead duplicado bloqueado: ${session._leadCapturado}`);
                 } else {
-                    const resp = await api.postToCRM(crmUrl, {
-                        action: 'saveLead',
-                        nombreContacto: functionArgs.nombreContacto || '',
-                        nombreNegocio: functionArgs.nombreNegocio,
-                        whatsapp: functionArgs.whatsapp,
-                        email: functionArgs.email || '',
-                        ciudad: functionArgs.ciudad || '',
-                        cantidadEmpleados: functionArgs.cantidadEmpleados || '',
-                        notas: functionArgs.notas || '',
-                        fuente: 'whatsapp-agente'
-                    });
-                    if (resp && !resp.error) {
-                        toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${functionArgs.whatsapp}). El equipo comercial dará seguimiento.`;
-                        console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio}`);
-
-                        // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
-                        const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
-                        const asesorAsignado = resp.asesorAsignado || '';
-                        if (asesores.length > 0 && asesorAsignado) {
-                            const alertMsg = `*Nuevo Lead BeautyOS - Asignado a ti*\n\nContacto: ${functionArgs.nombreContacto || 'Sin nombre'}\nNegocio: ${functionArgs.nombreNegocio}\nWhatsApp: ${functionArgs.whatsapp}\nCiudad: ${functionArgs.ciudad || 'No indicada'}\nEmpleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? 'Notas: ' + functionArgs.notas + '\n\n' : ''}Este lead es tuyo. Contactalo para cerrar la venta.`;
-                            if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
-                            // Alerta principal al asesor asignado
-                            session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
-                            // Resumen al admin (primer asesor) si hay mas de uno y no es el mismo
-                            if (asesores.length > 1 && asesores[0] !== asesorAsignado) {
-                                session._pendingTransferMessages.push({ to: asesores[0], text: `*Lead asignado a ${asesorAsignado}*\n${functionArgs.nombreContacto || ''} - ${functionArgs.nombreNegocio} (${functionArgs.ciudad || ''})` });
-                            }
-                            console.log(`[openai] Lead asignado a ${asesorAsignado} (round-robin)`);
-                        }
+                    const crmUrl = config.crmBeautyosUrl;
+                    if (!crmUrl) {
+                        toolResultText = '❌ CRM URL no configurada. No se pudo guardar el lead.';
                     } else {
-                        toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
+                        // ── GUARDRAIL: Usar el número real del remitente, no el que inventa la IA ──
+                        const whatsappReal = session.datos?.celular || functionArgs.whatsapp;
+                        const resp = await api.postToCRM(crmUrl, {
+                            action: 'saveLead',
+                            nombreContacto: functionArgs.nombreContacto || session.datos?.nombre || '',
+                            nombreNegocio: functionArgs.nombreNegocio,
+                            whatsapp: whatsappReal,
+                            email: functionArgs.email || '',
+                            ciudad: functionArgs.ciudad || '',
+                            cantidadEmpleados: functionArgs.cantidadEmpleados || '',
+                            notas: functionArgs.notas || '',
+                            fuente: 'whatsapp-agente'
+                        });
+                        if (resp && !resp.error) {
+                            session._leadCapturado = functionArgs.nombreNegocio;
+                            toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${whatsappReal}). El equipo comercial dará seguimiento.`;
+                            console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+
+                            // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
+                            const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
+                            const asesorAsignado = resp.asesorAsignado || '';
+                            if (asesores.length > 0 && asesorAsignado) {
+                                const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${functionArgs.nombreContacto || 'Sin nombre'}\n💼 Negocio: ${functionArgs.nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${functionArgs.ciudad || 'No indicada'}\n👥 Empleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? '📝 Notas: ' + functionArgs.notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
+                                if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
+                                session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
+                                if (asesores.length > 1 && asesores[0] !== asesorAsignado) {
+                                    session._pendingTransferMessages.push({ to: asesores[0], text: `*Lead asignado a ${asesorAsignado}*\n${functionArgs.nombreContacto || ''} - ${functionArgs.nombreNegocio} (${functionArgs.ciudad || ''})` });
+                                }
+                                console.log(`[openai] Lead asignado a ${asesorAsignado} (round-robin)`);
+                            }
+                        } else {
+                            toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
+                        }
                     }
                 }
             }
