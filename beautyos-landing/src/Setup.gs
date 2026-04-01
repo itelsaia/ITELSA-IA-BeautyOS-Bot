@@ -31,14 +31,36 @@ function setupLanding() {
   }
 
   SpreadsheetApp.flush();
-  Logger.log('Setup completado: 11 hojas creadas.');
+  Logger.log('Setup completado: 14 hojas creadas.');
+}
+
+// Crea solo las hojas nuevas (ESTADOS_LEAD, ESTADOS_NOVEDAD, ASESORES) + migra LEADS
+function crearHojasNuevas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  crearEstadosLead(ss);
+  crearEstadosNovedad(ss);
+  crearAsesores(ss);
+  // Migrar LEADS: agregar columna NOMBRE_CONTACTO si no existe
+  var leadsSheet = ss.getSheetByName('LEADS');
+  if (leadsSheet) {
+    var headers = leadsSheet.getRange(1, 1, 1, leadsSheet.getLastColumn()).getValues()[0];
+    if (headers.indexOf('NOMBRE_CONTACTO') < 0) {
+      leadsSheet.insertColumnBefore(2);
+      leadsSheet.getRange(1, 2).setValue('NOMBRE_CONTACTO').setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
+      leadsSheet.setColumnWidth(2, 160);
+      Logger.log('Columna NOMBRE_CONTACTO agregada a LEADS');
+    }
+  }
+  SpreadsheetApp.flush();
+  Logger.log('Hojas nuevas creadas: ESTADOS_LEAD, ESTADOS_NOVEDAD, ASESORES. LEADS migrada.');
 }
 
 // ─── Elimina hojas que ya no se usan ───
 function limpiarHojas() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var permitidas = [
-    'CONFIGURACION', 'LEADS', 'CLIENTES', 'PAGOS', 'NOVEDADES', 'PLANES',
+    'CONFIGURACION', 'LEADS', 'ESTADOS_LEAD', 'CLIENTES', 'PAGOS',
+    'NOVEDADES', 'ESTADOS_NOVEDAD', 'ASESORES', 'PLANES',
     'CONDICIONES', 'DOLORES', 'FUNCIONALIDADES', 'FAQ', 'TESTIMONIOS'
   ];
   var sheets = ss.getSheets();
