@@ -1,5 +1,5 @@
 // ─── Setup BeautyOS Landing + CRM ───
-// Ejecutar setupLanding() UNA vez para crear las 11 hojas con datos iniciales.
+// Ejecutar setupLanding() UNA vez para crear las 14 hojas con datos iniciales.
 // Ejecutar limpiarHojas() para eliminar hojas obsoletas del spreadsheet.
 // Ejecutar crearTriggerFacturacion() para activar alertas diarias de cobro.
 
@@ -13,9 +13,11 @@ function setupLanding() {
 
   crearConfiguracion(ss);
   crearLeads(ss);
+  crearEstadosLead(ss);
   crearClientes(ss);
   crearPagos(ss);
   crearNovedades(ss);
+  crearEstadosNovedad(ss);
   crearAsesores(ss);
   crearPlanes(ss);
   crearCondiciones(ss);
@@ -162,6 +164,30 @@ function crearLeads(ss) {
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 
+// ─── ESTADOS_LEAD: Catalogo de estados para gestion comercial ───
+function crearEstadosLead(ss) {
+  var sheet = getOrCreateSheet(ss, 'ESTADOS_LEAD');
+  sheet.clear();
+  var data = [
+    ['ESTADO', 'DESCRIPCION', 'COLOR', 'ORDEN'],
+    ['NUEVO', 'Lead recien capturado por la IA. Nadie lo ha contactado aun.', '#3b82f6', 1],
+    ['CONTACTADO', 'El asesor ya llamo o escribio al prospecto. Esperando respuesta.', '#f59e0b', 2],
+    ['EN_DEMO', 'Se le mostro una demo o presentacion de BeautyOS.', '#8b5cf6', 3],
+    ['NEGOCIANDO', 'El prospecto esta interesado pero esta evaluando. Pide tiempo, compara precios, consulta con socios.', '#f97316', 4],
+    ['SEGUIMIENTO', 'El prospecto pidio que lo contacten despues. Agendar fecha de re-contacto.', '#06b6d4', 5],
+    ['NO_CONTESTA', 'Se intento contactar pero no responde. Reintentar en 2-3 dias.', '#6b7280', 6],
+    ['GANADO', 'Cerro el negocio. Se convierte en CLIENTE. Iniciar onboarding tecnico.', '#22c55e', 7],
+    ['PERDIDO', 'No compro. Registrar motivo en notas (precio, no le interesa, competencia, etc).', '#ef4444', 8]
+  ];
+  sheet.getRange(1, 1, data.length, 4).setValues(data);
+  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#1e40af').setFontColor('white');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidth(1, 140);
+  sheet.setColumnWidth(2, 500);
+  sheet.setColumnWidth(3, 80);
+  sheet.setColumnWidth(4, 60);
+}
+
 // ─── CLIENTES: Registro con facturacion y config tecnica ───
 function crearClientes(ss) {
   var sheet = getOrCreateSheet(ss, 'CLIENTES');
@@ -208,6 +234,28 @@ function crearNovedades(ss) {
   sheet.setFrozenRows(1);
   var widths = [180, 140, 160, 200, 140, 180, 400, 100, 120, 130, 140, 400];
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
+}
+
+// ─── ESTADOS_NOVEDAD: Catalogo de estados para tickets de soporte ───
+function crearEstadosNovedad(ss) {
+  var sheet = getOrCreateSheet(ss, 'ESTADOS_NOVEDAD');
+  sheet.clear();
+  var data = [
+    ['ESTADO', 'DESCRIPCION', 'COLOR', 'ORDEN'],
+    ['ABIERTA', 'Novedad recien reportada. Pendiente de revision por el equipo tecnico.', '#ef4444', 1],
+    ['EN_REVISION', 'El equipo tecnico esta investigando el problema.', '#f59e0b', 2],
+    ['EN_PROGRESO', 'Se identifico el problema y se esta trabajando en la solucion.', '#3b82f6', 3],
+    ['ESPERANDO_CLIENTE', 'Se necesita informacion adicional del cliente para continuar.', '#8b5cf6', 4],
+    ['RESUELTA', 'El problema fue solucionado. Informar al cliente.', '#22c55e', 5],
+    ['CERRADA', 'Novedad cerrada. El cliente confirmo que funciona correctamente.', '#6b7280', 6]
+  ];
+  sheet.getRange(1, 1, data.length, 4).setValues(data);
+  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#92400e').setFontColor('white');
+  sheet.setFrozenRows(1);
+  sheet.setColumnWidth(1, 160);
+  sheet.setColumnWidth(2, 500);
+  sheet.setColumnWidth(3, 80);
+  sheet.setColumnWidth(4, 60);
 }
 
 // ─── ASESORES: Equipo comercial con asignacion round-robin ───

@@ -261,9 +261,12 @@
             <option value="">Todos</option>
             <option value="NUEVO">Nuevos</option>
             <option value="CONTACTADO">Contactados</option>
-            <option value="DEMO">Demo</option>
-            <option value="CLIENTE">Convertidos</option>
-            <option value="CERRADO">Cerrados</option>
+            <option value="EN_DEMO">En demo</option>
+            <option value="NEGOCIANDO">Negociando</option>
+            <option value="SEGUIMIENTO">Seguimiento</option>
+            <option value="NO_CONTESTA">No contesta</option>
+            <option value="GANADO">Ganados</option>
+            <option value="PERDIDO">Perdidos</option>
           </select>
         </div>
         <div style="overflow-x:auto;">
@@ -471,8 +474,14 @@
     <input type="hidden" id="modalLeadRow">
     <div class="form-group"><label>Estado</label>
       <select class="form-control" id="modalEstado">
-        <option value="NUEVO">Nuevo</option><option value="CONTACTADO">Contactado</option>
-        <option value="DEMO">Demo agendada</option><option value="CERRADO">Cerrado</option>
+        <option value="NUEVO">Nuevo - Sin contactar</option>
+        <option value="CONTACTADO">Contactado - Ya se llamo/escribio</option>
+        <option value="EN_DEMO">En demo - Se le mostro BeautyOS</option>
+        <option value="NEGOCIANDO">Negociando - Esta evaluando</option>
+        <option value="SEGUIMIENTO">Seguimiento - Pide recontacto despues</option>
+        <option value="NO_CONTESTA">No contesta - Reintentar en 2-3 dias</option>
+        <option value="GANADO">Ganado - Cerro negocio</option>
+        <option value="PERDIDO">Perdido - No compro</option>
       </select>
     </div>
     <div class="form-group"><label>Asignado a</label><input class="form-control" id="modalAsignado" placeholder="Nombre"></div>
@@ -787,8 +796,8 @@ function renderLeads() {
   var leads = DATA.leads || [];
   var total = leads.length;
   var nuevos = leads.filter(function(l) { return l.ESTADO === 'NUEVO' || !l.ESTADO; }).length;
-  var contactados = leads.filter(function(l) { return l.ESTADO === 'CONTACTADO' || l.ESTADO === 'DEMO'; }).length;
-  var convertidos = leads.filter(function(l) { return l.ESTADO === 'CLIENTE'; }).length;
+  var contactados = leads.filter(function(l) { return ['CONTACTADO','EN_DEMO','NEGOCIANDO','SEGUIMIENTO'].indexOf(l.ESTADO) >= 0; }).length;
+  var convertidos = leads.filter(function(l) { return l.ESTADO === 'GANADO' || l.ESTADO === 'CLIENTE'; }).length;
 
   setText('totalLeads', total); setText('leadsNuevos', nuevos);
   setText('leadsTotalStat', total); setText('leadsNuevosStat', nuevos);
@@ -833,9 +842,9 @@ function openLeadModal(rowNum, estado) {
   document.getElementById('modalEstado').value = estado;
   document.getElementById('modalAsignado').value = '';
   document.getElementById('modalNotas').value = '';
-  // Mostrar boton convertir si es CONTACTADO o DEMO
+  // Mostrar boton convertir si el lead esta en etapa avanzada
   var btn = document.getElementById('btnConvertLead');
-  btn.style.display = (estado === 'CONTACTADO' || estado === 'DEMO') ? '' : 'none';
+  btn.style.display = (estado === 'GANADO' || estado === 'NEGOCIANDO' || estado === 'EN_DEMO') ? '' : 'none';
   document.getElementById('leadModal').classList.add('open');
 }
 
@@ -1254,8 +1263,10 @@ function toDateInput(d) {
 
 function statusBadge(status) {
   var s = (status || 'NUEVO').toUpperCase();
-  var cls = { NUEVO: 'status-nuevo', CONTACTADO: 'status-contactado', DEMO: 'status-demo', CERRADO: 'status-cerrado', CLIENTE: 'status-cliente' };
-  return '<span class="status-badge ' + (cls[s] || 'status-nuevo') + '">' + s + '</span>';
+  var colors = { NUEVO: '#3b82f6', CONTACTADO: '#f59e0b', EN_DEMO: '#8b5cf6', NEGOCIANDO: '#f97316', SEGUIMIENTO: '#06b6d4', NO_CONTESTA: '#6b7280', GANADO: '#22c55e', PERDIDO: '#ef4444', CLIENTE: '#22c55e' };
+  var color = colors[s] || '#3b82f6';
+  var label = s.replace(/_/g, ' ');
+  return '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:white;background:' + color + ';">' + label + '</span>';
 }
 
 function pagoStatusBadge(status, diasMora, diasParaVencer) {
