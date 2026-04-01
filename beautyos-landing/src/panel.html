@@ -356,20 +356,43 @@
     <!-- ═══ ASESORES ═══ -->
     <div class="page" id="page-asesores">
       <div class="info-banner"><i class="fas fa-info-circle"></i> Los leads se asignan automaticamente por round-robin entre los asesores activos. Solo el asesor asignado recibe la alerta por WhatsApp.</div>
-      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
         <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-headset"></i></div><div><div class="stat-value" id="totalAsesores">0</div><div class="stat-label">Total</div></div></div>
         <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="asesoresActivos">0</div><div class="stat-label">Activos</div></div></div>
         <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-user-plus"></i></div><div><div class="stat-value" id="totalLeadsAsignados">0</div><div class="stat-label">Leads asignados</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-trophy"></i></div><div><div class="stat-value" id="tasaConversionGlobal">0%</div><div class="stat-label">Tasa conversion</div></div></div>
       </div>
       <div class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
           <h3 style="margin:0;"><i class="fas fa-users"></i> Equipo comercial</h3>
-          <button class="btn btn-primary btn-sm" onclick="addAsesor()"><i class="fas fa-plus"></i> Agregar asesor</button>
+          <button class="btn btn-primary btn-sm" onclick="openAsesorModal(-1)"><i class="fas fa-plus"></i> Agregar asesor</button>
         </div>
         <table>
-          <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Ganados</th><th>Conversion</th><th>Acciones</th></tr></thead>
           <tbody id="asesoresTable"></tbody>
         </table>
+      </div>
+      <div class="card" id="asesorAnalyticsCard" style="display:none;">
+        <h3><i class="fas fa-chart-bar"></i> Analitica del asesor: <span id="analyticsAsesorName"></span></h3>
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-inbox"></i></div><div><div class="stat-value" id="anTotal">0</div><div class="stat-label">Asignados</div></div></div>
+          <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-phone"></i></div><div><div class="stat-value" id="anContactados">0</div><div class="stat-label">Contactados</div></div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fas fa-handshake"></i></div><div><div class="stat-value" id="anGanados">0</div><div class="stat-label">Ganados</div></div></div>
+          <div class="stat-card"><div class="stat-icon red"><i class="fas fa-times-circle"></i></div><div><div class="stat-value" id="anPerdidos">0</div><div class="stat-label">Perdidos</div></div></div>
+        </div>
+        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
+          <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-desktop"></i></div><div><div class="stat-value" id="anDemo">0</div><div class="stat-label">En demo</div></div></div>
+          <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-comments-dollar"></i></div><div><div class="stat-value" id="anNegociando">0</div><div class="stat-label">Negociando</div></div></div>
+          <div class="stat-card"><div class="stat-icon cyan"><i class="fas fa-clock"></i></div><div><div class="stat-value" id="anSeguimiento">0</div><div class="stat-label">Seguimiento</div></div></div>
+          <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-percentage"></i></div><div><div class="stat-value" id="anConversion">0%</div><div class="stat-label">Conversion</div></div></div>
+        </div>
+        <div style="margin-top:12px;">
+          <h4>Leads asignados a este asesor</h4>
+          <table>
+            <thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>Ciudad</th><th>Estado</th></tr></thead>
+            <tbody id="asesorLeadsTable"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -464,6 +487,34 @@
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Modal Asesor -->
+<div class="modal-overlay" id="asesorModal">
+  <div class="modal">
+    <h3><i class="fas fa-headset"></i> <span id="asesorModalTitle">Agregar asesor</span></h3>
+    <input type="hidden" id="asesorModalIdx" value="-1">
+    <div class="form-group"><label>Nombre completo *</label><input class="form-control" id="amNombre" placeholder="Maria Garcia"></div>
+    <div class="form-group"><label>WhatsApp * (con codigo pais)</label><input class="form-control" id="amWhatsapp" placeholder="573001234567"></div>
+    <div class="form-group"><label>Email</label><input class="form-control" id="amEmail" type="email" placeholder="maria@email.com"></div>
+    <div class="form-group"><label>Rol</label>
+      <select class="form-control" id="amRol">
+        <option value="Comercial">Comercial - Cierre de ventas</option>
+        <option value="Admin">Admin - Supervision general</option>
+        <option value="Soporte">Soporte - Atencion tecnica</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Activo</label>
+      <select class="form-control" id="amActivo">
+        <option value="si">Si - Recibe leads</option>
+        <option value="no">No - No recibe leads</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('asesorModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAsesorModal()"><i class="fas fa-save"></i> Guardar</button>
+    </div>
   </div>
 </div>
 
@@ -1300,49 +1351,103 @@ function toast(msg, type) {
 // ─── ASESORES ───
 // ═══════════════════════════════════════════════
 
+function getAsesorStats(whatsapp) {
+  var leads = DATA.leads || [];
+  var mine = leads.filter(function(l) { return String(l.ASIGNADO_A).trim() === String(whatsapp).trim(); });
+  var ganados = mine.filter(function(l) { return l.ESTADO === 'GANADO' || l.ESTADO === 'CLIENTE'; }).length;
+  var perdidos = mine.filter(function(l) { return l.ESTADO === 'PERDIDO'; }).length;
+  var contactados = mine.filter(function(l) { return ['CONTACTADO','EN_DEMO','NEGOCIANDO','SEGUIMIENTO','GANADO','CLIENTE'].indexOf(l.ESTADO) >= 0; }).length;
+  var enDemo = mine.filter(function(l) { return l.ESTADO === 'EN_DEMO'; }).length;
+  var negociando = mine.filter(function(l) { return l.ESTADO === 'NEGOCIANDO'; }).length;
+  var seguimiento = mine.filter(function(l) { return l.ESTADO === 'SEGUIMIENTO'; }).length;
+  var conversion = mine.length > 0 ? Math.round((ganados / mine.length) * 100) : 0;
+  return { total: mine.length, ganados: ganados, perdidos: perdidos, contactados: contactados, enDemo: enDemo, negociando: negociando, seguimiento: seguimiento, conversion: conversion, leads: mine };
+}
+
 function renderAsesores() {
   var asesores = DATA.asesores || [];
+  var leads = DATA.leads || [];
   var total = asesores.length;
   var activos = asesores.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si'; }).length;
-  var totalLeads = asesores.reduce(function(sum, a) { return sum + (Number(a.LEADS_ASIGNADOS) || 0); }, 0);
+  var totalLeadsNum = 0, totalGanados = 0;
+  asesores.forEach(function(a) { var s = getAsesorStats(a.WHATSAPP); totalLeadsNum += s.total; totalGanados += s.ganados; });
+  var tasaGlobal = totalLeadsNum > 0 ? Math.round((totalGanados / totalLeadsNum) * 100) : 0;
 
   setText('totalAsesores', total);
   setText('asesoresActivos', activos);
-  setText('totalLeadsAsignados', totalLeads);
+  setText('totalLeadsAsignados', totalLeadsNum);
+  setText('tasaConversionGlobal', tasaGlobal + '%');
 
   var tbody = document.getElementById('asesoresTable');
   if (!asesores.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-headset"></i><p>No hay asesores. Agrega uno para activar la asignacion automatica.</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fas fa-headset"></i><p>No hay asesores. Agrega uno para activar la asignacion automatica.</p></td></tr>';
     return;
   }
   tbody.innerHTML = asesores.map(function(a, i) {
     var activo = String(a.ACTIVO).toLowerCase() === 'si';
-    return '<tr>'
+    var stats = getAsesorStats(a.WHATSAPP);
+    return '<tr style="cursor:pointer;" onclick="showAsesorAnalytics(' + i + ')">'
       + '<td><strong>' + esc(a.NOMBRE) + '</strong></td>'
-      + '<td><a href="https://wa.me/' + (a.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(a.WHATSAPP) + '</a></td>'
+      + '<td><a href="https://wa.me/' + (a.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);" onclick="event.stopPropagation();">' + esc(a.WHATSAPP) + '</a></td>'
       + '<td>' + esc(a.EMAIL) + '</td>'
       + '<td>' + esc(a.ROL || 'Comercial') + '</td>'
-      + '<td>' + (activo ? '<span class="badge-status" style="background:#dcfce7;color:#166534;">Activo</span>' : '<span class="badge-status" style="background:#fef2f2;color:#991b1b;">Inactivo</span>') + '</td>'
-      + '<td style="text-align:center;">' + (Number(a.LEADS_ASIGNADOS) || 0) + '</td>'
-      + '<td><button class="btn btn-outline btn-sm" onclick="toggleAsesor(' + i + ')"><i class="fas fa-' + (activo ? 'pause' : 'play') + '"></i></button> '
-      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="removeAsesor(' + i + ')"><i class="fas fa-trash"></i></button></td>'
-      + '</tr>';
+      + '<td>' + (activo ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#166534;background:#dcfce7;">Activo</span>' : '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#991b1b;background:#fef2f2;">Inactivo</span>') + '</td>'
+      + '<td style="text-align:center;">' + stats.total + '</td>'
+      + '<td style="text-align:center;color:var(--success);font-weight:600;">' + stats.ganados + '</td>'
+      + '<td style="text-align:center;">' + stats.conversion + '%</td>'
+      + '<td onclick="event.stopPropagation();">'
+      + '<button class="btn btn-outline btn-sm" onclick="openAsesorModal(' + i + ')" title="Editar"><i class="fas fa-pen"></i></button> '
+      + '<button class="btn btn-outline btn-sm" onclick="toggleAsesor(' + i + ')" title="' + (activo ? 'Desactivar' : 'Activar') + '"><i class="fas fa-' + (activo ? 'pause' : 'play') + '"></i></button> '
+      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="removeAsesor(' + i + ')" title="Eliminar"><i class="fas fa-trash"></i></button>'
+      + '</td></tr>';
   }).join('');
 }
 
-function addAsesor() {
-  var nombre = prompt('Nombre del asesor:');
-  if (!nombre) return;
-  var whatsapp = prompt('WhatsApp (con codigo pais, ej: 573001234567):');
-  if (!whatsapp) return;
-  var email = prompt('Email (opcional):') || '';
-  var rol = prompt('Rol (Comercial, Admin, Soporte):') || 'Comercial';
+function openAsesorModal(idx) {
+  document.getElementById('asesorModalIdx').value = idx;
+  if (idx >= 0) {
+    var a = DATA.asesores[idx];
+    document.getElementById('asesorModalTitle').textContent = 'Editar asesor';
+    document.getElementById('amNombre').value = a.NOMBRE || '';
+    document.getElementById('amWhatsapp').value = a.WHATSAPP || '';
+    document.getElementById('amEmail').value = a.EMAIL || '';
+    document.getElementById('amRol').value = a.ROL || 'Comercial';
+    document.getElementById('amActivo').value = String(a.ACTIVO).toLowerCase() === 'si' ? 'si' : 'no';
+  } else {
+    document.getElementById('asesorModalTitle').textContent = 'Agregar asesor';
+    document.getElementById('amNombre').value = '';
+    document.getElementById('amWhatsapp').value = '';
+    document.getElementById('amEmail').value = '';
+    document.getElementById('amRol').value = 'Comercial';
+    document.getElementById('amActivo').value = 'si';
+  }
+  document.getElementById('asesorModal').classList.add('open');
+}
 
+function saveAsesorModal() {
+  var nombre = document.getElementById('amNombre').value.trim();
+  var whatsapp = document.getElementById('amWhatsapp').value.trim();
+  if (!nombre || !whatsapp) { toast('Nombre y WhatsApp son obligatorios', 'error'); return; }
+  var obj = {
+    NOMBRE: nombre,
+    WHATSAPP: whatsapp,
+    EMAIL: document.getElementById('amEmail').value.trim(),
+    ROL: document.getElementById('amRol').value,
+    ACTIVO: document.getElementById('amActivo').value,
+    LEADS_ASIGNADOS: 0
+  };
+  var idx = Number(document.getElementById('asesorModalIdx').value);
   if (!DATA.asesores) DATA.asesores = [];
-  DATA.asesores.push({ NOMBRE: nombre, WHATSAPP: whatsapp, EMAIL: email, ROL: rol, ACTIVO: 'si', LEADS_ASIGNADOS: 0 });
+  if (idx >= 0) {
+    obj.LEADS_ASIGNADOS = DATA.asesores[idx].LEADS_ASIGNADOS || 0;
+    DATA.asesores[idx] = obj;
+  } else {
+    DATA.asesores.push(obj);
+  }
+  closeModal('asesorModal');
   renderAsesores();
   DIRTY = true;
-  toast('Asesor agregado. Recuerda guardar.', 'info');
+  toast(idx >= 0 ? 'Asesor actualizado. Recuerda guardar.' : 'Asesor agregado. Recuerda guardar.', 'info');
 }
 
 function toggleAsesor(idx) {
@@ -1358,6 +1463,31 @@ function removeAsesor(idx) {
   renderAsesores();
   DIRTY = true;
   toast('Asesor eliminado. Recuerda guardar.', 'info');
+}
+
+function showAsesorAnalytics(idx) {
+  var a = DATA.asesores[idx];
+  var stats = getAsesorStats(a.WHATSAPP);
+  document.getElementById('asesorAnalyticsCard').style.display = '';
+  document.getElementById('analyticsAsesorName').textContent = a.NOMBRE;
+  setText('anTotal', stats.total);
+  setText('anContactados', stats.contactados);
+  setText('anGanados', stats.ganados);
+  setText('anPerdidos', stats.perdidos);
+  setText('anDemo', stats.enDemo);
+  setText('anNegociando', stats.negociando);
+  setText('anSeguimiento', stats.seguimiento);
+  setText('anConversion', stats.conversion + '%');
+
+  var tbody = document.getElementById('asesorLeadsTable');
+  if (!stats.leads.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Este asesor no tiene leads asignados</td></tr>';
+  } else {
+    tbody.innerHTML = stats.leads.slice().reverse().map(function(l) {
+      return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td><td>' + esc(l.CIUDAD) + '</td><td>' + statusBadge(l.ESTADO) + '</td></tr>';
+    }).join('');
+  }
+  document.getElementById('asesorAnalyticsCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ─── NOVEDADES ───
