@@ -1943,15 +1943,19 @@ PASO 5 — POST-CONFIRMACIÓN:
                         toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${functionArgs.whatsapp}). El equipo comercial dará seguimiento.`;
                         console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio}`);
 
-                        // Alerta WhatsApp a asesores comerciales
+                        // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
                         const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
-                        if (asesores.length > 0) {
-                            const alertMsg = `*Nuevo Lead BeautyOS*\n\nContacto: ${functionArgs.nombreContacto || 'Sin nombre'}\nNegocio: ${functionArgs.nombreNegocio}\nWhatsApp: ${functionArgs.whatsapp}\nCiudad: ${functionArgs.ciudad || 'No indicada'}\nEmpleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? 'Notas: ' + functionArgs.notas + '\n\n' : ''}Contactar para cerrar venta.`;
+                        const asesorAsignado = resp.asesorAsignado || '';
+                        if (asesores.length > 0 && asesorAsignado) {
+                            const alertMsg = `*Nuevo Lead BeautyOS - Asignado a ti*\n\nContacto: ${functionArgs.nombreContacto || 'Sin nombre'}\nNegocio: ${functionArgs.nombreNegocio}\nWhatsApp: ${functionArgs.whatsapp}\nCiudad: ${functionArgs.ciudad || 'No indicada'}\nEmpleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? 'Notas: ' + functionArgs.notas + '\n\n' : ''}Este lead es tuyo. Contactalo para cerrar la venta.`;
                             if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
-                            for (const asesor of asesores) {
-                                session._pendingTransferMessages.push({ to: asesor, text: alertMsg });
+                            // Alerta principal al asesor asignado
+                            session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
+                            // Resumen al admin (primer asesor) si hay mas de uno y no es el mismo
+                            if (asesores.length > 1 && asesores[0] !== asesorAsignado) {
+                                session._pendingTransferMessages.push({ to: asesores[0], text: `*Lead asignado a ${asesorAsignado}*\n${functionArgs.nombreContacto || ''} - ${functionArgs.nombreNegocio} (${functionArgs.ciudad || ''})` });
                             }
-                            console.log(`[openai] Alerta de lead enviada a ${asesores.length} asesor(es)`);
+                            console.log(`[openai] Lead asignado a ${asesorAsignado} (round-robin)`);
                         }
                     } else {
                         toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;

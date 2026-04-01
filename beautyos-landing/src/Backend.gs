@@ -42,6 +42,7 @@ function doPost(e) {
     if (payload.action === 'saveNovedad') return jsonResponse(handleSaveNovedad(payload));
     if (payload.action === 'getInfoComercial') return jsonResponse(handleGetInfoComercial());
     if (payload.action === 'getClientesCRM') return jsonResponse(handleGetClientesCRM());
+    if (payload.action === 'migrateLeads') return jsonResponse(migrateLeadsSheet());
     return jsonResponse({ error: 'Accion no reconocida' });
   } catch (err) {
     return jsonResponse({ error: err.message });
@@ -80,10 +81,20 @@ function handleSaveLead(payload) {
   var sheet = ss.getSheetByName('LEADS');
   if (!sheet) return { error: 'Hoja LEADS no encontrada. Ejecuta setupLanding().' };
 
+  var config = leerClaveValor(ss, 'CONFIGURACION');
   var cant = String(payload.cantidadEmpleados || '').trim();
   var categoria = 'Propia empresa';
   if (cant === '2 a 5') categoria = 'Mediano';
   else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
+
+  // Asignacion round-robin entre asesores
+  var asesores = (config.WHATSAPP_ASESORES || '').split(',').map(function(n) { return n.trim(); }).filter(Boolean);
+  var asesorAsignado = '';
+  if (asesores.length > 0) {
+    var totalLeads = Math.max(0, sheet.getLastRow() - 1);
+    var idx = totalLeads % asesores.length;
+    asesorAsignado = asesores[idx];
+  }
 
   sheet.appendRow([
     new Date(),
@@ -95,11 +106,10 @@ function handleSaveLead(payload) {
     cant,
     categoria,
     payload.fuente || 'landing',
-    'NUEVO', '', '', ''
+    'NUEVO', asesorAsignado, '', ''
   ]);
 
   // Notificacion por email
-  var config = leerClaveValor(ss, 'CONFIGURACION');
   var emailDest = config.EMAIL_LEADS || 'iaitelsa@gmail.com';
   var nombreProducto = config.NOMBRE_PRODUCTO || 'BeautyOS';
   try {
@@ -112,7 +122,7 @@ function handleSaveLead(payload) {
     Logger.log('[leads] Error enviando email: ' + mailErr.message);
   }
 
-  return { success: true };
+  return { success: true, asesorAsignado: asesorAsignado };
 }
 
 // Actualiza estado, asignado y notas de un lead desde el panel
@@ -128,6 +138,24 @@ function updateLead(rowNum, estado, asignado, notas) {
   sheet.getRange(rowNum, 13).setValue(notas);
 
   return { success: true };
+}
+
+// Migra la hoja LEADS para agregar NOMBRE_CONTACTO sin perder datos
+function migrateLeadsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('LEADS');
+  if (!sheet) return { error: 'Hoja LEADS no encontrada' };
+
+  var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var hasNombreContacto = currentHeaders.indexOf('NOMBRE_CONTACTO') >= 0;
+  if (hasNombreContacto) return { success: true, message: 'La hoja ya tiene NOMBRE_CONTACTO' };
+
+  // Insertar columna B y poner header
+  sheet.insertColumnBefore(2);
+  sheet.getRange(1, 2).setValue('NOMBRE_CONTACTO').setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
+  sheet.setColumnWidth(2, 160);
+
+  return { success: true, message: 'Columna NOMBRE_CONTACTO agregada en posicion B' };
 }
 
 // ═══════════════════════════════════════════════
