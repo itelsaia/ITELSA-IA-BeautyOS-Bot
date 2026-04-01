@@ -193,6 +193,7 @@
 
     <div class="nav-section">Comercial</div>
     <div class="nav-item" data-page="precios"><i class="fas fa-tags"></i> Precios</div>
+    <div class="nav-item" data-page="asesores"><i class="fas fa-headset"></i> Asesores</div>
 
     <div class="nav-section">Configuracion</div>
     <div class="nav-item" data-page="configuracion"><i class="fas fa-cog"></i> General</div>
@@ -346,6 +347,26 @@
       <div class="tab-content" id="tab-condiciones">
         <div id="condicionesList"></div>
         <button class="btn btn-outline" onclick="addRow('condiciones')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar condicion</button>
+      </div>
+    </div>
+
+    <!-- ═══ ASESORES ═══ -->
+    <div class="page" id="page-asesores">
+      <div class="info-banner"><i class="fas fa-info-circle"></i> Los leads se asignan automaticamente por round-robin entre los asesores activos. Solo el asesor asignado recibe la alerta por WhatsApp.</div>
+      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-headset"></i></div><div><div class="stat-value" id="totalAsesores">0</div><div class="stat-label">Total</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="asesoresActivos">0</div><div class="stat-label">Activos</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-user-plus"></i></div><div><div class="stat-value" id="totalLeadsAsignados">0</div><div class="stat-label">Leads asignados</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;"><i class="fas fa-users"></i> Equipo comercial</h3>
+          <button class="btn btn-primary btn-sm" onclick="addAsesor()"><i class="fas fa-plus"></i> Agregar asesor</button>
+        </div>
+        <table>
+          <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Acciones</th></tr></thead>
+          <tbody id="asesoresTable"></tbody>
+        </table>
       </div>
     </div>
 
@@ -700,7 +721,7 @@ function navigateTo(page) {
   document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
   var pageEl = document.getElementById('page-' + page);
   if (pageEl) pageEl.style.display = 'block';
-  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
+  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', asesores: 'Asesores Comerciales', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   document.getElementById('sidebar').classList.remove('open');
 }
@@ -736,6 +757,7 @@ function renderAll() {
   renderLeads();
   renderClientes();
   renderNovedades();
+  renderAsesores();
   renderContentList('dolores', DATA.dolores || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('funcionalidades', DATA.funcionalidades || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('faq', DATA.faq || [], ['PREGUNTA', 'RESPUESTA']);
@@ -1264,6 +1286,69 @@ function toast(msg, type) {
 }
 
 // ═══════════════════════════════════════════════
+// ─── ASESORES ───
+// ═══════════════════════════════════════════════
+
+function renderAsesores() {
+  var asesores = DATA.asesores || [];
+  var total = asesores.length;
+  var activos = asesores.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si'; }).length;
+  var totalLeads = asesores.reduce(function(sum, a) { return sum + (Number(a.LEADS_ASIGNADOS) || 0); }, 0);
+
+  setText('totalAsesores', total);
+  setText('asesoresActivos', activos);
+  setText('totalLeadsAsignados', totalLeads);
+
+  var tbody = document.getElementById('asesoresTable');
+  if (!asesores.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-headset"></i><p>No hay asesores. Agrega uno para activar la asignacion automatica.</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = asesores.map(function(a, i) {
+    var activo = String(a.ACTIVO).toLowerCase() === 'si';
+    return '<tr>'
+      + '<td><strong>' + esc(a.NOMBRE) + '</strong></td>'
+      + '<td><a href="https://wa.me/' + (a.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(a.WHATSAPP) + '</a></td>'
+      + '<td>' + esc(a.EMAIL) + '</td>'
+      + '<td>' + esc(a.ROL || 'Comercial') + '</td>'
+      + '<td>' + (activo ? '<span class="badge-status" style="background:#dcfce7;color:#166534;">Activo</span>' : '<span class="badge-status" style="background:#fef2f2;color:#991b1b;">Inactivo</span>') + '</td>'
+      + '<td style="text-align:center;">' + (Number(a.LEADS_ASIGNADOS) || 0) + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="toggleAsesor(' + i + ')"><i class="fas fa-' + (activo ? 'pause' : 'play') + '"></i></button> '
+      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="removeAsesor(' + i + ')"><i class="fas fa-trash"></i></button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function addAsesor() {
+  var nombre = prompt('Nombre del asesor:');
+  if (!nombre) return;
+  var whatsapp = prompt('WhatsApp (con codigo pais, ej: 573001234567):');
+  if (!whatsapp) return;
+  var email = prompt('Email (opcional):') || '';
+  var rol = prompt('Rol (Comercial, Admin, Soporte):') || 'Comercial';
+
+  if (!DATA.asesores) DATA.asesores = [];
+  DATA.asesores.push({ NOMBRE: nombre, WHATSAPP: whatsapp, EMAIL: email, ROL: rol, ACTIVO: 'si', LEADS_ASIGNADOS: 0 });
+  renderAsesores();
+  DIRTY = true;
+  toast('Asesor agregado. Recuerda guardar.', 'info');
+}
+
+function toggleAsesor(idx) {
+  var a = DATA.asesores[idx];
+  a.ACTIVO = String(a.ACTIVO).toLowerCase() === 'si' ? 'no' : 'si';
+  renderAsesores();
+  DIRTY = true;
+}
+
+function removeAsesor(idx) {
+  if (!confirm('Eliminar al asesor ' + DATA.asesores[idx].NOMBRE + '?')) return;
+  DATA.asesores.splice(idx, 1);
+  renderAsesores();
+  DIRTY = true;
+  toast('Asesor eliminado. Recuerda guardar.', 'info');
+}
+
 // ─── NOVEDADES ───
 // ═══════════════════════════════════════════════
 

@@ -87,13 +87,21 @@ function handleSaveLead(payload) {
   if (cant === '2 a 5') categoria = 'Mediano';
   else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
 
-  // Asignacion round-robin entre asesores
-  var asesores = (config.WHATSAPP_ASESORES || '').split(',').map(function(n) { return n.trim(); }).filter(Boolean);
+  // Asignacion round-robin entre asesores activos
+  var asesoresData = leerTabla(ss, 'ASESORES');
+  var asesoresActivos = asesoresData.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
   var asesorAsignado = '';
-  if (asesores.length > 0) {
+  var asesorNombre = '';
+  if (asesoresActivos.length > 0) {
     var totalLeads = Math.max(0, sheet.getLastRow() - 1);
-    var idx = totalLeads % asesores.length;
-    asesorAsignado = asesores[idx];
+    var idx = totalLeads % asesoresActivos.length;
+    asesorAsignado = String(asesoresActivos[idx].WHATSAPP).trim();
+    asesorNombre = asesoresActivos[idx].NOMBRE || '';
+    // Incrementar contador de leads del asesor
+    var asesorRow = asesoresActivos[idx]._rowNum;
+    var asesoresSheet = ss.getSheetByName('ASESORES');
+    var currentCount = Number(asesoresSheet.getRange(asesorRow, 6).getValue()) || 0;
+    asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
   }
 
   sheet.appendRow([
@@ -122,7 +130,7 @@ function handleSaveLead(payload) {
     Logger.log('[leads] Error enviando email: ' + mailErr.message);
   }
 
-  return { success: true, asesorAsignado: asesorAsignado };
+  return { success: true, asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
 }
 
 // Actualiza estado, asignado y notas de un lead desde el panel
@@ -599,6 +607,7 @@ function getPanelData() {
   data.leads = leerTabla(ss, 'LEADS');
   data.clientes = leerTabla(ss, 'CLIENTES');
   data.novedades = leerTabla(ss, 'NOVEDADES');
+  data.asesores = leerTabla(ss, 'ASESORES');
 
   // Computar dias de mora/vencimiento en cada cliente
   var hoy = new Date();
@@ -632,6 +641,19 @@ function savePanelData(data) {
   if (data.faq) guardarTabla(ss, 'FAQ', ['PREGUNTA', 'RESPUESTA'], data.faq);
   if (data.testimonios) guardarTabla(ss, 'TESTIMONIOS', ['NOMBRE', 'ROL', 'TEXTO', 'ESTRELLAS'], data.testimonios);
   if (data.planes) guardarTabla(ss, 'PLANES', ['ID', 'NOMBRE', 'PRECIO_MENSUAL', 'PRECIO_ANUAL', 'DESCRIPCION', 'POPULAR'], data.planes);
+  if (data.asesores) {
+    guardarTabla(ss, 'ASESORES', ['NOMBRE', 'WHATSAPP', 'EMAIL', 'ROL', 'ACTIVO', 'LEADS_ASIGNADOS'], data.asesores);
+    // Sincronizar WHATSAPP_ASESORES en CONFIGURACION para que el bot tenga la lista
+    var activos = (data.asesores || []).filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
+    var listaWa = activos.map(function(a) { return String(a.WHATSAPP).trim(); }).join(',');
+    var configSheet = ss.getSheetByName('CONFIGURACION');
+    if (configSheet) {
+      var configData = configSheet.getDataRange().getValues();
+      for (var i = 0; i < configData.length; i++) {
+        if (configData[i][0] === 'WHATSAPP_ASESORES') { configSheet.getRange(i + 1, 2).setValue(listaWa); break; }
+      }
+    }
+  }
 
   SpreadsheetApp.flush();
   return { success: true };

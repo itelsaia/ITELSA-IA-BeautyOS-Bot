@@ -16,6 +16,7 @@ function setupLanding() {
   crearClientes(ss);
   crearPagos(ss);
   crearNovedades(ss);
+  crearAsesores(ss);
   crearPlanes(ss);
   crearCondiciones(ss);
   crearDolores(ss);
@@ -206,6 +207,20 @@ function crearNovedades(ss) {
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#f59e0b').setFontColor('white');
   sheet.setFrozenRows(1);
   var widths = [180, 140, 160, 200, 140, 180, 400, 100, 120, 130, 140, 400];
+  for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
+}
+
+// ─── ASESORES: Equipo comercial con asignacion round-robin ───
+function crearAsesores(ss) {
+  var sheet = getOrCreateSheet(ss, 'ASESORES');
+  sheet.clear();
+  var headers = [
+    'NOMBRE', 'WHATSAPP', 'EMAIL', 'ROL', 'ACTIVO', 'LEADS_ASIGNADOS'
+  ];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#6366f1').setFontColor('white');
+  sheet.setFrozenRows(1);
+  var widths = [180, 140, 200, 140, 80, 130];
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 
