@@ -281,6 +281,94 @@ const TOOLS = [
 ];
 
 // ============================================================
+// Herramientas del agente comercial BeautyOS (Sofi)
+// Se usan SOLO cuando tenant.type === 'comercial'
+// ============================================================
+const COMMERCIAL_TOOLS = [
+    {
+        type: "function",
+        function: {
+            name: "capturar_lead",
+            description: "Guarda los datos de un prospecto interesado en BeautyOS. Usar cuando el prospecto muestre interes real (pide precio, pide demo, pregunta como funciona).",
+            parameters: {
+                type: "object",
+                properties: {
+                    nombreNegocio: { type: "string", description: "Nombre del salon, peluqueria, barberia o spa" },
+                    whatsapp: { type: "string", description: "Numero WhatsApp del prospecto (ya lo tienes del chat)" },
+                    email: { type: "string", description: "Correo electronico (opcional)" },
+                    ciudad: { type: "string", description: "Ciudad del negocio" },
+                    cantidadEmpleados: { type: "string", enum: ["Solo yo", "2 a 5", "6 a 10", "11 o mas"], description: "Cuantos empleados tiene" },
+                    notas: { type: "string", description: "Contexto: que busca, objeciones, interes especifico" }
+                },
+                required: ["nombreNegocio", "whatsapp"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "reportar_novedad",
+            description: "Registra un reporte tecnico de un cliente existente de BeautyOS. Usar cuando el cliente reporta un problema con su bot, CRM, citas, etc.",
+            parameters: {
+                type: "object",
+                properties: {
+                    tipoNovedad: { type: "string", enum: ["Bot no responde", "Error en citas", "Problema con pagos", "Error en CRM", "Consulta tecnica", "Otro"], description: "Categoria del problema" },
+                    descripcion: { type: "string", description: "Descripcion detallada del problema reportado por el cliente" },
+                    prioridad: { type: "string", enum: ["ALTA", "MEDIA", "BAJA"], description: "ALTA si el servicio esta caido, MEDIA si afecta operacion, BAJA si es consulta" }
+                },
+                required: ["tipoNovedad", "descripcion"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "transferir_asesor",
+            description: "Notifica a un asesor humano para que contacte al prospecto o cliente. Usar cuando: quiere comprar, necesita demo, pregunta compleja, o se molesta.",
+            parameters: {
+                type: "object",
+                properties: {
+                    motivo: { type: "string", description: "Razon de la transferencia" },
+                    urgente: { type: "boolean", description: "true si el prospecto esta listo para comprar o si hay un problema critico" }
+                },
+                required: ["motivo"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "consultar_estado_cuenta",
+            description: "Consulta el estado de facturacion de un cliente existente: plan, precio, proximo cobro, dias de mora, estado de pago.",
+            parameters: {
+                type: "object",
+                properties: {
+                    idCliente: { type: "string", description: "ID del cliente (CLI-...)" }
+                },
+                required: ["idCliente"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "registrar_compromiso_pago",
+            description: "Registra que el cliente se comprometio a pagar en una fecha especifica. Usar cuando el cliente dice 'pago el viernes', 'manana deposito', etc.",
+            parameters: {
+                type: "object",
+                properties: {
+                    idCliente: { type: "string", description: "ID del cliente" },
+                    fechaCompromiso: { type: "string", description: "Fecha prometida de pago (DD/MM/YYYY)" },
+                    monto: { type: "number", description: "Monto que pagara" },
+                    notas: { type: "string", description: "Contexto de la conversacion" }
+                },
+                required: ["idCliente", "fechaCompromiso"]
+            }
+        }
+    }
+];
+
+// ============================================================
 // Helpers de cálculo de disponibilidad (Backend Inteligente)
 // ============================================================
 const toMin = (t) => { const p = (t||'0:0').split(':').map(Number); return p[0]*60+(p[1]||0); };
@@ -692,6 +780,110 @@ function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, cl
         }
         return true;
     });
+}
+
+// ============================================================
+// Prompt del agente comercial Sofi (BeautyOS)
+// ============================================================
+function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName) {
+    const agentName = config.nombreAgente || 'Sofi';
+    const businessName = config.businessName || 'BeautyOS';
+
+    // Construir FAQ/conocimiento desde catalogo sincronizado
+    const knowledgeText = knowledgeCatalog.map(k =>
+        `- Pregunta: "${k.intent}" → Respuesta: "${k.response}"`
+    ).join('\n');
+
+    // Construir catalogo de planes/precios
+    const planesText = servicesCatalog.map(s =>
+        `- ${s.name}: $${Number(s.price).toLocaleString('es-CO')} / ${s.response}`
+    ).join('\n');
+
+    // Detectar modo: CLIENTE_EXISTENTE vs PROSPECTO
+    const esCliente = userData.estado === 'CLIENTE_EXISTENTE' || userData.idCliente;
+    const clienteNombre = userData.nombre || 'Usuario';
+
+    let modoContexto = '';
+    if (esCliente) {
+        modoContexto = `El usuario que te escribe YA es cliente de ${businessName}: ${clienteNombre}${userData.idCliente ? ' (ID: ' + userData.idCliente + ')' : ''}.
+Puede estar en modo SOPORTE (problemas técnicos) o CARTERA (facturación/pagos).
+Detecta su intención y actúa según corresponda.`;
+    } else {
+        modoContexto = `El usuario es un PROSPECTO nuevo. No conoce ${businessName} aún.
+Estás en modo VENTAS. Tu objetivo es convertirlo en cliente.`;
+    }
+
+    return `Eres ${agentName}, asesora comercial de ${businessName}. Fecha: ${todayStr} (${todayDayName}).
+
+## TU IDENTIDAD
+- Nombre: ${agentName}
+- Rol: Asesora comercial y de soporte de ${businessName}
+- Tono: Amigable, profesional, emprendedora. Hablas como alguien que entiende los retos de tener un negocio de belleza.
+- NO eres un chatbot genérico. Eres una experta en tecnología para negocios de belleza.
+
+## CONTEXTO DEL USUARIO
+${modoContexto}
+Estás hablando con: ${clienteNombre}
+
+## QUÉ ES BEAUTYOS
+${businessName} es un sistema integral para negocios de belleza: CRM + Agente IA WhatsApp + Landing Page.
+Automatiza agendamiento, recordatorios, seguimiento de clientes, promociones, pagos y más.
+
+## PLANES Y PRECIOS
+${planesText || 'Consultar con el equipo comercial.'}
+
+## BASE DE CONOCIMIENTO
+${knowledgeText || 'No hay FAQ cargadas aún.'}
+
+## FLUJO DE VENTA (prospectos nuevos)
+1. SALUDO: Pregunta cómo se llama y cuál es su negocio
+2. DESCUBRIMIENTO: Pregunta sobre sus problemas actuales (agenda en papel, citas perdidas, clientes que no vuelven)
+3. PRESENTACIÓN: Relaciona sus problemas con las soluciones de ${businessName}
+4. OBJECIONES: Maneja objeciones con testimonios y datos
+5. CIERRE SUAVE: Cuando muestre interés, captura sus datos con capturar_lead()
+6. TRANSFERENCIA: Ofrece que un asesor lo contacte para demo personalizada → transferir_asesor()
+
+## REGLAS DE CAPTURA
+- NO pidas todos los datos de golpe. Captura orgánicamente en la conversación.
+- Mínimo necesitas: nombre del negocio + WhatsApp (ya lo tienes del chat)
+- Ciudad y empleados se preguntan naturalmente: "¿Y tu salón dónde queda?" "¿Trabajas sola o tienes equipo?"
+- SIEMPRE captura el lead cuando el prospecto muestre interés real (pide precio, pide demo, pregunta cómo funciona)
+
+## FLUJO DE SOPORTE (clientes existentes — problemas técnicos)
+Si el usuario menciona un problema técnico (bot no responde, error, falla):
+1. Pregunta qué está pasando (qué error ve, desde cuándo, qué intentó)
+2. Clasifica el tipo de novedad
+3. Registra con reportar_novedad()
+4. Asegura que el equipo técnico lo revisará pronto
+5. Si es urgente (servicio caído), usa transferir_asesor() con urgente=true
+
+## FLUJO DE CARTERA (clientes existentes — facturación)
+Si el cliente pregunta sobre su facturación, pago, o si detectas que tiene mora:
+1. Consulta su estado con consultar_estado_cuenta()
+2. Informa: plan activo, precio, próximo cobro, estado de pago, días de mora
+3. Si tiene mora: explica que necesita pagar para mantener el servicio activo
+4. Si se compromete a pagar: registra con registrar_compromiso_pago()
+5. Si dice que ya pagó: pídele el comprobante (foto) y dile que lo envíe por aquí
+6. Si tiene dudas del monto o método de pago: infórmale los métodos disponibles
+${config.paymentInstructionsComercial || config.paymentInstructions ? '\nDatos de pago: ' + (config.paymentInstructionsComercial || config.paymentInstructions) : ''}
+
+## REGLAS DE COBRO
+- Sé FIRME pero RESPETUOSA. No amenaces, pero sé clara sobre las consecuencias.
+- Si el cliente dice "ya pagué": pídele el comprobante. No le creas de palabra.
+- Si el cliente dice "no puedo pagar": ofrece registrar un compromiso de pago y pregunta cuándo puede.
+- Si el cliente se molesta: empatiza, explica que es para mantener su servicio activo, y ofrece transferir a un asesor.
+- NUNCA modifiques fechas ni estados de pago. Solo informas y registras.
+
+## REGLAS GENERALES
+- NUNCA inventes precios. Usa solo los del catálogo.
+- NUNCA prometas funciones que no existen.
+- Si no sabes algo, di "Déjame confirmar eso con el equipo y te escribo."
+- Si el prospecto está listo para comprar, usa transferir_asesor() con urgente=true.
+- Usa emojis moderadamente. No más de 2 por mensaje.
+- Mensajes cortos (máx 3 párrafos). WhatsApp no es email.
+- Responde en español colombiano natural.
+---
+`;
 }
 
 // ============================================================
@@ -1273,7 +1465,13 @@ PASO 5 — POST-CONFIRMACIÓN:
             }
         }
 
-        const systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando con: ${userName}${birthdayContext}\n\n${businessRules}`;
+        // ─── Prompt comercial vs salon ───
+        let systemFinalPrompt;
+        if (config.tenantType === 'comercial') {
+            systemFinalPrompt = buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName);
+        } else {
+            systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando con: ${userName}${birthdayContext}\n\n${businessRules}`;
+        }
 
         const messages = [
             { role: 'system', content: systemFinalPrompt },
@@ -1284,10 +1482,11 @@ PASO 5 — POST-CONFIRMACIÓN:
         console.log(`[openai] 📋 Prompt: equipo=${dedupUnique.length} pros, agenda=${allPendingAppointments.length} citas, historial=${messageHistory.length} msgs`);
 
         // 5. Primera llamada a OpenAI
+        const activeTools = config.tenantType === 'comercial' ? COMMERCIAL_TOOLS : TOOLS;
         let completion = await openai.chat.completions.create({
             model: config.aiModel || "gpt-4o-mini",
             messages: messages,
-            tools: TOOLS,
+            tools: activeTools,
             tool_choice: "auto",
             temperature: 0.5,
             max_tokens: 1000
@@ -1306,7 +1505,7 @@ PASO 5 — POST-CONFIRMACIÓN:
             completion = await openai.chat.completions.create({
                 model: config.aiModel || "gpt-4o-mini",
                 messages: messages,
-                tools: TOOLS,
+                tools: activeTools,
                 tool_choice: "required",
                 temperature: 0.3,
                 max_tokens: 1000
@@ -1718,6 +1917,121 @@ PASO 5 — POST-CONFIRMACIÓN:
                         if (session) session._lastToolAction = 'cita_cancelada';
                     } else {
                         toolResultText = `❌ Error al cancelar la cita ${functionArgs.id_cita}. Verifica si el ID es correcto.`;
+                    }
+                }
+            }
+
+            // ─── Herramientas comerciales (tenant type: comercial) ─────────
+            else if (functionName === "capturar_lead") {
+                const crmUrl = config.crmBeautyosUrl;
+                if (!crmUrl) {
+                    toolResultText = '❌ CRM URL no configurada. No se pudo guardar el lead.';
+                } else {
+                    const resp = await api.postToCRM(crmUrl, {
+                        action: 'saveLead',
+                        nombreNegocio: functionArgs.nombreNegocio,
+                        whatsapp: functionArgs.whatsapp,
+                        email: functionArgs.email || '',
+                        ciudad: functionArgs.ciudad || '',
+                        cantidadEmpleados: functionArgs.cantidadEmpleados || '',
+                        notas: functionArgs.notas || '',
+                        fuente: 'whatsapp-agente'
+                    });
+                    if (resp && !resp.error) {
+                        toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${functionArgs.whatsapp}). El equipo comercial dará seguimiento.`;
+                        console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio}`);
+                    } else {
+                        toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
+                    }
+                }
+            }
+
+            else if (functionName === "reportar_novedad") {
+                const crmUrl = config.crmBeautyosUrl;
+                if (!crmUrl) {
+                    toolResultText = '❌ CRM URL no configurada. No se pudo registrar la novedad.';
+                } else {
+                    const clienteData = userData || {};
+                    const resp = await api.postToCRM(crmUrl, {
+                        action: 'saveNovedad',
+                        whatsapp: clienteData.celular || session?.datos?.celular || '',
+                        nombreNegocio: clienteData.nombre || session?.datos?.nombre || '',
+                        idCliente: clienteData.idCliente || session?.datos?.idCliente || '',
+                        tipoNovedad: functionArgs.tipoNovedad,
+                        descripcion: functionArgs.descripcion,
+                        prioridad: functionArgs.prioridad || 'MEDIA'
+                    });
+                    if (resp && !resp.error) {
+                        const novedadId = resp.data?.id || resp.id || '';
+                        toolResultText = `✅ Novedad registrada${novedadId ? ' (ID: ' + novedadId + ')' : ''}. Tipo: ${functionArgs.tipoNovedad}. Prioridad: ${functionArgs.prioridad || 'MEDIA'}. El equipo técnico la revisará pronto.`;
+                        console.log(`[openai] 🔧 Novedad registrada: ${functionArgs.tipoNovedad} - ${functionArgs.prioridad || 'MEDIA'}`);
+                    } else {
+                        toolResultText = `⚠️ Error registrando novedad: ${resp?.error || 'Sin respuesta'}. Asegura al cliente que el equipo fue notificado.`;
+                    }
+                }
+            }
+
+            else if (functionName === "transferir_asesor") {
+                const asesores = (config.whatsappAsesores || '').split(',').filter(a => a.trim());
+                if (asesores.length === 0) {
+                    toolResultText = '⚠️ No hay asesores configurados. Informa al cliente que será contactado pronto por el equipo.';
+                } else {
+                    const clienteName = userData.nombre || session?.datos?.nombre || 'Sin nombre';
+                    const clientePhone = userData.celular || session?.datos?.celular || 'N/A';
+                    const msg = `🔔 *Transferencia de lead*\n📱 ${clientePhone}\n👤 ${clienteName}\n📝 ${functionArgs.motivo}\n${functionArgs.urgente ? '🔴 URGENTE' : '🟡 Normal'}`;
+                    // Guardar en session para que webhook.js envíe via Evolution API
+                    if (session) {
+                        session._pendingTransferMessages = asesores.map(a => ({
+                            to: a.trim(),
+                            text: msg
+                        }));
+                    }
+                    toolResultText = `✅ Asesor${asesores.length > 1 ? 'es' : ''} notificado${asesores.length > 1 ? 's' : ''}. Un miembro del equipo contactará al cliente pronto.${functionArgs.urgente ? ' (Marcado como URGENTE)' : ''}`;
+                    console.log(`[openai] 📤 Transferencia a ${asesores.length} asesor(es): ${functionArgs.motivo}`);
+                }
+            }
+
+            else if (functionName === "consultar_estado_cuenta") {
+                const clientesCRM = config._clientesCRM || {};
+                const clientePhone = userData.celular || session?.datos?.celular || '';
+                const clienteInfo = clientesCRM[clientePhone];
+                if (!clienteInfo) {
+                    toolResultText = 'No se encontró información de facturación para este cliente. Verifica el número o consulta con el equipo administrativo.';
+                } else {
+                    toolResultText = `📊 Estado de cuenta:\n` +
+                        `- Negocio: ${clienteInfo.nombre}\n` +
+                        `- Plan: ${clienteInfo.plan || 'Sin plan'}\n` +
+                        `- Periodo: ${clienteInfo.periodo || 'N/A'}\n` +
+                        `- Precio: $${Number(clienteInfo.precio || 0).toLocaleString('es-CO')}\n` +
+                        `- Próximo cobro: ${clienteInfo.proxCobro || 'N/A'}\n` +
+                        `- Estado pago: ${clienteInfo.estadoPago || 'N/A'}\n` +
+                        `- Días de mora: ${clienteInfo.diasMora || 0}\n` +
+                        `- Días para vencer: ${clienteInfo.diasParaVencer ?? 'N/A'}\n` +
+                        `- Días de gracia: ${clienteInfo.diasGracia || 15}`;
+                    console.log(`[openai] 💰 Consulta estado cuenta: ${clienteInfo.nombre} (mora: ${clienteInfo.diasMora || 0}d)`);
+                }
+            }
+
+            else if (functionName === "registrar_compromiso_pago") {
+                const crmUrl = config.crmBeautyosUrl;
+                if (!crmUrl) {
+                    toolResultText = '❌ CRM URL no configurada.';
+                } else {
+                    const clienteData = userData || {};
+                    const resp = await api.postToCRM(crmUrl, {
+                        action: 'saveNovedad',
+                        idCliente: functionArgs.idCliente,
+                        whatsapp: clienteData.celular || session?.datos?.celular || '',
+                        nombreNegocio: clienteData.nombre || session?.datos?.nombre || '',
+                        tipoNovedad: 'Compromiso de pago',
+                        descripcion: `Compromiso: pagar $${functionArgs.monto ? functionArgs.monto.toLocaleString('es-CO') : '?'} el ${functionArgs.fechaCompromiso}. ${functionArgs.notas || ''}`,
+                        prioridad: 'MEDIA'
+                    });
+                    if (resp && !resp.error) {
+                        toolResultText = `✅ Compromiso de pago registrado. Cliente se comprometió a pagar $${functionArgs.monto ? functionArgs.monto.toLocaleString('es-CO') : '?'} el ${functionArgs.fechaCompromiso}. Se hará seguimiento.`;
+                        console.log(`[openai] 💳 Compromiso de pago: ${functionArgs.idCliente} → $${functionArgs.monto || '?'} el ${functionArgs.fechaCompromiso}`);
+                    } else {
+                        toolResultText = `⚠️ Error registrando compromiso: ${resp?.error || 'Sin respuesta'}. Informa al cliente que el compromiso fue anotado.`;
                     }
                 }
             }

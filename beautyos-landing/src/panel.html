@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BeautyOS - CRM Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1B6B6A;
+      --primary-dark: #145251;
+      --primary-light: #e6f2f2;
+      --accent: #C8845A;
+      --accent-light: #f9f0e8;
+      --dark: #1a1a2e;
+      --gray-900: #111827;
+      --gray-700: #374151;
+      --gray-500: #6b7280;
+      --gray-400: #9ca3af;
+      --gray-300: #d1d5db;
+      --gray-200: #e5e7eb;
+      --gray-100: #f3f4f6;
+      --gray-50: #f9fafb;
+      --white: #ffffff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #3b82f6;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.1);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --transition: all 0.2s ease;
+      --sidebar-w: 240px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--gray-50); color: var(--gray-700); line-height: 1.5; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ─── Sidebar ─── */
+    .sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-w); height: 100vh; background: var(--dark); color: var(--white); display: flex; flex-direction: column; z-index: 100; transition: transform 0.3s; }
+    .sidebar-brand { padding: 20px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-brand img { width: 36px; height: 36px; border-radius: 8px; }
+    .sidebar-brand span { font-weight: 700; font-size: 1rem; }
+    .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+    .nav-section { padding: 8px 16px 4px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.5px; color: var(--gray-500); font-weight: 600; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; font-size: 0.85rem; color: var(--gray-400); cursor: pointer; transition: var(--transition); border-left: 3px solid transparent; }
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--white); }
+    .nav-item.active { background: rgba(27,107,106,0.2); color: var(--white); border-left-color: var(--primary); }
+    .nav-item i { width: 18px; text-align: center; font-size: 0.85rem; }
+    .nav-item .badge { margin-left: auto; background: var(--danger); color: white; font-size: 0.65rem; padding: 1px 6px; border-radius: 50px; font-weight: 600; }
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); }
+    }
+
+    /* ─── Main ─── */
+    .main { margin-left: var(--sidebar-w); min-height: 100vh; }
+    @media (max-width: 768px) { .main { margin-left: 0; } }
+    .topbar { position: sticky; top: 0; z-index: 50; background: var(--white); border-bottom: 1px solid var(--gray-200); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    .topbar-left { display: flex; align-items: center; gap: 12px; }
+    .topbar h1 { font-size: 1.1rem; font-weight: 700; color: var(--gray-900); }
+    .mobile-toggle { display: none; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: var(--gray-700); }
+    @media (max-width: 768px) { .mobile-toggle { display: block; } }
+    .topbar-actions { display: flex; gap: 8px; }
+    .content { padding: 24px; }
+    @media (max-width: 768px) { .content { padding: 16px; } }
+
+    /* ─── Components ─── */
+    .card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+    .card h3 { font-size: 0.95rem; font-weight: 700; color: var(--gray-900); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .card h3 i { color: var(--primary); }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 16px; display: flex; align-items: center; gap: 12px; }
+    .stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
+    .stat-icon.blue { background: #dbeafe; color: var(--info); }
+    .stat-icon.green { background: #d1fae5; color: var(--success); }
+    .stat-icon.yellow { background: #fef3c7; color: var(--warning); }
+    .stat-icon.red { background: #fee2e2; color: var(--danger); }
+    .stat-icon.teal { background: var(--primary-light); color: var(--primary); }
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--gray-900); }
+    .stat-label { font-size: 0.75rem; color: var(--gray-500); }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-weight: 500; font-size: 0.82rem; border: none; cursor: pointer; transition: var(--transition); font-family: inherit; }
+    .btn-primary { background: var(--primary); color: var(--white); }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-accent { background: var(--accent); color: var(--white); }
+    .btn-outline { background: transparent; border: 1px solid var(--gray-300); color: var(--gray-700); }
+    .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
+    .btn-danger { background: var(--danger); color: var(--white); }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+    .btn-success { background: var(--success); color: var(--white); }
+    .form-control { width: 100%; padding: 8px 12px; border: 1px solid var(--gray-300); border-radius: 8px; font-size: 0.85rem; font-family: inherit; transition: var(--transition); }
+    .form-control:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-weight: 500; font-size: 0.8rem; color: var(--gray-700); margin-bottom: 4px; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 10px 12px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-500); background: var(--gray-50); border-bottom: 2px solid var(--gray-200); font-weight: 600; }
+    td { padding: 10px 12px; font-size: 0.82rem; border-bottom: 1px solid var(--gray-100); }
+    .status-badge { padding: 3px 10px; border-radius: 50px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .status-nuevo { background: #dbeafe; color: #1e40af; }
+    .status-contactado { background: #fef3c7; color: #92400e; }
+    .status-demo { background: #d1fae5; color: #065f46; }
+    .status-cliente { background: #d1fae5; color: #065f46; }
+    .status-cerrado { background: var(--gray-100); color: var(--gray-500); }
+    .status-vigente { background: #d1fae5; color: #065f46; }
+    .status-por_vencer { background: #fef3c7; color: #92400e; }
+    .status-vencido { background: #fee2e2; color: #991b1b; }
+    .status-activo { background: #d1fae5; color: #065f46; }
+    .status-inactivo { background: var(--gray-100); color: var(--gray-500); }
+    .status-suspendido { background: #fecaca; color: #7f1d1d; }
+
+    /* ─── Billing alerts ─── */
+    .billing-alert { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 12px; font-size: 0.82rem; display: flex; align-items: center; gap: 8px; font-weight: 500; }
+    .billing-alert.danger { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+    .billing-alert.warning { background: #fef3c7; border: 1px solid #fcd34d; color: #92400e; }
+    .billing-alert.suspended { background: #fecaca; border: 1px solid #f87171; color: #7f1d1d; }
+
+    /* ─── Color-coded table rows ─── */
+    tr.row-vencido { border-left: 4px solid var(--danger); }
+    tr.row-vencido td:first-child { border-left: 4px solid var(--danger); }
+    tr.row-por_vencer td:first-child { border-left: 4px solid var(--warning); }
+    tr.row-suspendido td:first-child { border-left: 4px solid #7f1d1d; }
+    .dias-mora { font-size: 0.7rem; color: #991b1b; font-weight: 600; display: block; }
+    .dias-para-vencer { font-size: 0.7rem; color: #92400e; font-weight: 600; display: block; }
+
+    /* ─── Novedades: prioridad y estados ─── */
+    .prioridad-alta { background: #fee2e2; color: #991b1b; }
+    .prioridad-media { background: #fef3c7; color: #92400e; }
+    .prioridad-baja { background: #dbeafe; color: #1e40af; }
+    .status-en_proceso { background: #fef3c7; color: #92400e; }
+    .status-resuelto { background: #d1fae5; color: #065f46; }
+    tr.row-novedad-alta td:first-child { border-left: 4px solid var(--danger); }
+    tr.row-novedad-nueva td:first-child { border-left: 4px solid var(--info); }
+    .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--gray-200); margin-bottom: 16px; overflow-x: auto; }
+    .tab { padding: 8px 16px; font-size: 0.82rem; font-weight: 500; color: var(--gray-500); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; white-space: nowrap; }
+    .tab:hover { color: var(--primary); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .page { display: none; }
+    .empty-state { text-align: center; padding: 32px; color: var(--gray-400); }
+    .empty-state i { font-size: 2rem; margin-bottom: 8px; display: block; }
+    .search-bar { position: relative; margin-bottom: 16px; }
+    .search-bar input { padding-left: 36px; }
+    .search-bar i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--gray-400); }
+    .info-banner { background: var(--primary-light); border: 1px solid rgba(27,107,106,0.2); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; font-size: 0.82rem; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+    .info-banner i { color: var(--primary); }
+
+    /* ─── Modal ─── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--white); border-radius: 12px; padding: 24px; max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto; }
+    .modal h3 { font-size: 1rem; font-weight: 700; color: var(--gray-900); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+    /* ─── Loading ─── */
+    #loadingOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--white); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; transition: opacity 0.3s; }
+    #loadingOverlay.hide { opacity: 0; pointer-events: none; }
+    .loader { width: 36px; height: 36px; border: 3px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Toast ─── */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 18px; border-radius: 8px; font-size: 0.82rem; font-weight: 500; color: var(--white); background: var(--gray-900); box-shadow: var(--shadow-md); display: flex; align-items: center; gap: 8px; animation: slideIn 0.3s; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--danger); }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .editable-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .copy-btn { background: var(--gray-100); border: 1px solid var(--gray-300); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 0.75rem; }
+    .copy-btn:hover { background: var(--primary-light); }
+  </style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="loader"></div><span style="color:var(--gray-500);font-size:0.85rem;">Cargando CRM...</span></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <img id="sidebarLogo" src="" alt="Logo" onerror="this.style.display='none'">
+    <span id="sidebarBrand">BeautyOS</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section">Principal</div>
+    <div class="nav-item active" data-page="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</div>
+
+    <div class="nav-section">CRM</div>
+    <div class="nav-item" data-page="leads"><i class="fas fa-user-plus"></i> Leads <span class="badge" id="leadsCount">0</span></div>
+    <div class="nav-item" data-page="clientes"><i class="fas fa-building"></i> Clientes <span class="badge" id="clientesAlertBadge" style="display:none;">0</span></div>
+    <div class="nav-item" data-page="novedades"><i class="fas fa-wrench"></i> Novedades <span class="badge" id="novedadesBadge" style="display:none;">0</span></div>
+
+    <div class="nav-section">Comercial</div>
+    <div class="nav-item" data-page="precios"><i class="fas fa-tags"></i> Precios</div>
+
+    <div class="nav-section">Configuracion</div>
+    <div class="nav-item" data-page="configuracion"><i class="fas fa-cog"></i> General</div>
+
+    <div class="nav-section">Landing</div>
+    <div class="nav-item" data-page="contenido"><i class="fas fa-palette"></i> Contenido</div>
+  </nav>
+</aside>
+
+<!-- Main -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
+      <h1 id="pageTitle">Dashboard</h1>
+    </div>
+    <div class="topbar-actions">
+      <a href="" id="btnViewLanding" target="_blank" class="btn btn-outline"><i class="fas fa-external-link"></i> Ver landing</a>
+      <button class="btn btn-primary" id="btnSaveAll" onclick="saveCurrentPage()"><i class="fas fa-save"></i> Guardar</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ═══ DASHBOARD ═══ -->
+    <div class="page" id="page-dashboard" style="display:block;">
+      <div id="billingAlerts"></div>
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div><div class="stat-value" id="totalLeads">0</div><div class="stat-label">Total leads</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-bolt"></i></div><div><div class="stat-value" id="leadsNuevos">0</div><div class="stat-label">Nuevos</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-building"></i></div><div><div class="stat-value" id="totalClientes">0</div><div class="stat-label">Clientes activos</div></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div><div><div class="stat-value" id="alertasPago">0</div><div class="stat-label">Alertas de pago</div></div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card">
+          <h3><i class="fas fa-clock"></i> Leads recientes</h3>
+          <table><thead><tr><th>Fecha</th><th>Negocio</th><th>Ciudad</th><th>Estado</th></tr></thead><tbody id="recentLeadsTable"></tbody></table>
+        </div>
+        <div class="card">
+          <h3><i class="fas fa-bell"></i> Facturacion proxima</h3>
+          <table><thead><tr><th>Negocio</th><th>Proximo cobro</th><th>Estado</th></tr></thead><tbody id="facturacionTable"></tbody></table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;">
+        <h3><i class="fas fa-link"></i> Tu landing page</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input class="form-control" id="landingUrlDash" readonly style="flex:1;">
+          <button class="btn btn-outline" onclick="copyUrl('landingUrlDash')"><i class="fas fa-copy"></i> Copiar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ LEADS ═══ -->
+    <div class="page" id="page-leads">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div><div class="stat-value" id="leadsTotalStat">0</div><div class="stat-label">Total</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-bolt"></i></div><div><div class="stat-value" id="leadsNuevosStat">0</div><div class="stat-label">Nuevos</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-phone"></i></div><div><div class="stat-value" id="leadsContactadosStat">0</div><div class="stat-label">Contactados</div></div></div>
+        <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-handshake"></i></div><div><div class="stat-value" id="leadsConvertidosStat">0</div><div class="stat-label">Convertidos</div></div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <h3 style="margin:0;"><i class="fas fa-list"></i> Todos los leads</h3>
+          <select class="form-control" id="filterEstado" onchange="filterLeads()" style="width:auto;">
+            <option value="">Todos</option>
+            <option value="NUEVO">Nuevos</option>
+            <option value="CONTACTADO">Contactados</option>
+            <option value="DEMO">Demo</option>
+            <option value="CLIENTE">Convertidos</option>
+            <option value="CERRADO">Cerrados</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>Fecha</th><th>Negocio</th><th>WhatsApp</th><th>Ciudad</th><th>Categoria</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allLeadsTable"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CLIENTES ═══ -->
+    <div class="page" id="page-clientes">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-building"></i></div><div><div class="stat-value" id="clientesTotalStat">0</div><div class="stat-label">Total activos</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="clientesVigentes">0</div><div class="stat-label">Vigentes</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-clock"></i></div><div><div class="stat-value" id="clientesPorVencer">0</div><div class="stat-label">Por vencer</div></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-exclamation-circle"></i></div><div><div class="stat-value" id="clientesVencidos">0</div><div class="stat-label">Vencidos</div></div></div>
+        <div class="stat-card" style="border-left:3px solid #7f1d1d;"><div class="stat-icon red"><i class="fas fa-ban"></i></div><div><div class="stat-value" id="clientesSuspendidos">0</div><div class="stat-label">Suspendidos</div></div></div>
+      </div>
+      <div id="clientesBillingAlerts"></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <h3 style="margin:0;"><i class="fas fa-building"></i> Clientes registrados</h3>
+          <button class="btn btn-primary" onclick="openNuevoClienteModal()"><i class="fas fa-plus"></i> Nuevo cliente</button>
+        </div>
+        <div class="search-bar"><i class="fas fa-search"></i><input class="form-control" id="searchClientes" placeholder="Buscar por nombre, WhatsApp, Sheet ID, Script ID..." oninput="filterClientes()"></div>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>ID</th><th>Negocio</th><th>WhatsApp</th><th>Plan</th><th>Prox. Cobro</th><th>Pago</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allClientesTable"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ NOVEDADES ═══ -->
+    <div class="page" id="page-novedades">
+      <div class="stat-grid">
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-fire"></i></div><div><div class="stat-value" id="novedadesNuevas">0</div><div class="stat-label">Nuevas</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-spinner"></i></div><div><div class="stat-value" id="novedadesEnProceso">0</div><div class="stat-label">En proceso</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="novedadesResueltas">0</div><div class="stat-label">Resueltas</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-list-check"></i></div><div><div class="stat-value" id="novedadesTotalStat">0</div><div class="stat-label">Total</div></div></div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <h3 style="margin:0;"><i class="fas fa-wrench"></i> Reportes tecnicos</h3>
+          <div style="display:flex;gap:8px;">
+            <select class="form-control" id="filterNovedadEstado" onchange="filterNovedades()" style="width:auto;">
+              <option value="">Todos</option>
+              <option value="NUEVO">Nuevos</option>
+              <option value="EN_PROCESO">En proceso</option>
+              <option value="RESUELTO">Resueltos</option>
+              <option value="CERRADO">Cerrados</option>
+            </select>
+            <select class="form-control" id="filterNovedadTipo" onchange="filterNovedades()" style="width:auto;">
+              <option value="">Todos los tipos</option>
+              <option value="Bot no responde">Bot no responde</option>
+              <option value="Error en citas">Error en citas</option>
+              <option value="Problema con pagos">Problema con pagos</option>
+              <option value="Error en CRM">Error en CRM</option>
+              <option value="Consulta tecnica">Consulta tecnica</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>ID</th><th>Fecha</th><th>Negocio</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="allNovedadesTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ PRECIOS ═══ -->
+    <div class="page" id="page-precios">
+      <div class="info-banner"><i class="fas fa-sync-alt"></i> Los precios se actualizan automaticamente en la landing page al guardar.</div>
+      <div class="tabs">
+        <div class="tab active" data-tab="tab-planes">Planes</div>
+        <div class="tab" data-tab="tab-condiciones">Condiciones</div>
+      </div>
+      <div class="tab-content active" id="tab-planes">
+        <div id="planesList"></div>
+        <button class="btn btn-outline" onclick="addRow('planes')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar plan</button>
+      </div>
+      <div class="tab-content" id="tab-condiciones">
+        <div id="condicionesList"></div>
+        <button class="btn btn-outline" onclick="addRow('condiciones')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar condicion</button>
+      </div>
+    </div>
+
+    <!-- ═══ CONFIGURACION ═══ -->
+    <div class="page" id="page-configuracion">
+      <div class="tabs">
+        <div class="tab active" data-tab="tab-crm-general">BeautyOS General</div>
+        <div class="tab" data-tab="tab-landing-link">Landing Page</div>
+        <div class="tab" data-tab="tab-landing-textos">Textos Landing</div>
+      </div>
+
+      <div class="tab-content active" id="tab-crm-general">
+        <div class="card">
+          <h3><i class="fas fa-cog"></i> Configuracion del CRM</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Telefono BeautyOS</label><input class="form-control config-field" data-key="BEAUTYOS_WHATSAPP" placeholder="300 123 4567"></div>
+            <div class="form-group"><label>Email alertas facturacion</label><input class="form-control config-field" data-key="EMAIL_ALERTAS_FACTURACION" placeholder="tu@email.com"></div>
+            <div class="form-group"><label>Dias anticipacion alerta cobro</label><input class="form-control config-field" data-key="DIAS_ALERTA_FACTURACION" type="number" placeholder="5"></div>
+            <div class="form-group"><label>Dias de gracia antes de suspension (default)</label><input class="form-control config-field" data-key="DIAS_GRACIA_DEFAULT" type="number" placeholder="15"></div>
+            <div class="form-group"><label>ChatGPT API Key (default)</label><input class="form-control config-field" data-key="CHATGPT_API_KEY_DEFAULT" type="password" placeholder="sk-..."></div>
+            <div class="form-group"><label>Modelo IA</label><input class="form-control config-field" data-key="IA_MODEL" placeholder="gpt-4o-mini"></div>
+          </div>
+          <div class="form-group" style="margin-top:8px;"><label>Mensaje de bienvenida por defecto</label><textarea class="form-control config-field" data-key="MENSAJE_BIENVENIDA_DEFAULT" rows="3" placeholder="Bienvenido a BeautyOS! Tu negocio {nombre_negocio} esta listo..."></textarea></div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-landing-link">
+        <div class="card">
+          <h3><i class="fas fa-link"></i> Link de tu landing page</h3>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+            <input class="form-control" id="landingUrlConfig" readonly style="flex:1;">
+            <button class="btn btn-outline" onclick="copyUrl('landingUrlConfig')"><i class="fas fa-copy"></i> Copiar</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-success" onclick="shareWhatsApp()"><i class="fab fa-whatsapp"></i> Compartir WhatsApp</button>
+            <button class="btn btn-outline" onclick="shareEmail()"><i class="fas fa-envelope"></i> Compartir Email</button>
+          </div>
+          <div style="margin-top:16px;text-align:center;">
+            <img id="qrImage" src="" alt="QR" style="max-width:200px;border:1px solid var(--gray-200);border-radius:8px;">
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <h3><i class="fas fa-palette"></i> Marca y apariencia</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Nombre del producto</label><input class="form-control config-field" data-key="NOMBRE_PRODUCTO"></div>
+            <div class="form-group"><label>Color primario</label><input class="form-control config-field" data-key="COLOR_PRIMARIO" type="color"></div>
+            <div class="form-group"><label>Color secundario</label><input class="form-control config-field" data-key="COLOR_SECUNDARIO" type="color"></div>
+            <div class="form-group"><label>URL del logo</label><input class="form-control config-field" data-key="LOGO_URL"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-landing-textos">
+        <div class="card">
+          <h3><i class="fas fa-heading"></i> Textos de la landing</h3>
+          <div class="form-grid">
+            <div class="form-group"><label>Hero titulo</label><input class="form-control config-field" data-key="HERO_TITULO"></div>
+            <div class="form-group"><label>Hero subtitulo</label><input class="form-control config-field" data-key="HERO_SUBTITULO"></div>
+            <div class="form-group"><label>Dolor titulo</label><input class="form-control config-field" data-key="DOLOR_TITULO"></div>
+            <div class="form-group"><label>Dolor subtitulo</label><input class="form-control config-field" data-key="DOLOR_SUBTITULO"></div>
+            <div class="form-group"><label>Solucion titulo</label><input class="form-control config-field" data-key="SOLUCION_TITULO"></div>
+            <div class="form-group"><label>CTA titulo</label><input class="form-control config-field" data-key="CTA_TITULO"></div>
+            <div class="form-group"><label>CTA descripcion</label><input class="form-control config-field" data-key="CTA_DESC"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CONTENIDO ═══ -->
+    <div class="page" id="page-contenido">
+      <div class="tabs">
+        <div class="tab active" data-tab="tab-dolores">Puntos de dolor</div>
+        <div class="tab" data-tab="tab-funcionalidades">Funcionalidades</div>
+        <div class="tab" data-tab="tab-faq">FAQ</div>
+        <div class="tab" data-tab="tab-testimonios">Testimonios</div>
+      </div>
+      <div class="tab-content active" id="tab-dolores">
+        <div id="doloresList"></div>
+        <button class="btn btn-outline" onclick="addRow('dolores')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar</button>
+      </div>
+      <div class="tab-content" id="tab-funcionalidades">
+        <div id="funcionalidadesList"></div>
+        <button class="btn btn-outline" onclick="addRow('funcionalidades')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar</button>
+      </div>
+      <div class="tab-content" id="tab-faq">
+        <div id="faqList"></div>
+        <button class="btn btn-outline" onclick="addRow('faq')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar</button>
+      </div>
+      <div class="tab-content" id="tab-testimonios">
+        <div id="testimoniosList"></div>
+        <button class="btn btn-outline" onclick="addRow('testimonios')" style="margin-top:8px;"><i class="fas fa-plus"></i> Agregar</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal Lead -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal">
+    <h3><i class="fas fa-user-pen"></i> Gestionar Lead</h3>
+    <input type="hidden" id="modalLeadRow">
+    <div class="form-group"><label>Estado</label>
+      <select class="form-control" id="modalEstado">
+        <option value="NUEVO">Nuevo</option><option value="CONTACTADO">Contactado</option>
+        <option value="DEMO">Demo agendada</option><option value="CERRADO">Cerrado</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Asignado a</label><input class="form-control" id="modalAsignado" placeholder="Nombre"></div>
+    <div class="form-group"><label>Notas</label><textarea class="form-control" id="modalNotas" rows="3"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('leadModal')">Cancelar</button>
+      <button class="btn btn-accent" id="btnConvertLead" onclick="openConvertModal()" style="display:none;"><i class="fas fa-user-check"></i> Convertir a cliente</button>
+      <button class="btn btn-primary" onclick="saveLeadModal()"><i class="fas fa-save"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Convertir Lead a Cliente -->
+<div class="modal-overlay" id="convertModal">
+  <div class="modal">
+    <h3><i class="fas fa-user-check"></i> Convertir lead a cliente</h3>
+    <input type="hidden" id="convertLeadRow">
+    <div class="form-grid">
+      <div class="form-group"><label>Plan</label>
+        <select class="form-control" id="convertPlan"></select>
+      </div>
+      <div class="form-group"><label>Periodo facturacion</label>
+        <select class="form-control" id="convertPeriodo"><option value="Mensual">Mensual</option><option value="Anual">Anual</option></select>
+      </div>
+      <div class="form-group"><label>Fecha inicio facturacion</label><input class="form-control" type="date" id="convertFechaInicio"></div>
+      <div class="form-group"><label>Sheet ID</label><input class="form-control" id="convertSheetId" placeholder="ID de la hoja de Google Sheets"></div>
+      <div class="form-group"><label>Script ID</label><input class="form-control" id="convertScriptId" placeholder="ID del proyecto Apps Script"></div>
+      <div class="form-group"><label>ChatGPT API Key</label><input class="form-control" id="convertApiKey" placeholder="sk-... (opcional, usa default si vacio)"></div>
+      <div class="form-group"><label>Telefono BeautyOS asignado</label><input class="form-control" id="convertTelefono" placeholder="300 123 4567"></div>
+    </div>
+    <div class="form-group"><label>Mensaje de bienvenida</label><textarea class="form-control" id="convertMensaje" rows="2"></textarea></div>
+    <div class="form-group"><label>Notas tecnicas</label><textarea class="form-control" id="convertNotas" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('convertModal')">Cancelar</button>
+      <button class="btn btn-success" onclick="executeConversion()"><i class="fas fa-check"></i> Crear cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cliente -->
+<div class="modal-overlay" id="clienteModal">
+  <div class="modal" style="max-width:620px;">
+    <h3><i class="fas fa-building"></i> Detalle del cliente</h3>
+    <input type="hidden" id="clienteRow">
+    <div class="tabs" style="margin-top:0;">
+      <div class="tab active" data-tab="clienteTab-facturacion">Facturacion</div>
+      <div class="tab" data-tab="clienteTab-pagos">Historial Pagos</div>
+      <div class="tab" data-tab="clienteTab-tecnico">Config. Tecnica</div>
+    </div>
+    <div class="tab-content active" id="clienteTab-facturacion">
+      <div id="cliAlertBanner"></div>
+      <div class="form-grid">
+        <div class="form-group"><label>Plan activo</label>
+          <select class="form-control cli-field" data-key="PLAN_ACTIVO" id="cliPlan"></select>
+        </div>
+        <div class="form-group"><label>Periodo</label>
+          <select class="form-control cli-field" data-key="PERIODO_FACTURACION" id="cliPeriodo">
+            <option value="Mensual">Mensual</option><option value="Anual">Anual</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Precio</label><input class="form-control cli-field" data-key="PRECIO_MENSUAL" id="cliPrecio" type="number"></div>
+        <div class="form-group"><label>Fecha inicio</label><input class="form-control cli-field" data-key="FECHA_INICIO_FACTURACION" id="cliFechaInicio" type="date"></div>
+        <div class="form-group"><label>Proximo cobro</label><input class="form-control cli-field" data-key="FECHA_PROXIMO_COBRO" id="cliProxCobro" type="date"></div>
+        <div class="form-group"><label>Estado pago</label>
+          <select class="form-control cli-field" data-key="ESTADO_PAGO" id="cliEstadoPago">
+            <option value="VIGENTE">VIGENTE</option><option value="POR_VENCER">POR VENCER</option><option value="VENCIDO">VENCIDO</option><option value="SUSPENDIDO">SUSPENDIDO</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Dias gracia (antes de suspension)</label><input class="form-control cli-field" data-key="DIAS_GRACIA" id="cliDiasGracia" type="number" min="1" placeholder="15"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn btn-success" onclick="renovar('Mensual')"><i class="fas fa-redo"></i> Renovar +1 mes</button>
+        <button class="btn btn-primary" onclick="renovar('Anual')"><i class="fas fa-redo"></i> Renovar +1 ano</button>
+      </div>
+    </div>
+    <!-- ─── Historial de pagos ─── -->
+    <div class="tab-content" id="clienteTab-pagos">
+      <div class="card" style="margin-bottom:12px;">
+        <h3 style="font-size:0.9rem;"><i class="fas fa-plus-circle"></i> Registrar pago</h3>
+        <div class="form-grid">
+          <div class="form-group"><label>Monto</label><input class="form-control" id="pagoMonto" type="number" placeholder="0"></div>
+          <div class="form-group"><label>Periodo cubierto</label><input class="form-control" id="pagoPeriodo" placeholder="Mar 2026"></div>
+          <div class="form-group"><label>Metodo de pago</label>
+            <select class="form-control" id="pagoMetodo">
+              <option value="Transferencia">Transferencia</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Nequi">Nequi</option>
+              <option value="Daviplata">Daviplata</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group"><label>Soporte de pago (imagen/PDF)</label><input type="file" class="form-control" id="pagoSoporte" accept="image/*,.pdf" style="padding:6px;"></div>
+        <div class="form-group"><label>Notas</label><input class="form-control" id="pagoNotas" placeholder="Observaciones..."></div>
+        <button class="btn btn-success" onclick="registrarPagoUI()"><i class="fas fa-check"></i> Registrar pago</button>
+      </div>
+      <h3 style="font-size:0.9rem;margin-bottom:8px;"><i class="fas fa-history"></i> Pagos anteriores</h3>
+      <div style="overflow-x:auto;">
+        <table><thead><tr><th>Fecha</th><th>Monto</th><th>Periodo</th><th>Metodo</th><th>Soporte</th><th>Notas</th></tr></thead><tbody id="pagosHistorial"></tbody></table>
+      </div>
+    </div>
+    <div class="tab-content" id="clienteTab-tecnico">
+      <div class="form-grid">
+        <div class="form-group"><label>Sheet ID</label><div style="display:flex;gap:4px;"><input class="form-control cli-field" data-key="SHEET_ID" id="cliSheetId"><button class="copy-btn" onclick="copyField('cliSheetId')"><i class="fas fa-copy"></i></button></div></div>
+        <div class="form-group"><label>Script ID</label><div style="display:flex;gap:4px;"><input class="form-control cli-field" data-key="SCRIPT_ID" id="cliScriptId"><button class="copy-btn" onclick="copyField('cliScriptId')"><i class="fas fa-copy"></i></button></div></div>
+        <div class="form-group"><label>ChatGPT API Key</label><div style="display:flex;gap:4px;"><input class="form-control cli-field" data-key="CHATGPT_API_KEY" id="cliApiKey" type="password"><button class="copy-btn" onclick="togglePass('cliApiKey')"><i class="fas fa-eye"></i></button></div></div>
+        <div class="form-group"><label>Telefono BeautyOS</label><input class="form-control cli-field" data-key="TELEFONO_BEAUTYOS" id="cliTelefono"></div>
+      </div>
+      <div class="form-group"><label>Mensaje bienvenida</label><textarea class="form-control cli-field" data-key="MENSAJE_BIENVENIDA" id="cliMensaje" rows="2"></textarea></div>
+      <div class="form-group"><label>Notas tecnicas</label><textarea class="form-control cli-field" data-key="NOTAS_TECNICAS" id="cliNotasTec" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('clienteModal')">Cerrar</button>
+      <button class="btn btn-primary" onclick="saveCliente()"><i class="fas fa-save"></i> Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Nuevo Cliente (creacion directa) -->
+<div class="modal-overlay" id="nuevoClienteModal">
+  <div class="modal" style="max-width:620px;">
+    <h3><i class="fas fa-user-plus"></i> Nuevo cliente</h3>
+    <div class="tabs" style="margin-top:0;">
+      <div class="tab active" data-tab="ncTab-info">Datos del negocio</div>
+      <div class="tab" data-tab="ncTab-facturacion">Facturacion</div>
+      <div class="tab" data-tab="ncTab-tecnico">Config. Tecnica</div>
+    </div>
+    <div class="tab-content active" id="ncTab-info">
+      <div class="form-grid">
+        <div class="form-group"><label>Nombre del negocio *</label><input class="form-control" id="ncNombre" placeholder="Salon Glamour"></div>
+        <div class="form-group"><label>WhatsApp *</label><input class="form-control" id="ncWhatsapp" placeholder="300 123 4567"></div>
+        <div class="form-group"><label>Email</label><input class="form-control" id="ncEmail" type="email" placeholder="negocio@email.com"></div>
+        <div class="form-group"><label>Ciudad</label><input class="form-control" id="ncCiudad" placeholder="Bogota"></div>
+        <div class="form-group"><label>Cantidad empleados</label>
+          <select class="form-control" id="ncEmpleados">
+            <option value="Solo yo">Solo yo</option>
+            <option value="2 a 5">2 a 5</option>
+            <option value="6 a 10">6 a 10</option>
+            <option value="11 o mas">11 o mas</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="tab-content" id="ncTab-facturacion">
+      <div class="form-grid">
+        <div class="form-group"><label>Plan</label>
+          <select class="form-control" id="ncPlan"></select>
+        </div>
+        <div class="form-group"><label>Periodo facturacion</label>
+          <select class="form-control" id="ncPeriodo"><option value="Mensual">Mensual</option><option value="Anual">Anual</option></select>
+        </div>
+        <div class="form-group"><label>Fecha inicio facturacion</label><input class="form-control" type="date" id="ncFechaInicio"></div>
+      </div>
+    </div>
+    <div class="tab-content" id="ncTab-tecnico">
+      <div class="form-grid">
+        <div class="form-group"><label>Sheet ID</label><input class="form-control" id="ncSheetId" placeholder="ID de la hoja de Google Sheets"></div>
+        <div class="form-group"><label>Script ID</label><input class="form-control" id="ncScriptId" placeholder="ID del proyecto Apps Script"></div>
+        <div class="form-group"><label>ChatGPT API Key</label><input class="form-control" id="ncApiKey" placeholder="sk-... (opcional)"></div>
+        <div class="form-group"><label>Telefono BeautyOS</label><input class="form-control" id="ncTelefono" placeholder="300 123 4567"></div>
+      </div>
+      <div class="form-group"><label>Mensaje de bienvenida</label><textarea class="form-control" id="ncMensaje" rows="2"></textarea></div>
+      <div class="form-group"><label>Notas tecnicas</label><textarea class="form-control" id="ncNotas" rows="2"></textarea></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('nuevoClienteModal')">Cancelar</button>
+      <button class="btn btn-success" onclick="crearClienteDirecto()"><i class="fas fa-check"></i> Crear cliente</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Novedad -->
+<div class="modal-overlay" id="novedadModal">
+  <div class="modal" style="max-width:560px;">
+    <h3><i class="fas fa-wrench"></i> Gestionar novedad</h3>
+    <input type="hidden" id="novedadRow">
+    <div style="padding:12px;background:var(--gray-50);border-radius:8px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.82rem;">
+        <div><strong>ID:</strong> <span id="novId">-</span></div>
+        <div><strong>Fecha:</strong> <span id="novFecha">-</span></div>
+        <div><strong>Negocio:</strong> <span id="novNegocio">-</span></div>
+        <div><strong>WhatsApp:</strong> <span id="novWhatsapp">-</span></div>
+        <div><strong>Tipo:</strong> <span id="novTipo">-</span></div>
+        <div><strong>Prioridad:</strong> <span id="novPrioridad">-</span></div>
+      </div>
+      <div style="margin-top:8px;font-size:0.82rem;"><strong>Descripcion:</strong><p id="novDescripcion" style="margin:4px 0 0;color:var(--gray-700);"></p></div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label>Estado</label>
+        <select class="form-control" id="novEstado">
+          <option value="NUEVO">Nuevo</option>
+          <option value="EN_PROCESO">En proceso</option>
+          <option value="RESUELTO">Resuelto</option>
+          <option value="CERRADO">Cerrado</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Asignado a</label><input class="form-control" id="novAsignado" placeholder="Nombre del tecnico"></div>
+    </div>
+    <div class="form-group"><label>Notas de resolucion</label><textarea class="form-control" id="novNotasResolucion" rows="3" placeholder="Describe la solucion aplicada..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('novedadModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNovedadModal()"><i class="fas fa-save"></i> Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ─── Estado global ───
+var DATA = {};
+var LANDING_URL = '';
+var currentPage = 'dashboard';
+
+// ─── Init ───
+(function() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      try {
+        DATA = result.data || {};
+        LANDING_URL = result.landingUrl || '';
+        renderAll();
+      } catch(e) {
+        toast('Error renderizando: ' + e.message, 'error');
+        console.error(e);
+      }
+      document.getElementById('loadingOverlay').classList.add('hide');
+    })
+    .withFailureHandler(function(err) {
+      toast('Error cargando datos: ' + (err && err.message ? err.message : String(err)), 'error');
+      document.getElementById('loadingOverlay').classList.add('hide');
+    })
+    .getPanelData();
+})();
+
+// ─── Navegacion ───
+document.querySelectorAll('.nav-item[data-page]').forEach(function(item) {
+  item.addEventListener('click', function() { navigateTo(this.dataset.page); });
+});
+
+function navigateTo(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+  var navItem = document.querySelector('.nav-item[data-page="' + page + '"]');
+  if (navItem) navItem.classList.add('active');
+  document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
+  var pageEl = document.getElementById('page-' + page);
+  if (pageEl) pageEl.style.display = 'block';
+  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
+  document.getElementById('pageTitle').textContent = titles[page] || page;
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+// ─── Tabs ───
+document.addEventListener('click', function(e) {
+  if (!e.target.classList.contains('tab')) return;
+  var tabId = e.target.dataset.tab;
+  var parent = e.target.closest('.page') || e.target.closest('.modal');
+  if (!parent) return;
+  parent.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  parent.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+  e.target.classList.add('active');
+  var content = parent.querySelector('#' + tabId);
+  if (content) content.classList.add('active');
+});
+
+// ═══════════════════════════════════════════════
+// ─── RENDER ALL ───
+// ═══════════════════════════════════════════════
+function renderAll() {
+  // URLs
+  var urlFields = ['landingUrlDash', 'landingUrlConfig'];
+  urlFields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = LANDING_URL; });
+  var viewBtn = document.getElementById('btnViewLanding');
+  if (viewBtn) viewBtn.href = LANDING_URL;
+  if (LANDING_URL) {
+    var qr = document.getElementById('qrImage');
+    if (qr) qr.src = 'https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=' + encodeURIComponent(LANDING_URL);
+  }
+
+  renderConfig();
+  renderLeads();
+  renderClientes();
+  renderNovedades();
+  renderContentList('dolores', DATA.dolores || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
+  renderContentList('funcionalidades', DATA.funcionalidades || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
+  renderContentList('faq', DATA.faq || [], ['PREGUNTA', 'RESPUESTA']);
+  renderContentList('testimonios', DATA.testimonios || [], ['NOMBRE', 'ROL', 'TEXTO', 'ESTRELLAS']);
+  renderPlanes();
+  renderCondiciones();
+
+  // Sidebar branding
+  var config = DATA.config || {};
+  if (config.LOGO_URL) document.getElementById('sidebarLogo').src = convertDriveUrl(config.LOGO_URL);
+  if (config.NOMBRE_PRODUCTO) document.getElementById('sidebarBrand').textContent = config.NOMBRE_PRODUCTO;
+}
+
+// ─── Config Landing ───
+function renderConfig() {
+  var config = DATA.config || {};
+  document.querySelectorAll('.config-field').forEach(function(f) {
+    if (config[f.dataset.key] !== undefined) f.value = config[f.dataset.key];
+  });
+}
+
+
+// ═══════════════════════════════════════════════
+// ─── LEADS ───
+// ═══════════════════════════════════════════════
+function renderLeads() {
+  var leads = DATA.leads || [];
+  var total = leads.length;
+  var nuevos = leads.filter(function(l) { return l.ESTADO === 'NUEVO' || !l.ESTADO; }).length;
+  var contactados = leads.filter(function(l) { return l.ESTADO === 'CONTACTADO' || l.ESTADO === 'DEMO'; }).length;
+  var convertidos = leads.filter(function(l) { return l.ESTADO === 'CLIENTE'; }).length;
+
+  setText('totalLeads', total); setText('leadsNuevos', nuevos);
+  setText('leadsTotalStat', total); setText('leadsNuevosStat', nuevos);
+  setText('leadsContactadosStat', contactados); setText('leadsConvertidosStat', convertidos);
+  setText('leadsCount', nuevos);
+
+  // Recent (dashboard)
+  var recent = leads.slice(-5).reverse();
+  var tbody = document.getElementById('recentLeadsTable');
+  if (!recent.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="fas fa-inbox"></i><p>Aun no hay leads</p></td></tr>';
+  } else {
+    tbody.innerHTML = recent.map(function(l) {
+      return '<tr><td>' + formatDate(l.FECHA) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td><td>' + esc(l.CIUDAD) + '</td><td>' + statusBadge(l.ESTADO) + '</td></tr>';
+    }).join('');
+  }
+
+  renderAllLeads(leads);
+}
+
+function renderAllLeads(leads) {
+  var filter = document.getElementById('filterEstado').value;
+  var filtered = filter ? leads.filter(function(l) { return l.ESTADO === filter || (!l.ESTADO && filter === 'NUEVO'); }) : leads;
+  filtered = filtered.slice().reverse();
+
+  var tbody = document.getElementById('allLeadsTable');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay leads</td></tr>'; return; }
+  tbody.innerHTML = filtered.map(function(l) {
+    var row = l._rowNum || 2;
+    return '<tr><td>' + formatDate(l.FECHA) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
+      + '<td><a href="https://wa.me/57' + (l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
+      + '<td>' + esc(l.CIUDAD) + '</td><td>' + esc(l.CATEGORIA) + '</td>'
+      + '<td>' + statusBadge(l.ESTADO) + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')"><i class="fas fa-pen"></i></button></td></tr>';
+  }).join('');
+}
+
+function filterLeads() { renderAllLeads(DATA.leads || []); }
+
+function openLeadModal(rowNum, estado) {
+  document.getElementById('modalLeadRow').value = rowNum;
+  document.getElementById('modalEstado').value = estado;
+  document.getElementById('modalAsignado').value = '';
+  document.getElementById('modalNotas').value = '';
+  // Mostrar boton convertir si es CONTACTADO o DEMO
+  var btn = document.getElementById('btnConvertLead');
+  btn.style.display = (estado === 'CONTACTADO' || estado === 'DEMO') ? '' : 'none';
+  document.getElementById('leadModal').classList.add('open');
+}
+
+function saveLeadModal() {
+  var row = Number(document.getElementById('modalLeadRow').value);
+  var estado = document.getElementById('modalEstado').value;
+  var asignado = document.getElementById('modalAsignado').value;
+  var notas = document.getElementById('modalNotas').value;
+  closeModal('leadModal');
+  toast('Guardando...', 'success');
+  google.script.run.withSuccessHandler(function() { toast('Lead actualizado', 'success'); refreshData(); })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .updateLead(row, estado, asignado, notas);
+}
+
+// ═══════════════════════════════════════════════
+// ─── CONVERSION LEAD → CLIENTE ───
+// ═══════════════════════════════════════════════
+function openConvertModal() {
+  closeModal('leadModal');
+  var row = document.getElementById('modalLeadRow').value;
+  document.getElementById('convertLeadRow').value = row;
+  // Llenar select de planes
+  var sel = document.getElementById('convertPlan');
+  sel.innerHTML = (DATA.planes || []).map(function(p) { return '<option value="' + esc(p.ID) + '">' + esc(p.NOMBRE) + '</option>'; }).join('');
+  // Fecha inicio = hoy
+  document.getElementById('convertFechaInicio').value = new Date().toISOString().split('T')[0];
+  // Mensaje default
+  var config = DATA.config || {};
+  document.getElementById('convertMensaje').value = config.MENSAJE_BIENVENIDA_DEFAULT || '';
+  document.getElementById('convertTelefono').value = config.BEAUTYOS_WHATSAPP || '';
+  document.getElementById('convertModal').classList.add('open');
+}
+
+function executeConversion() {
+  var row = Number(document.getElementById('convertLeadRow').value);
+  var clienteData = {
+    planActivo: document.getElementById('convertPlan').value,
+    periodoFacturacion: document.getElementById('convertPeriodo').value,
+    fechaInicioFacturacion: document.getElementById('convertFechaInicio').value,
+    sheetId: document.getElementById('convertSheetId').value,
+    scriptId: document.getElementById('convertScriptId').value,
+    chatgptApiKey: document.getElementById('convertApiKey').value,
+    telefonoBeautyos: document.getElementById('convertTelefono').value,
+    mensajeBienvenida: document.getElementById('convertMensaje').value,
+    notasTecnicas: document.getElementById('convertNotas').value
+  };
+  closeModal('convertModal');
+  toast('Creando cliente...', 'success');
+  google.script.run.withSuccessHandler(function(r) {
+    toast('Cliente creado: ' + (r.idCliente || ''), 'success');
+    refreshData();
+  }).withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .convertLeadToCliente(row, clienteData);
+}
+
+// ═══════════════════════════════════════════════
+// ─── CLIENTES ───
+// ═══════════════════════════════════════════════
+function renderClientes() {
+  var activos = (DATA.clientes || []).filter(function(c) { return c.ESTADO === 'ACTIVO'; });
+  var vigentes = activos.filter(function(c) { return c.ESTADO_PAGO === 'VIGENTE'; }).length;
+  var porVencer = activos.filter(function(c) { return c.ESTADO_PAGO === 'POR_VENCER'; }).length;
+  var vencidos = activos.filter(function(c) { return c.ESTADO_PAGO === 'VENCIDO'; }).length;
+  var suspendidos = (DATA.clientes || []).filter(function(c) { return c.ESTADO_PAGO === 'SUSPENDIDO' || c.ESTADO === 'SUSPENDIDO'; }).length;
+  var totalAlertas = porVencer + vencidos + suspendidos;
+
+  setText('totalClientes', activos.length); setText('clientesTotalStat', activos.length);
+  setText('clientesVigentes', vigentes); setText('clientesPorVencer', porVencer);
+  setText('clientesVencidos', vencidos); setText('clientesSuspendidos', suspendidos);
+  setText('alertasPago', totalAlertas);
+
+  // Badge en sidebar
+  var alertBadge = document.getElementById('clientesAlertBadge');
+  if (totalAlertas > 0) { alertBadge.textContent = totalAlertas; alertBadge.style.display = ''; }
+  else { alertBadge.style.display = 'none'; }
+
+  // Alertas de facturacion en dashboard
+  var dashAlerts = document.getElementById('billingAlerts');
+  var alertHtml = '';
+  if (suspendidos > 0) alertHtml += '<div class="billing-alert suspended"><i class="fas fa-ban"></i> <strong>' + suspendidos + ' cliente(s) SUSPENDIDO(S)</strong> — superaron el periodo de gracia sin pago</div>';
+  if (vencidos > 0) alertHtml += '<div class="billing-alert danger"><i class="fas fa-exclamation-triangle"></i> <strong>' + vencidos + ' cliente(s) VENCIDO(S)</strong> — requieren atencion inmediata</div>';
+  if (porVencer > 0) alertHtml += '<div class="billing-alert warning"><i class="fas fa-clock"></i> <strong>' + porVencer + ' cliente(s) POR VENCER</strong> — cobro proximo a vencerse</div>';
+  dashAlerts.innerHTML = alertHtml;
+
+  // Alertas en seccion clientes
+  var cliAlerts = document.getElementById('clientesBillingAlerts');
+  var cliAlertHtml = '';
+  var vencidosList = (DATA.clientes || []).filter(function(c) { return c.ESTADO_PAGO === 'VENCIDO'; });
+  var suspList = (DATA.clientes || []).filter(function(c) { return c.ESTADO_PAGO === 'SUSPENDIDO'; });
+  suspList.forEach(function(c) { cliAlertHtml += '<div class="billing-alert suspended"><i class="fas fa-ban"></i> <strong>' + esc(c.NOMBRE_NEGOCIO) + '</strong> — SUSPENDIDO (' + (c._diasMora || 0) + ' dias mora)</div>'; });
+  vencidosList.forEach(function(c) { cliAlertHtml += '<div class="billing-alert danger"><i class="fas fa-exclamation-triangle"></i> <strong>' + esc(c.NOMBRE_NEGOCIO) + '</strong> — VENCIDO (' + (c._diasMora || 0) + ' dias mora)</div>'; });
+  cliAlerts.innerHTML = cliAlertHtml;
+
+  renderClientesTable(DATA.clientes || []);
+
+  // Facturacion proxima (dashboard)
+  var alertas = (DATA.clientes || []).filter(function(c) { return c.ESTADO === 'ACTIVO' && c.ESTADO_PAGO !== 'VIGENTE'; });
+  var ftbody = document.getElementById('facturacionTable');
+  if (!alertas.length) {
+    ftbody.innerHTML = '<tr><td colspan="3" class="empty-state">Sin alertas</td></tr>';
+  } else {
+    ftbody.innerHTML = alertas.map(function(c) {
+      return '<tr><td>' + esc(c.NOMBRE_NEGOCIO) + '</td><td>' + formatDate(c.FECHA_PROXIMO_COBRO) + '</td><td>' + pagoStatusBadge(c.ESTADO_PAGO, c._diasMora, c._diasParaVencer) + '</td></tr>';
+    }).join('');
+  }
+}
+
+function renderClientesTable(clientes) {
+  var tbody = document.getElementById('allClientesTable');
+  if (!clientes.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay clientes registrados</td></tr>'; return; }
+  tbody.innerHTML = clientes.map(function(c) {
+    var row = c._rowNum || 2;
+    var rowClass = '';
+    if (c.ESTADO_PAGO === 'SUSPENDIDO') rowClass = 'row-suspendido';
+    else if (c.ESTADO_PAGO === 'VENCIDO') rowClass = 'row-vencido';
+    else if (c.ESTADO_PAGO === 'POR_VENCER') rowClass = 'row-por_vencer';
+    return '<tr class="' + rowClass + '"><td><small>' + esc(c.ID_CLIENTE) + '</small></td><td><strong>' + esc(c.NOMBRE_NEGOCIO) + '</strong></td>'
+      + '<td><a href="https://wa.me/57' + (c.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(c.WHATSAPP) + '</a></td>'
+      + '<td>' + esc(c.PLAN_ACTIVO) + '</td>'
+      + '<td>' + formatDate(c.FECHA_PROXIMO_COBRO) + '</td>'
+      + '<td>' + pagoStatusBadge(c.ESTADO_PAGO, c._diasMora, c._diasParaVencer) + '</td>'
+      + '<td>' + statusBadgeGeneric(c.ESTADO, 'activo') + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="openClienteModal(' + row + ')"><i class="fas fa-pen"></i></button></td></tr>';
+  }).join('');
+}
+
+function filterClientes() {
+  var q = document.getElementById('searchClientes').value.toLowerCase();
+  var all = DATA.clientes || [];
+  if (!q) { renderClientesTable(all); return; }
+  var filtered = all.filter(function(c) {
+    return (c.NOMBRE_NEGOCIO || '').toLowerCase().indexOf(q) >= 0 ||
+           (c.WHATSAPP || '').toLowerCase().indexOf(q) >= 0 ||
+           (c.SHEET_ID || '').toLowerCase().indexOf(q) >= 0 ||
+           (c.SCRIPT_ID || '').toLowerCase().indexOf(q) >= 0 ||
+           (c.ID_CLIENTE || '').toLowerCase().indexOf(q) >= 0;
+  });
+  renderClientesTable(filtered);
+}
+
+// ─── Crear cliente directamente (sin pasar por lead) ───
+function openNuevoClienteModal() {
+  // Llenar select de planes
+  var sel = document.getElementById('ncPlan');
+  sel.innerHTML = (DATA.planes || []).map(function(p) { return '<option value="' + esc(p.ID) + '">' + esc(p.NOMBRE) + '</option>'; }).join('');
+  // Defaults desde config
+  var config = DATA.config || {};
+  document.getElementById('ncFechaInicio').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ncMensaje').value = config.MENSAJE_BIENVENIDA_DEFAULT || '';
+  document.getElementById('ncTelefono').value = config.BEAUTYOS_WHATSAPP || '';
+  // Limpiar campos
+  ['ncNombre','ncWhatsapp','ncEmail','ncCiudad','ncSheetId','ncScriptId','ncApiKey','ncNotas'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('ncEmpleados').value = 'Solo yo';
+  document.getElementById('ncPeriodo').value = 'Mensual';
+  document.getElementById('nuevoClienteModal').classList.add('open');
+}
+
+function crearClienteDirecto() {
+  var nombre = document.getElementById('ncNombre').value.trim();
+  var whatsapp = document.getElementById('ncWhatsapp').value.trim();
+  if (!nombre) { toast('El nombre del negocio es obligatorio', 'error'); return; }
+  if (!whatsapp) { toast('El WhatsApp es obligatorio', 'error'); return; }
+
+  var data = {
+    nombreNegocio: nombre,
+    whatsapp: whatsapp,
+    email: document.getElementById('ncEmail').value.trim(),
+    ciudad: document.getElementById('ncCiudad').value.trim(),
+    cantidadEmpleados: document.getElementById('ncEmpleados').value,
+    planActivo: document.getElementById('ncPlan').value,
+    periodoFacturacion: document.getElementById('ncPeriodo').value,
+    fechaInicioFacturacion: document.getElementById('ncFechaInicio').value,
+    sheetId: document.getElementById('ncSheetId').value.trim(),
+    scriptId: document.getElementById('ncScriptId').value.trim(),
+    chatgptApiKey: document.getElementById('ncApiKey').value.trim(),
+    telefonoBeautyos: document.getElementById('ncTelefono').value.trim(),
+    mensajeBienvenida: document.getElementById('ncMensaje').value.trim(),
+    notasTecnicas: document.getElementById('ncNotas').value.trim()
+  };
+
+  closeModal('nuevoClienteModal');
+  toast('Creando cliente...', 'success');
+  google.script.run
+    .withSuccessHandler(function(r) { toast('Cliente creado: ' + (r.idCliente || ''), 'success'); refreshData(); })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .crearClienteDirecto(data);
+}
+
+function openClienteModal(rowNum) {
+  var cliente = (DATA.clientes || []).find(function(c) { return c._rowNum === rowNum; });
+  if (!cliente) { toast('Cliente no encontrado', 'error'); return; }
+  document.getElementById('clienteRow').value = rowNum;
+  // Llenar select de planes
+  var sel = document.getElementById('cliPlan');
+  sel.innerHTML = (DATA.planes || []).map(function(p) { return '<option value="' + esc(p.ID) + '">' + esc(p.NOMBRE) + '</option>'; }).join('');
+  sel.value = cliente.PLAN_ACTIVO || '';
+  document.getElementById('cliPeriodo').value = cliente.PERIODO_FACTURACION || 'Mensual';
+  document.getElementById('cliPrecio').value = cliente.PRECIO_MENSUAL || '';
+  document.getElementById('cliFechaInicio').value = toDateInput(cliente.FECHA_INICIO_FACTURACION);
+  document.getElementById('cliProxCobro').value = toDateInput(cliente.FECHA_PROXIMO_COBRO);
+  document.getElementById('cliEstadoPago').value = cliente.ESTADO_PAGO || 'VIGENTE';
+  document.getElementById('cliSheetId').value = cliente.SHEET_ID || '';
+  document.getElementById('cliScriptId').value = cliente.SCRIPT_ID || '';
+  document.getElementById('cliApiKey').value = cliente.CHATGPT_API_KEY || '';
+  document.getElementById('cliTelefono').value = cliente.TELEFONO_BEAUTYOS || '';
+  document.getElementById('cliMensaje').value = cliente.MENSAJE_BIENVENIDA || '';
+  document.getElementById('cliNotasTec').value = cliente.NOTAS_TECNICAS || '';
+  document.getElementById('cliDiasGracia').value = cliente.DIAS_GRACIA || '15';
+
+  // Alert banner dentro del modal
+  var alertDiv = document.getElementById('cliAlertBanner');
+  alertDiv.innerHTML = '';
+  if (cliente.ESTADO_PAGO === 'SUSPENDIDO') {
+    alertDiv.innerHTML = '<div class="billing-alert suspended" style="margin-bottom:12px;"><i class="fas fa-ban"></i> <strong>SUSPENDIDO</strong> — ' + (cliente._diasMora || 0) + ' dias de mora. Registre un pago para reactivar.</div>';
+  } else if (cliente.ESTADO_PAGO === 'VENCIDO') {
+    alertDiv.innerHTML = '<div class="billing-alert danger" style="margin-bottom:12px;"><i class="fas fa-exclamation-triangle"></i> <strong>VENCIDO</strong> — ' + (cliente._diasMora || 0) + ' dias de mora. Gracia: ' + (cliente.DIAS_GRACIA || 15) + ' dias.</div>';
+  } else if (cliente.ESTADO_PAGO === 'POR_VENCER') {
+    alertDiv.innerHTML = '<div class="billing-alert warning" style="margin-bottom:12px;"><i class="fas fa-clock"></i> <strong>POR VENCER</strong> — vence en ' + (cliente._diasParaVencer || 0) + ' dias.</div>';
+  }
+
+  // Limpiar formulario de pago
+  ['pagoMonto','pagoPeriodo','pagoNotas'].forEach(function(id) { document.getElementById(id).value = ''; });
+  document.getElementById('pagoMetodo').value = 'Transferencia';
+  document.getElementById('pagoSoporte').value = '';
+
+  // Cargar historial de pagos
+  renderPagosCliente(cliente.ID_CLIENTE);
+
+  document.getElementById('clienteModal').classList.add('open');
+}
+
+function saveCliente() {
+  var row = Number(document.getElementById('clienteRow').value);
+  var data = {};
+  document.querySelectorAll('.cli-field').forEach(function(f) { data[f.dataset.key] = f.value; });
+  closeModal('clienteModal');
+  toast('Guardando...', 'success');
+  google.script.run.withSuccessHandler(function() { toast('Cliente actualizado', 'success'); refreshData(); })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .updateCliente(row, data);
+}
+
+function renovar(periodo) {
+  var row = Number(document.getElementById('clienteRow').value);
+  toast('Renovando...', 'success');
+  google.script.run.withSuccessHandler(function() { toast('Renovacion exitosa', 'success'); closeModal('clienteModal'); refreshData(); })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .renovarCliente(row, periodo);
+}
+
+// ═══════════════════════════════════════════════
+// ─── CONTENT LISTS (generic) ───
+// ═══════════════════════════════════════════════
+function renderContentList(type, items, fields) {
+  var container = document.getElementById(type + 'List');
+  if (!container) return;
+  if (!items.length) { container.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No hay elementos</p></div>'; return; }
+  container.innerHTML = items.map(function(item, idx) {
+    var inputs = fields.map(function(f) {
+      var val = item[f] !== undefined ? item[f] : '';
+      if (f === 'DESCRIPCION' || f === 'TEXTO' || f === 'RESPUESTA') {
+        return '<textarea class="form-control" data-type="' + type + '" data-idx="' + idx + '" data-field="' + f + '" rows="2" placeholder="' + f + '">' + val + '</textarea>';
+      }
+      return '<input class="form-control" data-type="' + type + '" data-idx="' + idx + '" data-field="' + f + '" value="' + esc(val) + '" placeholder="' + f + '">';
+    }).join('');
+    return '<div style="padding:12px;background:var(--gray-50);border-radius:8px;margin-bottom:8px;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;">' + inputs + '</div>'
+      + '<button class="btn btn-danger btn-sm" onclick="removeRow(\'' + type + '\',' + idx + ')" style="margin-top:6px;"><i class="fas fa-trash"></i></button></div>';
+  }).join('');
+}
+
+function renderPlanes() {
+  var planes = DATA.planes || [];
+  var container = document.getElementById('planesList');
+  if (!planes.length) { container.innerHTML = '<div class="empty-state">No hay planes</div>'; return; }
+  container.innerHTML = planes.map(function(p, idx) {
+    return '<div style="padding:16px;background:var(--gray-50);border-radius:8px;margin-bottom:12px;">'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;">'
+      + '<input class="form-control" data-type="planes" data-idx="' + idx + '" data-field="ID" value="' + esc(p.ID) + '" placeholder="ID">'
+      + '<input class="form-control" data-type="planes" data-idx="' + idx + '" data-field="NOMBRE" value="' + esc(p.NOMBRE) + '" placeholder="Nombre">'
+      + '<input class="form-control" type="number" data-type="planes" data-idx="' + idx + '" data-field="PRECIO_MENSUAL" value="' + (p.PRECIO_MENSUAL || '') + '" placeholder="$ Mensual">'
+      + '<input class="form-control" type="number" data-type="planes" data-idx="' + idx + '" data-field="PRECIO_ANUAL" value="' + (p.PRECIO_ANUAL || '') + '" placeholder="$ Anual">'
+      + '<input class="form-control" data-type="planes" data-idx="' + idx + '" data-field="DESCRIPCION" value="' + esc(p.DESCRIPCION) + '" placeholder="Descripcion">'
+      + '</div></div>';
+  }).join('');
+}
+
+function renderCondiciones() {
+  var cond = DATA.condiciones || {};
+  var container = document.getElementById('condicionesList');
+  var keys = Object.keys(cond).filter(function(k) { return k !== 'CLAVE'; });
+  if (!keys.length) { container.innerHTML = '<div class="empty-state">No hay condiciones</div>'; return; }
+  container.innerHTML = keys.map(function(k, idx) {
+    return '<div class="editable-row"><input class="form-control" style="width:180px;" data-type="condiciones-key" data-idx="' + idx + '" value="' + esc(k) + '" placeholder="Clave">'
+      + '<input class="form-control" data-type="condiciones" data-idx="' + idx + '" data-field="VALUE" value="' + esc(cond[k]) + '" placeholder="Valor" style="flex:1;">'
+      + '<button class="btn btn-danger btn-sm" onclick="removeCondicion(' + idx + ')"><i class="fas fa-trash"></i></button></div>';
+  }).join('');
+}
+
+// ─── Add/Remove ───
+function addRow(type) {
+  var templates = { dolores: { ICONO: 'circle-exclamation', TITULO: '', DESCRIPCION: '' }, funcionalidades: { ICONO: 'star', TITULO: '', DESCRIPCION: '' }, faq: { PREGUNTA: '', RESPUESTA: '' }, testimonios: { NOMBRE: '', ROL: '', TEXTO: '', ESTRELLAS: 5 }, planes: { ID: '', NOMBRE: '', PRECIO_MENSUAL: 0, PRECIO_ANUAL: 0, DESCRIPCION: '' }, condiciones: {} };
+  if (type === 'condiciones') { var c = DATA.condiciones || {}; var n = String(Object.keys(c).filter(function(k) { return k !== 'CLAVE'; }).length + 1); c[n] = ''; DATA.condiciones = c; renderCondiciones(); return; }
+  var list = DATA[type] || []; list.push(templates[type] || {}); DATA[type] = list;
+  var fm = { dolores: ['ICONO','TITULO','DESCRIPCION'], funcionalidades: ['ICONO','TITULO','DESCRIPCION'], faq: ['PREGUNTA','RESPUESTA'], testimonios: ['NOMBRE','ROL','TEXTO','ESTRELLAS'] };
+  if (type === 'planes') { renderPlanes(); } else { renderContentList(type, DATA[type], fm[type]); }
+}
+
+function removeRow(type, idx) {
+  var list = DATA[type] || []; list.splice(idx, 1); DATA[type] = list;
+  var fm = { dolores: ['ICONO','TITULO','DESCRIPCION'], funcionalidades: ['ICONO','TITULO','DESCRIPCION'], faq: ['PREGUNTA','RESPUESTA'], testimonios: ['NOMBRE','ROL','TEXTO','ESTRELLAS'] };
+  if (type === 'planes') { renderPlanes(); } else { renderContentList(type, DATA[type], fm[type]); }
+}
+
+function removeCondicion(idx) {
+  var c = DATA.condiciones || {}; var keys = Object.keys(c).filter(function(k) { return k !== 'CLAVE'; });
+  delete c[keys[idx]]; DATA.condiciones = c; renderCondiciones();
+}
+
+// ═══════════════════════════════════════════════
+// ─── SAVE ───
+// ═══════════════════════════════════════════════
+function saveCurrentPage() {
+  collectFormData();
+  var btn = document.getElementById('btnSaveAll');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+  google.script.run.withSuccessHandler(function() {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+    toast('Cambios guardados. La landing se actualizo automaticamente.', 'success');
+  }).withFailureHandler(function(err) {
+    btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
+    toast('Error: ' + err.message, 'error');
+  }).savePanelData(DATA);
+}
+
+function collectFormData() {
+  // Config unificada (landing + CRM)
+  var config = DATA.config || {};
+  document.querySelectorAll('.config-field').forEach(function(f) { config[f.dataset.key] = f.value; });
+  DATA.config = config;
+
+  // Content lists
+  ['dolores','funcionalidades','faq','testimonios','planes'].forEach(function(type) {
+    document.querySelectorAll('[data-type="' + type + '"]').forEach(function(f) {
+      var idx = Number(f.dataset.idx); var field = f.dataset.field;
+      if (!DATA[type]) DATA[type] = [];
+      if (!DATA[type][idx]) DATA[type][idx] = {};
+      DATA[type][idx][field] = f.value;
+    });
+  });
+
+  // Condiciones (key-value with editable keys)
+  var newCond = {};
+  var condKeys = document.querySelectorAll('[data-type="condiciones-key"]');
+  var condVals = document.querySelectorAll('[data-type="condiciones"]');
+  condKeys.forEach(function(k, i) {
+    var keyVal = k.value || String(i + 1);
+    newCond[keyVal] = condVals[i] ? condVals[i].value : '';
+  });
+  DATA.condiciones = newCond;
+}
+
+// ─── Refresh ───
+function refreshData() {
+  google.script.run.withSuccessHandler(function(result) { DATA = result.data; LANDING_URL = result.landingUrl || LANDING_URL; renderAll(); }).getPanelData();
+}
+
+// ═══════════════════════════════════════════════
+// ─── HELPERS ───
+// ═══════════════════════════════════════════════
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+
+function copyUrl(inputId) { var el = document.getElementById(inputId); el.select(); document.execCommand('copy'); toast('Link copiado!', 'success'); }
+
+function copyField(inputId) { var el = document.getElementById(inputId); el.select(); document.execCommand('copy'); toast('Copiado!', 'success'); }
+
+function togglePass(inputId) { var el = document.getElementById(inputId); el.type = el.type === 'password' ? 'text' : 'password'; }
+
+function shareWhatsApp() {
+  var text = 'Conoce ' + (DATA.config.NOMBRE_PRODUCTO || 'BeautyOS') + '! Tecnologia para tu negocio de belleza: ' + LANDING_URL;
+  window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+}
+
+function shareEmail() {
+  var subject = 'Conoce ' + (DATA.config.NOMBRE_PRODUCTO || 'BeautyOS');
+  var body = 'Hola!\n\nTe comparto la landing de ' + (DATA.config.NOMBRE_PRODUCTO || 'BeautyOS') + ':\n\n' + LANDING_URL;
+  window.open('mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
+}
+
+function convertDriveUrl(url) {
+  if (!url) return '';
+  var id = '';
+  var m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m) id = m[1];
+  if (!id) { m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/); if (m) id = m[1]; }
+  if (!id) { m = url.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/); if (m) id = m[1]; }
+  if (id) return 'https://lh3.googleusercontent.com/d/' + id + '=s600';
+  return url;
+}
+
+function formatDate(d) {
+  if (!d) return '-';
+  try { return new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }); } catch(e) { return d; }
+}
+
+function formatMoney(n) { if (!n) return '-'; return '$' + Number(n).toLocaleString('es-CO'); }
+
+// Convierte fecha (Date o string) a formato yyyy-mm-dd para inputs type="date"
+function toDateInput(d) {
+  if (!d) return '';
+  try { var dt = new Date(d); return dt.toISOString().split('T')[0]; } catch(e) { return ''; }
+}
+
+function statusBadge(status) {
+  var s = (status || 'NUEVO').toUpperCase();
+  var cls = { NUEVO: 'status-nuevo', CONTACTADO: 'status-contactado', DEMO: 'status-demo', CERRADO: 'status-cerrado', CLIENTE: 'status-cliente' };
+  return '<span class="status-badge ' + (cls[s] || 'status-nuevo') + '">' + s + '</span>';
+}
+
+function pagoStatusBadge(status, diasMora, diasParaVencer) {
+  var s = (status || 'VIGENTE').toUpperCase();
+  var cls = { VIGENTE: 'status-vigente', POR_VENCER: 'status-por_vencer', VENCIDO: 'status-vencido', SUSPENDIDO: 'status-suspendido' };
+  var badge = '<span class="status-badge ' + (cls[s] || '') + '">' + s.replace('_', ' ') + '</span>';
+  if (s === 'VENCIDO' && diasMora > 0) badge += '<span class="dias-mora">' + diasMora + ' dias mora</span>';
+  if (s === 'POR_VENCER' && diasParaVencer !== undefined) badge += '<span class="dias-para-vencer">' + diasParaVencer + ' dias</span>';
+  if (s === 'SUSPENDIDO') badge += '<span class="dias-mora">Servicio suspendido</span>';
+  return badge;
+}
+
+function statusBadgeGeneric(status) {
+  var s = (status || '').toUpperCase();
+  var cls = { ACTIVO: 'status-activo', SUSPENDIDO: 'status-suspendido', INACTIVO: 'status-inactivo' };
+  return '<span class="status-badge ' + (cls[s] || 'status-inactivo') + '">' + s + '</span>';
+}
+
+function esc(val) { return String(val || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+function toast(msg, type) {
+  var c = document.getElementById('toastContainer');
+  var t = document.createElement('div');
+  t.className = 'toast ' + (type || '');
+  t.innerHTML = '<i class="fas fa-' + (type === 'error' ? 'circle-xmark' : 'circle-check') + '"></i> ' + msg;
+  c.appendChild(t);
+  setTimeout(function() { t.remove(); }, 4000);
+}
+
+// ═══════════════════════════════════════════════
+// ─── NOVEDADES ───
+// ═══════════════════════════════════════════════
+
+function renderNovedades() {
+  var novedades = DATA.novedades || [];
+  var nuevas = novedades.filter(function(n) { return n.ESTADO === 'NUEVO' || !n.ESTADO; }).length;
+  var enProceso = novedades.filter(function(n) { return n.ESTADO === 'EN_PROCESO'; }).length;
+  var resueltas = novedades.filter(function(n) { return n.ESTADO === 'RESUELTO'; }).length;
+
+  setText('novedadesNuevas', nuevas);
+  setText('novedadesEnProceso', enProceso);
+  setText('novedadesResueltas', resueltas);
+  setText('novedadesTotalStat', novedades.length);
+
+  // Badge sidebar
+  var badge = document.getElementById('novedadesBadge');
+  if (nuevas > 0) { badge.textContent = nuevas; badge.style.display = ''; }
+  else { badge.style.display = 'none'; }
+
+  renderNovedadesTable(novedades);
+}
+
+function renderNovedadesTable(novedades) {
+  var tbody = document.getElementById('allNovedadesTable');
+  if (!novedades.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-inbox"></i><p>No hay novedades reportadas</p></td></tr>'; return; }
+
+  var sorted = novedades.slice().reverse();
+  tbody.innerHTML = sorted.map(function(n) {
+    var row = n._rowNum || 2;
+    var rowClass = '';
+    if (n.PRIORIDAD === 'ALTA' && n.ESTADO === 'NUEVO') rowClass = 'row-novedad-alta';
+    else if (n.ESTADO === 'NUEVO') rowClass = 'row-novedad-nueva';
+    return '<tr class="' + rowClass + '">'
+      + '<td><small>' + esc(n.ID_NOVEDAD) + '</small></td>'
+      + '<td>' + formatDate(n.FECHA) + '</td>'
+      + '<td><strong>' + esc(n.NOMBRE_NEGOCIO) + '</strong></td>'
+      + '<td>' + esc(n.TIPO_NOVEDAD) + '</td>'
+      + '<td>' + prioridadBadge(n.PRIORIDAD) + '</td>'
+      + '<td>' + novedadEstadoBadge(n.ESTADO) + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="openNovedadModal(' + row + ')"><i class="fas fa-pen"></i></button></td></tr>';
+  }).join('');
+}
+
+function filterNovedades() {
+  var estado = document.getElementById('filterNovedadEstado').value;
+  var tipo = document.getElementById('filterNovedadTipo').value;
+  var all = DATA.novedades || [];
+  var filtered = all;
+  if (estado) filtered = filtered.filter(function(n) { return n.ESTADO === estado || (!n.ESTADO && estado === 'NUEVO'); });
+  if (tipo) filtered = filtered.filter(function(n) { return n.TIPO_NOVEDAD === tipo; });
+  renderNovedadesTable(filtered);
+}
+
+function openNovedadModal(rowNum) {
+  var nov = (DATA.novedades || []).find(function(n) { return n._rowNum === rowNum; });
+  if (!nov) { toast('Novedad no encontrada', 'error'); return; }
+  document.getElementById('novedadRow').value = rowNum;
+  document.getElementById('novId').textContent = nov.ID_NOVEDAD || '-';
+  document.getElementById('novFecha').textContent = formatDate(nov.FECHA);
+  document.getElementById('novNegocio').textContent = nov.NOMBRE_NEGOCIO || '-';
+  document.getElementById('novWhatsapp').textContent = nov.WHATSAPP || '-';
+  document.getElementById('novTipo').textContent = nov.TIPO_NOVEDAD || '-';
+  document.getElementById('novPrioridad').textContent = nov.PRIORIDAD || 'MEDIA';
+  document.getElementById('novDescripcion').textContent = nov.DESCRIPCION || '-';
+  document.getElementById('novEstado').value = nov.ESTADO || 'NUEVO';
+  document.getElementById('novAsignado').value = nov.ASIGNADO_A || '';
+  document.getElementById('novNotasResolucion').value = nov.NOTAS_RESOLUCION || '';
+  document.getElementById('novedadModal').classList.add('open');
+}
+
+function saveNovedadModal() {
+  var row = Number(document.getElementById('novedadRow').value);
+  var estado = document.getElementById('novEstado').value;
+  var asignado = document.getElementById('novAsignado').value;
+  var notas = document.getElementById('novNotasResolucion').value;
+  closeModal('novedadModal');
+  toast('Guardando...', 'success');
+  google.script.run.withSuccessHandler(function() { toast('Novedad actualizada', 'success'); refreshData(); })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .updateNovedad(row, estado, asignado, notas);
+}
+
+function prioridadBadge(p) {
+  var s = (p || 'MEDIA').toUpperCase();
+  var cls = { ALTA: 'prioridad-alta', MEDIA: 'prioridad-media', BAJA: 'prioridad-baja' };
+  return '<span class="status-badge ' + (cls[s] || 'prioridad-media') + '">' + s + '</span>';
+}
+
+function novedadEstadoBadge(estado) {
+  var s = (estado || 'NUEVO').toUpperCase();
+  var cls = { NUEVO: 'status-nuevo', EN_PROCESO: 'status-en_proceso', RESUELTO: 'status-resuelto', CERRADO: 'status-cerrado' };
+  return '<span class="status-badge ' + (cls[s] || 'status-nuevo') + '">' + s.replace('_', ' ') + '</span>';
+}
+
+// ═══════════════════════════════════════════════
+// ─── HISTORIAL DE PAGOS ───
+// ═══════════════════════════════════════════════
+
+// Carga el historial de pagos de un cliente
+function renderPagosCliente(idCliente) {
+  var tbody = document.getElementById('pagosHistorial');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fas fa-spinner fa-spin"></i> Cargando...</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(pagos) {
+      if (!pagos || !pagos.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fas fa-receipt"></i><p>No hay pagos registrados</p></td></tr>';
+        return;
+      }
+      tbody.innerHTML = pagos.map(function(p) {
+        var soporteLink = p.SOPORTE_URL ? '<a href="' + esc(p.SOPORTE_URL) + '" target="_blank" class="btn btn-outline btn-sm"><i class="fas fa-file"></i> Ver</a>' : '-';
+        return '<tr><td>' + formatDate(p.FECHA_PAGO) + '</td><td>' + formatMoney(p.MONTO) + '</td>'
+          + '<td>' + esc(p.PERIODO_CUBIERTO) + '</td><td>' + esc(p.METODO_PAGO) + '</td>'
+          + '<td>' + soporteLink + '</td><td>' + esc(p.NOTAS) + '</td></tr>';
+      }).join('');
+    })
+    .withFailureHandler(function(err) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Error: ' + esc(err.message) + '</td></tr>';
+    })
+    .obtenerPagosCliente(idCliente);
+}
+
+// Registra un pago: sube soporte si hay archivo, luego guarda el pago
+function registrarPagoUI() {
+  var row = Number(document.getElementById('clienteRow').value);
+  var cliente = (DATA.clientes || []).find(function(c) { return c._rowNum === row; });
+  if (!cliente) { toast('Cliente no encontrado', 'error'); return; }
+
+  var monto = document.getElementById('pagoMonto').value;
+  if (!monto || Number(monto) <= 0) { toast('El monto es obligatorio', 'error'); return; }
+
+  var pagoData = {
+    monto: Number(monto),
+    periodoCubierto: document.getElementById('pagoPeriodo').value,
+    metodoPago: document.getElementById('pagoMetodo').value,
+    notas: document.getElementById('pagoNotas').value
+  };
+
+  var fileInput = document.getElementById('pagoSoporte');
+  if (fileInput.files && fileInput.files.length > 0) {
+    toast('Subiendo soporte...', 'success');
+    uploadSoporte(fileInput.files[0], cliente.ID_CLIENTE, function(soporteUrl) {
+      pagoData.soporteUrl = soporteUrl;
+      guardarPago(cliente.ID_CLIENTE, pagoData);
+    });
+  } else {
+    guardarPago(cliente.ID_CLIENTE, pagoData);
+  }
+}
+
+// Sube archivo a Drive via base64
+function uploadSoporte(file, idCliente, callback) {
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var base64 = e.target.result.split(',')[1];
+    google.script.run
+      .withSuccessHandler(function(result) {
+        toast('Soporte subido', 'success');
+        callback(result.url);
+      })
+      .withFailureHandler(function(err) {
+        toast('Error subiendo soporte: ' + err.message, 'error');
+        callback('');
+      })
+      .subirSoportePago(file.name, base64, file.type, idCliente);
+  };
+  reader.readAsDataURL(file);
+}
+
+// Guarda el pago en la hoja PAGOS y renueva facturacion
+function guardarPago(idCliente, pagoData) {
+  toast('Registrando pago...', 'success');
+  google.script.run
+    .withSuccessHandler(function(result) {
+      toast('Pago registrado: ' + (result.idPago || ''), 'success');
+      refreshData();
+      renderPagosCliente(idCliente);
+      // Limpiar formulario
+      ['pagoMonto','pagoPeriodo','pagoNotas'].forEach(function(id) { document.getElementById(id).value = ''; });
+      document.getElementById('pagoSoporte').value = '';
+    })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .registrarPago(idCliente, pagoData);
+}
+</script>
+</body>
+</html>

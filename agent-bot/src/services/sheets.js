@@ -35,12 +35,12 @@ async function loadClientConfig(sheetId) {
             }
         });
 
-        // Mapeo unificado para el agente
+        // Mapeo unificado para el agente (soporta claves de salon Y CRM comercial)
         return {
-            status: configRaw['ESTADO_SERVICIO'],
-            openApiKey: configRaw['CLAVE_OPENAI'],
-            businessName: configRaw['NOMBRE_NEGOCIO'],
-            agentName: configRaw['NOMBRE_AGENTE'],
+            status: configRaw['ESTADO_SERVICIO'] || 'ACTIVO',
+            openApiKey: configRaw['CLAVE_OPENAI'] || configRaw['CHATGPT_API_KEY_DEFAULT'] || '',
+            businessName: configRaw['NOMBRE_NEGOCIO'] || configRaw['NOMBRE_PRODUCTO'] || '',
+            agentName: configRaw['NOMBRE_AGENTE'] || configRaw['NOMBRE_AGENTE_COMERCIAL'] || '',
             welcomeMsg: configRaw['SALUDO_BASE'],
             ownerPhone: configRaw['CELULAR_DUEÑA'],
             ownerEmail: configRaw['CORREO_DUEÑA'],
@@ -64,6 +64,10 @@ async function loadClientConfig(sheetId) {
             reminderMessage: configRaw['MENSAJE_RECORDATORIO'] || '',
             thankYouMessage: configRaw['MENSAJE_AGRADECIMIENTO'] || '',
             reminderMinutes: parseInt(configRaw['MINUTOS_RECORDATORIO']) || 60,
+            // Comercial (Sofi): config adicional
+            whatsappAsesores: configRaw['WHATSAPP_ASESORES'] || '',
+            paymentInstructionsComercial: configRaw['DATOS_PAGO_BEAUTYOS'] || '',
+            aiModel: configRaw['IA_MODEL'] || configRaw['MODELO_IA'] || '',
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);

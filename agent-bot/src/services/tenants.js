@@ -64,23 +64,87 @@ async function initTenant(tenantId, tenantDef) {
         return null;
     }
 
-    // Cargar todos los datos en paralelo para acelerar el arranque
-    const [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery, promoUsage, festivosConfig] =
-        await Promise.all([
-            loadServicesConfig(sheetId),
-            loadKnowledgeConfig(sheetId),
-            loadRegisteredClients(sheetId),
-            loadPendingAppointments(sheetId),
-            loadPromotions(sheetId),
-            loadDisponibilidad(sheetId),
-            loadColaboradores(sheetId),
-            loadServiceGallery(sheetId),
-            loadPromoUsage(sheetId),
-            loadFestivosConfig(sheetId)
-        ]);
+    let servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments,
+        promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery,
+        promoUsage, festivosConfig;
 
-    // Computed flag: al menos un servicio tiene anticipo habilitado
-    config.hasAnyAnticipo = servicesCatalog.some(s => s.anticipoEnabled);
+    // ── Tenant comercial: cargar datos del CRM via API (no tiene tabs de salon) ──
+    if (tenantDef.type === 'comercial') {
+        const crmUrl = tenantDef.crmUrl || config.crmBeautyosUrl;
+        let crmData = {};
+        if (crmUrl) {
+            try {
+                const resp = await api.postToCRM(crmUrl, { action: 'getInfoComercial' });
+                if (resp && !resp.error) crmData = resp;
+            } catch (e) {
+                console.error(`[${tenantId}] Error cargando info comercial:`, e.message);
+            }
+        }
+
+        // Transformar PLANES → servicesCatalog (formato del agente)
+        servicesCatalog = (crmData.planes || []).map(p => ({
+            id: p.ID || 'plan-' + (p.NOMBRE || '').toLowerCase().replace(/\s+/g, '-'),
+            category: 'Plan',
+            intent: `${p.NOMBRE} precio costo cuanto vale plan`,
+            name: p.NOMBRE || 'Plan',
+            response: `${p.DESCRIPCION || ''} — Mensual: $${Number(p.PRECIO_MENSUAL || 0).toLocaleString('es-CO')} / Anual: $${Number(p.PRECIO_ANUAL || 0).toLocaleString('es-CO')}`,
+            timeMins: 0,
+            price: Number(p.PRECIO_MENSUAL) || 0
+        }));
+
+        // Transformar FAQ + FUNCIONALIDADES + DOLORES + TESTIMONIOS → knowledgeCatalog
+        knowledgeCatalog = [];
+        (crmData.faq || []).forEach(f => {
+            knowledgeCatalog.push({ intent: f.PREGUNTA || '', response: f.RESPUESTA || '', mediaType: '', url: '' });
+        });
+        (crmData.funcionalidades || []).forEach(f => {
+            knowledgeCatalog.push({ intent: `que es ${f.TITULO} funcionalidad feature`, response: `${f.TITULO}: ${f.DESCRIPCION}`, mediaType: '', url: '' });
+        });
+        (crmData.dolores || []).forEach(d => {
+            knowledgeCatalog.push({ intent: `problema ${d.TITULO}`, response: `Entendemos ese dolor: ${d.DESCRIPCION}. BeautyOS lo resuelve con automatizacion.`, mediaType: '', url: '' });
+        });
+        (crmData.testimonios || []).forEach(t => {
+            knowledgeCatalog.push({ intent: `testimonio caso exito referencia`, response: `${t.NOMBRE} (${t.ROL}): "${t.TEXTO}"`, mediaType: '', url: '' });
+        });
+
+        // Condiciones comerciales
+        const condiciones = crmData.condiciones || {};
+        if (condiciones.IMPLEMENTACION) {
+            knowledgeCatalog.push({ intent: 'implementacion setup instalacion costo', response: `Implementacion: $${Number(condiciones.IMPLEMENTACION).toLocaleString('es-CO')}. ${condiciones.PROMO_LANZAMIENTO || ''}`, mediaType: '', url: '' });
+        }
+
+        // Inyectar config comercial desde el CRM
+        config.crmBeautyosUrl = crmUrl;
+        config.nombreAgente = config.agentName || 'Sofi';
+        config.paymentInstructions = config.paymentInstructions || 'Nequi / Daviplata / Transferencia Bancolombia';
+
+        // No aplican para comercial
+        registeredClients = {};
+        pendingAppointments = {};
+        promotionsCatalog = [];
+        disponibilidadCatalog = [];
+        colaboradoresCatalog = [];
+        serviceGallery = {};
+        promoUsage = {};
+        festivosConfig = [];
+        config.hasAnyAnticipo = false;
+    } else {
+        // ── Tenant salon: cargar desde Google Sheets (flujo original) ──
+        [servicesCatalog, knowledgeCatalog, registeredClients, pendingAppointments, promotionsCatalog, disponibilidadCatalog, colaboradoresCatalog, serviceGallery, promoUsage, festivosConfig] =
+            await Promise.all([
+                loadServicesConfig(sheetId),
+                loadKnowledgeConfig(sheetId),
+                loadRegisteredClients(sheetId),
+                loadPendingAppointments(sheetId),
+                loadPromotions(sheetId),
+                loadDisponibilidad(sheetId),
+                loadColaboradores(sheetId),
+                loadServiceGallery(sheetId),
+                loadPromoUsage(sheetId),
+                loadFestivosConfig(sheetId)
+            ]);
+        config.hasAnyAnticipo = servicesCatalog.some(s => s.anticipoEnabled);
+    }
 
     const tenant = {
         ...tenantDef,
@@ -98,8 +162,28 @@ async function initTenant(tenantId, tenantDef) {
         userSessions: {},
         promoBroadcastsSent: {},
         syncInterval: null,
-        lastSync: new Date().toISOString()
+        lastSync: new Date().toISOString(),
+        clientesCRM: {},
+        _paymentRemindersSent: {}
     };
+
+    // Sync inicial de clientes CRM (comercial)
+    if (tenantDef.type === 'comercial') {
+        const crmUrl = tenantDef.crmUrl || config.crmBeautyosUrl;
+        if (crmUrl) {
+            try {
+                const crmResp = await api.postToCRM(crmUrl, { action: 'getClientesCRM' });
+                if (Array.isArray(crmResp)) {
+                    const map = {};
+                    crmResp.forEach(c => { if (c.whatsapp) map[c.whatsapp] = c; });
+                    tenant.clientesCRM = map;
+                    console.log(`[${tenantId}] 📊 Clientes CRM cargados: ${Object.keys(map).length}`);
+                }
+            } catch (crmErr) {
+                console.error(`[${tenantId}] Error cargando clientes CRM:`, crmErr.message);
+            }
+        }
+    }
 
     // Iniciar sincronización periódica con Google Sheets
     const syncMs = tenantDef.syncInterval || DEFAULT_SYNC_INTERVAL_MS;
@@ -122,15 +206,68 @@ async function initTenant(tenantId, tenantDef) {
             console.log(`[${tenantId}]   👤 ${c.nombre} (${c.rol}) → Competencias: ${c.competencias || '(sin definir)'}`);
         });
     }
+    if (tenantDef.type === 'comercial') {
+        console.log(`[${tenantId}] Listo. Tipo: COMERCIAL | Agente: ${config.nombreAgente || config.agentName} | Planes: ${servicesCatalog.length} | FAQ: ${knowledgeCatalog.length} | Clientes CRM: ${Object.keys(tenant.clientesCRM).length}`);
+    }
     return tenant;
 }
 
 /**
- * Refresca los datos de un tenant desde Google Sheets
+ * Refresca los datos de un tenant desde Google Sheets (o CRM API para comercial)
  */
 async function syncTenantData(tenantId) {
     const tenant = tenantStore[tenantId];
     if (!tenant) return;
+
+    // ── Sync comercial: todo desde CRM API ──
+    if (tenant.type === 'comercial') {
+        try {
+            console.log(`[${tenantId}] Sincronizando datos comerciales desde CRM...`);
+
+            // Recargar config basica del Sheet (API key, nombre, etc.)
+            const config = await loadClientConfig(tenant.sheetId);
+            if (config) {
+                tenant.config = { ...tenant.config, ...config };
+                tenant.config.crmBeautyosUrl = tenant.crmUrl || config.crmBeautyosUrl;
+                tenant.config.nombreAgente = config.agentName || tenant.config.nombreAgente || 'Sofi';
+            }
+
+            // Recargar info comercial del CRM (planes, FAQ, etc.)
+            const crmUrl = tenant.crmUrl || tenant.config.crmBeautyosUrl;
+            if (crmUrl) {
+                const resp = await api.postToCRM(crmUrl, { action: 'getInfoComercial' });
+                if (resp && !resp.error) {
+                    tenant.servicesCatalog = (resp.planes || []).map(p => ({
+                        id: p.ID || 'plan-' + (p.NOMBRE || '').toLowerCase().replace(/\s+/g, '-'),
+                        category: 'Plan', intent: `${p.NOMBRE} precio costo cuanto vale plan`,
+                        name: p.NOMBRE || 'Plan',
+                        response: `${p.DESCRIPCION || ''} — Mensual: $${Number(p.PRECIO_MENSUAL || 0).toLocaleString('es-CO')} / Anual: $${Number(p.PRECIO_ANUAL || 0).toLocaleString('es-CO')}`,
+                        timeMins: 0, price: Number(p.PRECIO_MENSUAL) || 0
+                    }));
+
+                    const knowledge = [];
+                    (resp.faq || []).forEach(f => knowledge.push({ intent: f.PREGUNTA || '', response: f.RESPUESTA || '', mediaType: '', url: '' }));
+                    (resp.funcionalidades || []).forEach(f => knowledge.push({ intent: `que es ${f.TITULO} funcionalidad`, response: `${f.TITULO}: ${f.DESCRIPCION}`, mediaType: '', url: '' }));
+                    (resp.dolores || []).forEach(d => knowledge.push({ intent: `problema ${d.TITULO}`, response: `Entendemos ese dolor: ${d.DESCRIPCION}. BeautyOS lo resuelve.`, mediaType: '', url: '' }));
+                    (resp.testimonios || []).forEach(t => knowledge.push({ intent: 'testimonio caso exito', response: `${t.NOMBRE} (${t.ROL}): "${t.TEXTO}"`, mediaType: '', url: '' }));
+                    tenant.knowledgeCatalog = knowledge;
+                }
+            }
+
+            tenant.lastSync = new Date().toISOString();
+            console.log(`[${tenantId}] Sync comercial completo. Planes: ${tenant.servicesCatalog.length}, FAQ: ${tenant.knowledgeCatalog.length}`);
+        } catch (error) {
+            console.error(`[${tenantId}] Error en sync comercial:`, error.message);
+        }
+
+        // Sync clientes CRM + recordatorios de pago
+        try {
+            await syncComercialData(tenant, tenantId);
+        } catch (comercialError) {
+            console.error(`[${tenantId}] Error en sync clientes/pagos:`, comercialError.message);
+        }
+        return; // No ejecutar sync de salon
+    }
 
     try {
         console.log(`[${tenantId}] Sincronizando datos desde Google Sheets...`);
@@ -344,8 +481,90 @@ async function syncTenantData(tenantId) {
         } catch (promoError) {
             console.error(`[${tenantId}] Error en difusion promos:`, promoError.message);
         }
+
     } catch (error) {
         console.error(`[${tenantId}] Error en sincronizacion:`, error.message);
+    }
+}
+
+// ============================================================
+// Sync comercial: clientes CRM + recordatorios de pago
+// ============================================================
+async function syncComercialData(tenant, tenantId) {
+    const crmUrl = tenant.crmUrl || tenant.config.crmBeautyosUrl;
+    if (!crmUrl) return;
+
+    // 1. Sincronizar clientes CRM
+    try {
+        const crmResp = await api.postToCRM(crmUrl, { action: 'getClientesCRM' });
+        if (Array.isArray(crmResp)) {
+            const map = {};
+            crmResp.forEach(c => { if (c.whatsapp) map[c.whatsapp] = c; });
+            tenant.clientesCRM = map;
+            console.log(`[${tenantId}] 📊 Sync comercial: ${Object.keys(map).length} clientes CRM`);
+        }
+    } catch (err) {
+        console.error(`[${tenantId}] Error sync clientes CRM:`, err.message);
+    }
+
+    // 2. Recordatorios de pago proactivos (1 vez al dia entre 8-10 AM)
+    if (!evolutionClient) return;
+
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+    const hora = now.getHours();
+    if (hora < 8 || hora > 10) return; // Solo enviar entre 8-10 AM
+
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+
+    // Resetear tracking si cambio de dia
+    if (!tenant._paymentRemindersSent || tenant._paymentRemindersSent._date !== todayKey) {
+        tenant._paymentRemindersSent = { _date: todayKey };
+    }
+
+    const clientes = Object.values(tenant.clientesCRM || {});
+    let enviados = 0;
+
+    for (const c of clientes) {
+        if (!c.whatsapp || c.estado === 'SUSPENDIDO') continue;
+        if (tenant._paymentRemindersSent[c.whatsapp]) continue; // Ya se le envio hoy
+
+        const diasGracia = c.diasGracia || 15;
+        let msg = '';
+
+        // POR_VENCER: recordatorio amigable (5 dias antes o 1 dia antes)
+        if (c.estadoPago === 'POR_VENCER' && (c.diasParaVencer <= 5 || c.diasParaVencer === 1)) {
+            msg = `Hola ${c.nombre}! Soy Sofi de BeautyOS. Te escribo para recordarte que tu facturacion vence en ${c.diasParaVencer} dia(s) (${c.proxCobro}). Si ya pagaste, enviame el soporte por aqui. Si necesitas ayuda, estoy aqui!`;
+        }
+
+        // VENCIDO (primeros dias): cobro firme
+        if (c.estadoPago === 'VENCIDO' && c.diasMora > 0 && c.diasMora < diasGracia) {
+            // Cada 3 dias durante periodo de gracia
+            if (c.diasMora % 3 === 0 || c.diasMora === 1) {
+                msg = `Hola ${c.nombre}. Soy Sofi de BeautyOS. Tu facturacion tiene ${c.diasMora} dia(s) de mora. Para evitar la suspension del servicio, te pido realizar el pago lo antes posible. Puedes enviarme el comprobante por aqui. Cualquier duda estoy para ayudarte.`;
+            }
+        }
+
+        // VENCIDO (ultimos 3 dias antes de suspension): alerta
+        if (c.estadoPago === 'VENCIDO' && c.diasMora >= (diasGracia - 3) && c.diasMora <= diasGracia) {
+            const diasRestantes = diasGracia - c.diasMora;
+            msg = `${c.nombre}, tu servicio BeautyOS sera suspendido en ${diasRestantes > 0 ? diasRestantes + ' dia(s)' : 'las proximas horas'} por falta de pago. Contactame urgente para resolver esta situacion.`;
+        }
+
+        if (msg) {
+            try {
+                await evolutionClient.sendText(tenant.instanceName, c.whatsapp, msg);
+                tenant._paymentRemindersSent[c.whatsapp] = true;
+                enviados++;
+                console.log(`[${tenantId}] 💰 Recordatorio pago enviado a ${c.nombre} (mora: ${c.diasMora || 0}d)`);
+                await new Promise(r => setTimeout(r, 5000)); // Anti-spam delay
+            } catch (sendErr) {
+                console.error(`[${tenantId}] Error enviando recordatorio a ${c.whatsapp}:`, sendErr.message);
+            }
+        }
+    }
+
+    if (enviados > 0) {
+        console.log(`[${tenantId}] 💰 Recordatorios de pago: ${enviados} enviado(s)`);
     }
 }
 

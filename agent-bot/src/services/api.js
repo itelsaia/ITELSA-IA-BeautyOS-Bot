@@ -236,6 +236,25 @@ class ApiService {
         }
     }
 
+    // ─── Agente comercial: POST generico a un CRM externo ───
+    async postToCRM(url, payload) {
+        try {
+            const response = await axios.post(url, payload, {
+                timeout: 15000,
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = response.data;
+            if (typeof data === 'string') {
+                console.error('[api] CRM retorno texto en vez de JSON:', data.substring(0, 200));
+                return { error: 'Respuesta inesperada del CRM' };
+            }
+            return data;
+        } catch (error) {
+            console.error('[api] Error POST a CRM:', error.message);
+            return { error: error.message };
+        }
+    }
+
     async cancelAgenda(agendaId) {
         if (!this.webhookUrl) return false;
 

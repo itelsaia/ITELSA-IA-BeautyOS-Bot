@@ -173,9 +173,28 @@ router.post('/evolution', async (req, res) => {
 
         console.log(`[${instanceName}] Mensaje de [${phoneNumber}]: ${messageText}`);
 
-        // ── Inicializar sesión del usuario (misma lógica que app.js original) ──
+        // ── Inicializar sesión del usuario ──
+        const isComercial = tenant.type === 'comercial';
+
         if (!tenant.userSessions[phoneNumber]) {
-            if (tenant.registeredClients[phoneNumber]) {
+            if (isComercial) {
+                // Comercial: detectar cliente existente vs prospecto
+                const clientesCRM = tenant.clientesCRM || {};
+                const clienteMatch = clientesCRM[phoneNumber];
+                if (clienteMatch) {
+                    tenant.userSessions[phoneNumber] = {
+                        history: [],
+                        estado: 'CLIENTE_EXISTENTE',
+                        datos: { celular: phoneNumber, nombre: clienteMatch.nombre, idCliente: clienteMatch.id }
+                    };
+                } else {
+                    tenant.userSessions[phoneNumber] = {
+                        history: [],
+                        estado: 'PROSPECTO',
+                        datos: { celular: phoneNumber, nombre: data.pushName || '' }
+                    };
+                }
+            } else if (tenant.registeredClients[phoneNumber]) {
                 tenant.userSessions[phoneNumber] = {
                     history: [],
                     estado: 'REGISTRADO',
@@ -188,24 +207,36 @@ router.post('/evolution', async (req, res) => {
 
         const session = tenant.userSessions[phoneNumber];
 
-        // ── Máquina de Estados: Onboarding CRM ──
-        const senderForSession = remoteJid; // Mantiene formato "573145551234@s.whatsapp.net"
-        const sessionPayload = await handleOnboarding(senderForSession, messageText, session, tenant.config);
+        // ── Comercial: saltar onboarding, ir directo a IA ──
+        let userData;
+        if (isComercial) {
+            userData = {
+                nombre: session.datos?.nombre || data.pushName || 'Usuario',
+                celular: phoneNumber,
+                estado: session.estado,
+                idCliente: session.datos?.idCliente || ''
+            };
+        } else {
+            // ── Máquina de Estados: Onboarding CRM (solo salones) ──
+            const senderForSession = remoteJid;
+            const sessionPayload = await handleOnboarding(senderForSession, messageText, session, tenant.config);
 
-        if (!sessionPayload.isGpt) {
-            await evolutionClient.sendText(instanceName, phoneNumber, sessionPayload.text);
-            // Si el onboarding acaba de completarse, agregar al historial
-            // para que el siguiente mensaje NO dispare el saludo de bienvenida
-            if (session.estado === 'REGISTRADO') {
-                session.history.push({ role: 'assistant', content: sessionPayload.text });
+            if (!sessionPayload.isGpt) {
+                await evolutionClient.sendText(instanceName, phoneNumber, sessionPayload.text);
+                if (session.estado === 'REGISTRADO') {
+                    session.history.push({ role: 'assistant', content: sessionPayload.text });
+                }
+                return;
             }
-            return;
+
+            // ── Datos del usuario para contexto de IA ──
+            userData = session.datos
+                ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true }
+                : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false };
         }
 
-        // ── Datos del usuario para contexto de IA ──
-        const userData = session.datos
-            ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true }
-            : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false };
+        // ── Bloques de salon: saludo personalizado + comprobantes de pago (NO aplican a comercial) ──
+        if (!isComercial) {
 
         // ── GUARDRAIL: Deteccion temprana de intencion fuerte ──
         // Que protege: Evita enviar saludo generico cuando el mensaje ya contiene intencion clara
@@ -1392,18 +1423,27 @@ router.post('/evolution', async (req, res) => {
             }
         }
 
-        // ── Respuesta de IA (OpenAI con Function Calling) ──
+        } // fin de if (!isComercial) — bloques de salon
+
+        // ── Respuesta de IA (OpenAI con Function Calling) ��─
+        // Inyectar datos comerciales en config para openai.js
+        if (isComercial) {
+            tenant.config.tenantType = 'comercial';
+            tenant.config._clientesCRM = tenant.clientesCRM || {};
+        }
+
         let userPendingAppointments = [];
         let allPendingAppointments = [];
-        try {
-            const liveAppointments = await loadPendingAppointments(tenant.sheetId);
-            userPendingAppointments = liveAppointments[phoneNumber] || [];
-            tenant.pendingAppointments = liveAppointments;
-            // Aplanar toda la agenda para que la IA vea espacios ocupados
-            allPendingAppointments = Object.values(liveAppointments).flat();
-        } catch (e) {
-            userPendingAppointments = tenant.pendingAppointments[phoneNumber] || [];
-            allPendingAppointments = Object.values(tenant.pendingAppointments || {}).flat();
+        if (!isComercial) {
+            try {
+                const liveAppointments = await loadPendingAppointments(tenant.sheetId);
+                userPendingAppointments = liveAppointments[phoneNumber] || [];
+                tenant.pendingAppointments = liveAppointments;
+                allPendingAppointments = Object.values(liveAppointments).flat();
+            } catch (e) {
+                userPendingAppointments = tenant.pendingAppointments[phoneNumber] || [];
+                allPendingAppointments = Object.values(tenant.pendingAppointments || {}).flat();
+            }
         }
 
         const aiReply = await generateAIResponse(
@@ -1482,6 +1522,20 @@ router.post('/evolution', async (req, res) => {
                 console.error(`[${instanceName}] Error enviando media promo "${promoMedia.promoName}":`, promoMediaErr.message);
             }
             delete session._pendingPromoMedia;
+        }
+
+        // ── Enviar mensajes de transferencia a asesores (comercial) ──
+        if (session._pendingTransferMessages) {
+            for (const msg of session._pendingTransferMessages) {
+                try {
+                    await evolutionClient.sendText(instanceName, msg.to, msg.text);
+                    console.log(`[${instanceName}] 📤 Transferencia enviada a asesor ${msg.to}`);
+                } catch (transferErr) {
+                    console.error(`[${instanceName}] Error enviando transferencia a ${msg.to}:`, transferErr.message);
+                }
+                await new Promise(r => setTimeout(r, 1000));
+            }
+            delete session._pendingTransferMessages;
         }
 
         // ── Capturar ID de cita de la respuesta IA (para reagendamiento/cancelación) ──

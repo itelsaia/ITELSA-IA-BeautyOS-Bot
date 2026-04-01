@@ -13,5 +13,15 @@
     "instanceName": "demo-beautyos",
     "syncInterval": 60000,
     "enabled": true
+  },
+  "beautyos-comercial": {
+    "displayName": "BeautyOS - Agente Comercial Sofi",
+    "sheetId": "1uWal9n2gxgyr5BWO-IuNTuERnPaLu4t7JUzSRlLWt68",
+    "webhookGasUrl": "https://script.google.com/macros/s/AKfycbwtUhZBPQAy2Xh-badiGlIFVvUb1ufd9xCiNxIs1fmA5VsWPod4oV7E5Tbsf6GOVapPFw/exec",
+    "crmUrl": "https://script.google.com/macros/s/AKfycbwtUhZBPQAy2Xh-badiGlIFVvUb1ufd9xCiNxIs1fmA5VsWPod4oV7E5Tbsf6GOVapPFw/exec",
+    "instanceName": "beautyos-comercial",
+    "syncInterval": 300000,
+    "type": "comercial",
+    "enabled": true
   }
 }
