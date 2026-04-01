@@ -293,6 +293,7 @@ const COMMERCIAL_TOOLS = [
             parameters: {
                 type: "object",
                 properties: {
+                    nombreContacto: { type: "string", description: "Nombre de la persona (propietario/a del negocio)" },
                     nombreNegocio: { type: "string", description: "Nombre del salon, peluqueria, barberia o spa" },
                     whatsapp: { type: "string", description: "Numero WhatsApp del prospecto (ya lo tienes del chat)" },
                     email: { type: "string", description: "Correo electronico (opcional)" },
@@ -300,7 +301,7 @@ const COMMERCIAL_TOOLS = [
                     cantidadEmpleados: { type: "string", enum: ["Solo yo", "2 a 5", "6 a 10", "11 o mas"], description: "Cuantos empleados tiene" },
                     notas: { type: "string", description: "Contexto: que busca, objeciones, interes especifico" }
                 },
-                required: ["nombreNegocio", "whatsapp"]
+                required: ["nombreContacto", "nombreNegocio", "whatsapp"]
             }
         }
     },
@@ -1929,6 +1930,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 } else {
                     const resp = await api.postToCRM(crmUrl, {
                         action: 'saveLead',
+                        nombreContacto: functionArgs.nombreContacto || '',
                         nombreNegocio: functionArgs.nombreNegocio,
                         whatsapp: functionArgs.whatsapp,
                         email: functionArgs.email || '',
@@ -1940,6 +1942,17 @@ PASO 5 — POST-CONFIRMACIÓN:
                     if (resp && !resp.error) {
                         toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${functionArgs.whatsapp}). El equipo comercial dará seguimiento.`;
                         console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio}`);
+
+                        // Alerta WhatsApp a asesores comerciales
+                        const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
+                        if (asesores.length > 0) {
+                            const alertMsg = `*Nuevo Lead BeautyOS*\n\nContacto: ${functionArgs.nombreContacto || 'Sin nombre'}\nNegocio: ${functionArgs.nombreNegocio}\nWhatsApp: ${functionArgs.whatsapp}\nCiudad: ${functionArgs.ciudad || 'No indicada'}\nEmpleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? 'Notas: ' + functionArgs.notas + '\n\n' : ''}Contactar para cerrar venta.`;
+                            if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
+                            for (const asesor of asesores) {
+                                session._pendingTransferMessages.push({ to: asesor, text: alertMsg });
+                            }
+                            console.log(`[openai] Alerta de lead enviada a ${asesores.length} asesor(es)`);
+                        }
                     } else {
                         toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
                     }

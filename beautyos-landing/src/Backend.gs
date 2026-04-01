@@ -87,6 +87,7 @@ function handleSaveLead(payload) {
 
   sheet.appendRow([
     new Date(),
+    payload.nombreContacto || '',
     payload.nombreNegocio || '',
     payload.whatsapp || '',
     payload.email || '',
@@ -120,11 +121,11 @@ function updateLead(rowNum, estado, asignado, notas) {
   var sheet = ss.getSheetByName('LEADS');
   if (!sheet) return { error: 'Hoja LEADS no encontrada' };
 
-  // Col 9=ESTADO, 10=ASIGNADO_A, 11=FECHA_CONTACTO, 12=NOTAS
-  sheet.getRange(rowNum, 9).setValue(estado);
-  sheet.getRange(rowNum, 10).setValue(asignado);
-  sheet.getRange(rowNum, 11).setValue(new Date());
-  sheet.getRange(rowNum, 12).setValue(notas);
+  // Col 10=ESTADO, 11=ASIGNADO_A, 12=FECHA_CONTACTO, 13=NOTAS
+  sheet.getRange(rowNum, 10).setValue(estado);
+  sheet.getRange(rowNum, 11).setValue(asignado);
+  sheet.getRange(rowNum, 12).setValue(new Date());
+  sheet.getRange(rowNum, 13).setValue(notas);
 
   return { success: true };
 }
@@ -184,7 +185,7 @@ function convertLeadToCliente(leadRowNum, clienteData) {
 
   var leadsSheet = ss.getSheetByName('LEADS');
   if (!leadsSheet) return { error: 'Hoja LEADS no encontrada' };
-  var leadRow = leadsSheet.getRange(leadRowNum, 1, 1, 12).getValues()[0];
+  var leadRow = leadsSheet.getRange(leadRowNum, 1, 1, 13).getValues()[0];
 
   var clientesSheet = ss.getSheetByName('CLIENTES');
   if (!clientesSheet) return { error: 'Hoja CLIENTES no encontrada' };
@@ -210,15 +211,16 @@ function convertLeadToCliente(leadRowNum, clienteData) {
     ? (Number(plan.PRECIO_ANUAL) || 160000)
     : (Number(plan.PRECIO_MENSUAL) || 180000);
 
+  // leadRow: 0=FECHA, 1=NOMBRE_CONTACTO, 2=NOMBRE_NEGOCIO, 3=WHATSAPP, 4=EMAIL, 5=CIUDAD, 6=CANT_EMPLEADOS, 7=CATEGORIA
   clientesSheet.appendRow([
     idCliente,
     hoy,
-    leadRow[1] || clienteData.nombreNegocio || '',
-    leadRow[2] || '',
+    leadRow[2] || clienteData.nombreNegocio || '',
     leadRow[3] || '',
     leadRow[4] || '',
     leadRow[5] || '',
-    leadRow[6] || 'Propia empresa',
+    leadRow[6] || '',
+    leadRow[7] || 'Propia empresa',
     clienteData.planActivo || 'completo',
     clienteData.periodoFacturacion || 'Mensual',
     precio,
@@ -236,9 +238,9 @@ function convertLeadToCliente(leadRowNum, clienteData) {
     15
   ]);
 
-  // Marcar lead como convertido
-  leadsSheet.getRange(leadRowNum, 9).setValue('CLIENTE');
-  leadsSheet.getRange(leadRowNum, 11).setValue(hoy);
+  // Marcar lead como convertido (col 10=ESTADO, col 12=FECHA_CONTACTO)
+  leadsSheet.getRange(leadRowNum, 10).setValue('CLIENTE');
+  leadsSheet.getRange(leadRowNum, 12).setValue(hoy);
 
   return { success: true, idCliente: idCliente };
 }

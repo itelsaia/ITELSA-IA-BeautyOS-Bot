@@ -266,7 +266,7 @@
           </select>
         </div>
         <div style="overflow-x:auto;">
-          <table><thead><tr><th>Fecha</th><th>Negocio</th><th>WhatsApp</th><th>Ciudad</th><th>Categoria</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allLeadsTable"></tbody></table>
+          <table><thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>WhatsApp</th><th>Ciudad</th><th>Categoria</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allLeadsTable"></tbody></table>
         </div>
       </div>
     </div>
@@ -793,11 +793,11 @@ function renderAllLeads(leads) {
   filtered = filtered.slice().reverse();
 
   var tbody = document.getElementById('allLeadsTable');
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay leads</td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay leads</td></tr>'; return; }
   tbody.innerHTML = filtered.map(function(l) {
     var row = l._rowNum || 2;
-    return '<tr><td>' + formatDate(l.FECHA) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
-      + '<td><a href="https://wa.me/57' + (l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
+    return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
+      + '<td><a href="https://wa.me/' + (l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
       + '<td>' + esc(l.CIUDAD) + '</td><td>' + esc(l.CATEGORIA) + '</td>'
       + '<td>' + statusBadge(l.ESTADO) + '</td>'
       + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')"><i class="fas fa-pen"></i></button></td></tr>';

@@ -150,14 +150,14 @@ function crearLeads(ss) {
   var sheet = getOrCreateSheet(ss, 'LEADS');
   sheet.clear();
   var headers = [
-    'FECHA', 'NOMBRE_NEGOCIO', 'WHATSAPP', 'EMAIL',
+    'FECHA', 'NOMBRE_CONTACTO', 'NOMBRE_NEGOCIO', 'WHATSAPP', 'EMAIL',
     'CIUDAD', 'CANTIDAD_EMPLEADOS', 'CATEGORIA', 'FUENTE',
     'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
   sheet.setFrozenRows(1);
-  var widths = [140, 200, 140, 200, 120, 140, 130, 100, 120, 130, 140, 300];
+  var widths = [140, 160, 200, 140, 200, 120, 140, 130, 100, 120, 130, 140, 300];
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 
