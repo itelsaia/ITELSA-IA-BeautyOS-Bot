@@ -603,11 +603,12 @@ function handleGetClientesCRM() {
 // Computa _diasMora y _diasParaVencer en cada cliente para las alertas visuales
 function getPanelData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var data = getDatosLanding();
-  data.leads = leerTabla(ss, 'LEADS');
-  data.clientes = leerTabla(ss, 'CLIENTES');
-  data.novedades = leerTabla(ss, 'NOVEDADES');
-  data.asesores = leerTabla(ss, 'ASESORES');
+  var data = {};
+  try { data = getDatosLanding(); } catch(e) { data = {}; }
+  try { data.leads = leerTabla(ss, 'LEADS') || []; } catch(e) { data.leads = []; }
+  try { data.clientes = leerTabla(ss, 'CLIENTES') || []; } catch(e) { data.clientes = []; }
+  try { data.novedades = leerTabla(ss, 'NOVEDADES') || []; } catch(e) { data.novedades = []; }
+  try { data.asesores = leerTabla(ss, 'ASESORES') || []; } catch(e) { data.asesores = []; }
 
   // Computar dias de mora/vencimiento en cada cliente
   var hoy = new Date();
@@ -627,7 +628,8 @@ function getPanelData() {
     ? deployUrl.replace(/\?.*$/, '')
     : 'https://script.google.com/macros/s/AKfycbwtUhZBPQAy2Xh-badiGlIFVvUb1ufd9xCiNxIs1fmA5VsWPod4oV7E5Tbsf6GOVapPFw/exec';
 
-  return { data: data, landingUrl: landingUrl };
+  // Devolver como JSON string para evitar problemas de serialización en google.script.run
+  return JSON.stringify({ data: data, landingUrl: landingUrl });
 }
 
 // Guarda los cambios del panel en las hojas correspondientes
@@ -641,10 +643,10 @@ function savePanelData(data) {
   if (data.faq) guardarTabla(ss, 'FAQ', ['PREGUNTA', 'RESPUESTA'], data.faq);
   if (data.testimonios) guardarTabla(ss, 'TESTIMONIOS', ['NOMBRE', 'ROL', 'TEXTO', 'ESTRELLAS'], data.testimonios);
   if (data.planes) guardarTabla(ss, 'PLANES', ['ID', 'NOMBRE', 'PRECIO_MENSUAL', 'PRECIO_ANUAL', 'DESCRIPCION', 'POPULAR'], data.planes);
-  if (data.asesores) {
+  if (data.asesores && data.asesores.length > 0) {
     guardarTabla(ss, 'ASESORES', ['NOMBRE', 'WHATSAPP', 'EMAIL', 'ROL', 'ACTIVO', 'LEADS_ASIGNADOS'], data.asesores);
     // Sincronizar WHATSAPP_ASESORES en CONFIGURACION para que el bot tenga la lista
-    var activos = (data.asesores || []).filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
+    var activos = data.asesores.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
     var listaWa = activos.map(function(a) { return String(a.WHATSAPP).trim(); }).join(',');
     var configSheet = ss.getSheetByName('CONFIGURACION');
     if (configSheet) {
@@ -763,7 +765,7 @@ function leerTabla(ss, nombreHoja) {
 // Escribe hoja clave-valor completa (reemplaza todo el contenido)
 function guardarClaveValor(ss, nombreHoja, obj) {
   var sheet = ss.getSheetByName(nombreHoja);
-  if (!sheet) return;
+  if (!sheet) sheet = ss.insertSheet(nombreHoja);
   sheet.clear();
   var data = [['CLAVE', 'VALOR']];
   for (var key in obj) {
@@ -777,7 +779,7 @@ function guardarClaveValor(ss, nombreHoja, obj) {
 // Escribe hoja tipo tabla completa (reemplaza todo el contenido)
 function guardarTabla(ss, nombreHoja, headers, rows) {
   var sheet = ss.getSheetByName(nombreHoja);
-  if (!sheet) return;
+  if (!sheet) sheet = ss.insertSheet(nombreHoja);
   sheet.clear();
   var data = [headers];
   rows.forEach(function(row) {

@@ -356,43 +356,71 @@
     <!-- ═══ ASESORES ═══ -->
     <div class="page" id="page-asesores">
       <div class="info-banner"><i class="fas fa-info-circle"></i> Los leads se asignan automaticamente por round-robin entre los asesores activos. Solo el asesor asignado recibe la alerta por WhatsApp.</div>
+
+      <!-- Resumen global -->
       <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
         <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-headset"></i></div><div><div class="stat-value" id="totalAsesores">0</div><div class="stat-label">Total</div></div></div>
         <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="asesoresActivos">0</div><div class="stat-label">Activos</div></div></div>
         <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-user-plus"></i></div><div><div class="stat-value" id="totalLeadsAsignados">0</div><div class="stat-label">Leads asignados</div></div></div>
         <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-trophy"></i></div><div><div class="stat-value" id="tasaConversionGlobal">0%</div><div class="stat-label">Tasa conversion</div></div></div>
       </div>
+
+      <!-- Filtro por asesor + pipeline visual -->
+      <div class="card" id="asesorFilterCard">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <h3 style="margin:0;"><i class="fas fa-filter"></i> Rendimiento por asesor</h3>
+          <select class="form-control" id="asesorFilterSelect" onchange="filterByAsesor()" style="width:250px;">
+            <option value="__todos__">Todos los asesores</option>
+          </select>
+        </div>
+        <!-- Pipeline funnel visual -->
+        <div id="pipelineFunnel" style="margin-top:16px;">
+          <div style="display:flex;gap:4px;align-items:stretch;min-height:70px;" id="pipelineBars"></div>
+          <div style="display:flex;gap:4px;margin-top:4px;" id="pipelineLabels"></div>
+        </div>
+        <!-- Metricas del asesor seleccionado -->
+        <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr); margin-top:16px;" id="filteredStats">
+          <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-inbox"></i></div><div><div class="stat-value" id="fTotal">0</div><div class="stat-label">Asignados</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#fff3cd;"><i class="fas fa-exclamation-triangle" style="color:#b45309;"></i></div><div><div class="stat-value" id="fSinGestionar">0</div><div class="stat-label">Sin gestionar</div></div></div>
+          <div class="stat-card"><div class="stat-icon green"><i class="fas fa-handshake"></i></div><div><div class="stat-value" id="fGanados">0</div><div class="stat-label">Ganados</div></div></div>
+          <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-percentage"></i></div><div><div class="stat-value" id="fConversion">0%</div><div class="stat-label">Conversion</div></div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:#e0f2fe;"><i class="fas fa-stopwatch" style="color:#0369a1;"></i></div><div><div class="stat-value" id="fTiempoResp">-</div><div class="stat-label">Promedio respuesta</div></div></div>
+        </div>
+        <!-- Tabla de leads filtrada con trazabilidad -->
+        <div style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+            <h4 style="margin:0;">Trazabilidad de leads</h4>
+            <select class="form-control" id="asesorLeadStateFilter" onchange="filterByAsesor()" style="width:180px;">
+              <option value="__todos__">Todos los estados</option>
+              <option value="NUEVO">Nuevos (sin gestionar)</option>
+              <option value="CONTACTADO">Contactados</option>
+              <option value="EN_DEMO">En demo</option>
+              <option value="NEGOCIANDO">Negociando</option>
+              <option value="SEGUIMIENTO">Seguimiento</option>
+              <option value="NO_CONTESTA">No contesta</option>
+              <option value="GANADO">Ganados</option>
+              <option value="PERDIDO">Perdidos</option>
+            </select>
+          </div>
+          <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>Ingreso</th><th>Contacto</th><th>Negocio</th><th>Estado</th><th>Contactado</th><th>Respuesta</th><th>Antiguedad</th><th>WhatsApp</th></tr></thead>
+            <tbody id="asesorFilteredLeads"></tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Equipo comercial (tabla CRUD) -->
       <div class="card">
         <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
           <h3 style="margin:0;"><i class="fas fa-users"></i> Equipo comercial</h3>
           <button class="btn btn-primary btn-sm" onclick="openAsesorModal(-1)"><i class="fas fa-plus"></i> Agregar asesor</button>
         </div>
         <table>
-          <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Ganados</th><th>Conversion</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Sin gestionar</th><th>Ganados</th><th>Conversion</th><th>Acciones</th></tr></thead>
           <tbody id="asesoresTable"></tbody>
         </table>
-      </div>
-      <div class="card" id="asesorAnalyticsCard" style="display:none;">
-        <h3><i class="fas fa-chart-bar"></i> Analitica del asesor: <span id="analyticsAsesorName"></span></h3>
-        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-          <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-inbox"></i></div><div><div class="stat-value" id="anTotal">0</div><div class="stat-label">Asignados</div></div></div>
-          <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-phone"></i></div><div><div class="stat-value" id="anContactados">0</div><div class="stat-label">Contactados</div></div></div>
-          <div class="stat-card"><div class="stat-icon green"><i class="fas fa-handshake"></i></div><div><div class="stat-value" id="anGanados">0</div><div class="stat-label">Ganados</div></div></div>
-          <div class="stat-card"><div class="stat-icon red"><i class="fas fa-times-circle"></i></div><div><div class="stat-value" id="anPerdidos">0</div><div class="stat-label">Perdidos</div></div></div>
-        </div>
-        <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr); margin-top:8px;">
-          <div class="stat-card"><div class="stat-icon purple"><i class="fas fa-desktop"></i></div><div><div class="stat-value" id="anDemo">0</div><div class="stat-label">En demo</div></div></div>
-          <div class="stat-card"><div class="stat-icon orange"><i class="fas fa-comments-dollar"></i></div><div><div class="stat-value" id="anNegociando">0</div><div class="stat-label">Negociando</div></div></div>
-          <div class="stat-card"><div class="stat-icon cyan"><i class="fas fa-clock"></i></div><div><div class="stat-value" id="anSeguimiento">0</div><div class="stat-label">Seguimiento</div></div></div>
-          <div class="stat-card"><div class="stat-icon teal"><i class="fas fa-percentage"></i></div><div><div class="stat-value" id="anConversion">0%</div><div class="stat-label">Conversion</div></div></div>
-        </div>
-        <div style="margin-top:12px;">
-          <h4>Leads asignados a este asesor</h4>
-          <table>
-            <thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>Ciudad</th><th>Estado</th></tr></thead>
-            <tbody id="asesorLeadsTable"></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -747,11 +775,20 @@ var DATA = {};
 var LANDING_URL = '';
 var currentPage = 'dashboard';
 
+// Parsea la respuesta del servidor (viene como JSON string para evitar problemas de serialización)
+function parsePanelResponse(raw) {
+  var result = typeof raw === 'string' ? JSON.parse(raw) : raw;
+  if (!result || !result.data) return null;
+  return result;
+}
+
 // ─── Init ───
 (function() {
   google.script.run
-    .withSuccessHandler(function(result) {
+    .withSuccessHandler(function(raw) {
       try {
+        var result = parsePanelResponse(raw);
+        if (!result) { toast('Error: el servidor no retorno datos. Recarga la pagina.', 'error'); document.getElementById('loadingOverlay').classList.add('hide'); return; }
         DATA = result.data || {};
         LANDING_URL = result.landingUrl || '';
         renderAll();
@@ -879,7 +916,7 @@ function renderAllLeads(leads) {
   tbody.innerHTML = filtered.map(function(l) {
     var row = l._rowNum || 2;
     return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
-      + '<td><a href="https://wa.me/' + (l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
+      + '<td><a href="https://wa.me/' + String(l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
       + '<td>' + esc(l.CIUDAD) + '</td><td>' + esc(l.CATEGORIA) + '</td>'
       + '<td>' + statusBadge(l.ESTADO) + '</td>'
       + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')"><i class="fas fa-pen"></i></button></td></tr>';
@@ -1014,7 +1051,7 @@ function renderClientesTable(clientes) {
     else if (c.ESTADO_PAGO === 'VENCIDO') rowClass = 'row-vencido';
     else if (c.ESTADO_PAGO === 'POR_VENCER') rowClass = 'row-por_vencer';
     return '<tr class="' + rowClass + '"><td><small>' + esc(c.ID_CLIENTE) + '</small></td><td><strong>' + esc(c.NOMBRE_NEGOCIO) + '</strong></td>'
-      + '<td><a href="https://wa.me/57' + (c.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(c.WHATSAPP) + '</a></td>'
+      + '<td><a href="https://wa.me/57' + String(c.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(c.WHATSAPP) + '</a></td>'
       + '<td>' + esc(c.PLAN_ACTIVO) + '</td>'
       + '<td>' + formatDate(c.FECHA_PROXIMO_COBRO) + '</td>'
       + '<td>' + pagoStatusBadge(c.ESTADO_PAGO, c._diasMora, c._diasParaVencer) + '</td>'
@@ -1029,7 +1066,7 @@ function filterClientes() {
   if (!q) { renderClientesTable(all); return; }
   var filtered = all.filter(function(c) {
     return (c.NOMBRE_NEGOCIO || '').toLowerCase().indexOf(q) >= 0 ||
-           (c.WHATSAPP || '').toLowerCase().indexOf(q) >= 0 ||
+           String(c.WHATSAPP || '').toLowerCase().indexOf(q) >= 0 ||
            (c.SHEET_ID || '').toLowerCase().indexOf(q) >= 0 ||
            (c.SCRIPT_ID || '').toLowerCase().indexOf(q) >= 0 ||
            (c.ID_CLIENTE || '').toLowerCase().indexOf(q) >= 0;
@@ -1221,6 +1258,17 @@ function removeCondicion(idx) {
 // ═══════════════════════════════════════════════
 function saveCurrentPage() {
   collectFormData();
+  // Enviar solo datos editables (sin leads, clientes, novedades que son read-only)
+  var payload = {
+    config: DATA.config,
+    condiciones: DATA.condiciones,
+    dolores: DATA.dolores,
+    funcionalidades: DATA.funcionalidades,
+    faq: DATA.faq,
+    testimonios: DATA.testimonios,
+    planes: DATA.planes,
+    asesores: DATA.asesores || []
+  };
   var btn = document.getElementById('btnSaveAll');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
   google.script.run.withSuccessHandler(function() {
@@ -1228,8 +1276,8 @@ function saveCurrentPage() {
     toast('Cambios guardados. La landing se actualizo automaticamente.', 'success');
   }).withFailureHandler(function(err) {
     btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i> Guardar';
-    toast('Error: ' + err.message, 'error');
-  }).savePanelData(DATA);
+    toast('Error: ' + (err ? err.message : 'desconocido'), 'error');
+  }).savePanelData(payload);
 }
 
 function collectFormData() {
@@ -1261,7 +1309,15 @@ function collectFormData() {
 
 // ─── Refresh ───
 function refreshData() {
-  google.script.run.withSuccessHandler(function(result) { DATA = result.data; LANDING_URL = result.landingUrl || LANDING_URL; renderAll(); }).getPanelData();
+  google.script.run.withSuccessHandler(function(raw) {
+    var result = parsePanelResponse(raw);
+    if (!result) { toast('Error cargando datos del servidor', 'error'); return; }
+    DATA = result.data || {};
+    LANDING_URL = result.landingUrl || LANDING_URL;
+    renderAll();
+  }).withFailureHandler(function(err) {
+    toast('Error: ' + (err ? err.message : 'desconocido'), 'error');
+  }).getPanelData();
 }
 
 // ═══════════════════════════════════════════════
@@ -1354,19 +1410,161 @@ function toast(msg, type) {
 function getAsesorStats(whatsapp) {
   var leads = DATA.leads || [];
   var mine = leads.filter(function(l) { return String(l.ASIGNADO_A).trim() === String(whatsapp).trim(); });
-  var ganados = mine.filter(function(l) { return l.ESTADO === 'GANADO' || l.ESTADO === 'CLIENTE'; }).length;
-  var perdidos = mine.filter(function(l) { return l.ESTADO === 'PERDIDO'; }).length;
-  var contactados = mine.filter(function(l) { return ['CONTACTADO','EN_DEMO','NEGOCIANDO','SEGUIMIENTO','GANADO','CLIENTE'].indexOf(l.ESTADO) >= 0; }).length;
+  var nuevo = mine.filter(function(l) { return !l.ESTADO || l.ESTADO === 'NUEVO'; }).length;
+  var contactados = mine.filter(function(l) { return l.ESTADO === 'CONTACTADO'; }).length;
   var enDemo = mine.filter(function(l) { return l.ESTADO === 'EN_DEMO'; }).length;
   var negociando = mine.filter(function(l) { return l.ESTADO === 'NEGOCIANDO'; }).length;
   var seguimiento = mine.filter(function(l) { return l.ESTADO === 'SEGUIMIENTO'; }).length;
+  var noContesta = mine.filter(function(l) { return l.ESTADO === 'NO_CONTESTA'; }).length;
+  var ganados = mine.filter(function(l) { return l.ESTADO === 'GANADO' || l.ESTADO === 'CLIENTE'; }).length;
+  var perdidos = mine.filter(function(l) { return l.ESTADO === 'PERDIDO'; }).length;
   var conversion = mine.length > 0 ? Math.round((ganados / mine.length) * 100) : 0;
-  return { total: mine.length, ganados: ganados, perdidos: perdidos, contactados: contactados, enDemo: enDemo, negociando: negociando, seguimiento: seguimiento, conversion: conversion, leads: mine };
+
+  // Tiempo promedio de respuesta (dias entre FECHA y FECHA_CONTACTO)
+  var tiemposRespuesta = [];
+  mine.forEach(function(l) {
+    if (l.FECHA && l.FECHA_CONTACTO) {
+      var dias = Math.max(0, Math.round((new Date(l.FECHA_CONTACTO) - new Date(l.FECHA)) / 86400000));
+      tiemposRespuesta.push(dias);
+    }
+  });
+  var promedioRespuesta = tiemposRespuesta.length > 0 ? Math.round(tiemposRespuesta.reduce(function(a, b) { return a + b; }, 0) / tiemposRespuesta.length * 10) / 10 : null;
+
+  return { total: mine.length, nuevo: nuevo, contactados: contactados, enDemo: enDemo, negociando: negociando, seguimiento: seguimiento, noContesta: noContesta, ganados: ganados, perdidos: perdidos, conversion: conversion, promedioRespuesta: promedioRespuesta, leads: mine };
+}
+
+// Calcula dias transcurridos desde una fecha hasta hoy
+function diasDesde(fechaStr) {
+  if (!fechaStr) return null;
+  var diff = Math.floor((new Date() - new Date(fechaStr)) / 86400000);
+  return diff >= 0 ? diff : 0;
+}
+
+// Colores del pipeline por estado
+var PIPELINE_COLORS = {
+  NUEVO: { bg: '#dbeafe', fg: '#1e40af', label: 'Nuevos' },
+  CONTACTADO: { bg: '#e0e7ff', fg: '#4338ca', label: 'Contactados' },
+  EN_DEMO: { bg: '#f3e8ff', fg: '#7c3aed', label: 'En demo' },
+  NEGOCIANDO: { bg: '#fef3c7', fg: '#b45309', label: 'Negociando' },
+  SEGUIMIENTO: { bg: '#e0f2fe', fg: '#0369a1', label: 'Seguimiento' },
+  NO_CONTESTA: { bg: '#fee2e2', fg: '#991b1b', label: 'No contesta' },
+  GANADO: { bg: '#dcfce7', fg: '#166534', label: 'Ganados' },
+  PERDIDO: { bg: '#fef2f2', fg: '#991b1b', label: 'Perdidos' }
+};
+
+function renderPipeline(stats) {
+  var stages = ['NUEVO','CONTACTADO','EN_DEMO','NEGOCIANDO','SEGUIMIENTO','NO_CONTESTA','GANADO','PERDIDO'];
+  var counts = { NUEVO: stats.nuevo, CONTACTADO: stats.contactados, EN_DEMO: stats.enDemo, NEGOCIANDO: stats.negociando, SEGUIMIENTO: stats.seguimiento, NO_CONTESTA: stats.noContesta, GANADO: stats.ganados, PERDIDO: stats.perdidos };
+  var max = Math.max.apply(null, stages.map(function(s) { return counts[s]; }).concat([1]));
+
+  var bars = stages.map(function(s) {
+    var c = counts[s]; var pct = Math.max(8, Math.round((c / max) * 100));
+    var color = PIPELINE_COLORS[s];
+    return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;">'
+      + '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">' + c + '</div>'
+      + '<div style="width:100%;height:' + pct + '%;min-height:6px;background:' + color.bg + ';border:2px solid ' + color.fg + ';border-radius:6px;transition:height 0.3s;"></div>'
+      + '</div>';
+  }).join('');
+
+  var labels = stages.map(function(s) {
+    var color = PIPELINE_COLORS[s];
+    return '<div style="flex:1;text-align:center;font-size:10px;font-weight:600;color:' + color.fg + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + color.label + '</div>';
+  }).join('');
+
+  document.getElementById('pipelineBars').innerHTML = bars;
+  document.getElementById('pipelineLabels').innerHTML = labels;
+}
+
+function filterByAsesor() {
+  var sel = document.getElementById('asesorFilterSelect').value;
+  var stateFilter = document.getElementById('asesorLeadStateFilter').value;
+  var asesores = DATA.asesores || [];
+  var stats;
+
+  if (sel === '__todos__') {
+    // Agregar stats de todos los asesores
+    stats = { total: 0, nuevo: 0, contactados: 0, enDemo: 0, negociando: 0, seguimiento: 0, noContesta: 0, ganados: 0, perdidos: 0, conversion: 0, leads: [] };
+    asesores.forEach(function(a) {
+      var s = getAsesorStats(a.WHATSAPP);
+      stats.total += s.total; stats.nuevo += s.nuevo; stats.contactados += s.contactados;
+      stats.enDemo += s.enDemo; stats.negociando += s.negociando; stats.seguimiento += s.seguimiento;
+      stats.noContesta += s.noContesta; stats.ganados += s.ganados; stats.perdidos += s.perdidos;
+      stats.leads = stats.leads.concat(s.leads);
+    });
+    // Incluir leads sin asignar
+    var sinAsignar = (DATA.leads || []).filter(function(l) {
+      return !l.ASIGNADO_A || !String(l.ASIGNADO_A).trim();
+    });
+    stats.total += sinAsignar.length;
+    stats.nuevo += sinAsignar.filter(function(l) { return !l.ESTADO || l.ESTADO === 'NUEVO'; }).length;
+    stats.leads = stats.leads.concat(sinAsignar);
+    stats.conversion = stats.total > 0 ? Math.round((stats.ganados / stats.total) * 100) : 0;
+    stats.promedioRespuesta = null;
+  } else {
+    stats = getAsesorStats(sel);
+  }
+
+  // Actualizar metricas
+  setText('fTotal', stats.total);
+  setText('fSinGestionar', stats.nuevo);
+  setText('fGanados', stats.ganados);
+  setText('fConversion', stats.conversion + '%');
+  setText('fTiempoResp', stats.promedioRespuesta !== null ? stats.promedioRespuesta + ' dias' : '-');
+
+  // Pipeline visual
+  renderPipeline(stats);
+
+  // Filtrar leads por estado si aplica
+  var filtered = stats.leads;
+  if (stateFilter !== '__todos__') {
+    filtered = filtered.filter(function(l) {
+      if (stateFilter === 'NUEVO') return !l.ESTADO || l.ESTADO === 'NUEVO';
+      return l.ESTADO === stateFilter;
+    });
+  }
+
+  // Renderizar tabla con trazabilidad
+  var tbody = document.getElementById('asesorFilteredLeads');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay leads con estos filtros</td></tr>';
+  } else {
+    tbody.innerHTML = filtered.slice().sort(function(a, b) {
+      return new Date(b.FECHA || 0) - new Date(a.FECHA || 0);
+    }).map(function(l) {
+      var edad = diasDesde(l.FECHA);
+      var tiempoResp = (l.FECHA && l.FECHA_CONTACTO) ? Math.max(0, Math.round((new Date(l.FECHA_CONTACTO) - new Date(l.FECHA)) / 86400000)) : null;
+      // Alerta visual: lead sin gestionar por mas de 2 dias
+      var edadBadge = '';
+      if ((!l.ESTADO || l.ESTADO === 'NUEVO') && edad > 2) {
+        edadBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#991b1b;background:#fee2e2;">' + edad + ' dias</span>';
+      } else if (edad !== null) {
+        edadBadge = edad + ' dias';
+      }
+      var respBadge = '';
+      if (tiempoResp !== null) {
+        var respColor = tiempoResp <= 1 ? '#166534;background:#dcfce7' : (tiempoResp <= 3 ? '#b45309;background:#fff3cd' : '#991b1b;background:#fee2e2');
+        respBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:' + respColor + ';">' + tiempoResp + (tiempoResp === 1 ? ' dia' : ' dias') + '</span>';
+      } else if (!l.ESTADO || l.ESTADO === 'NUEVO') {
+        respBadge = '<span style="color:#b45309;font-size:11px;">Pendiente</span>';
+      } else {
+        respBadge = '-';
+      }
+      return '<tr>'
+        + '<td style="white-space:nowrap;">' + formatDate(l.FECHA) + '</td>'
+        + '<td>' + esc(l.NOMBRE_CONTACTO) + '</td>'
+        + '<td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
+        + '<td>' + statusBadge(l.ESTADO || 'NUEVO') + '</td>'
+        + '<td style="white-space:nowrap;">' + (l.FECHA_CONTACTO ? formatDate(l.FECHA_CONTACTO) : '<span style="color:#999;">-</span>') + '</td>'
+        + '<td style="text-align:center;">' + respBadge + '</td>'
+        + '<td style="text-align:center;">' + edadBadge + '</td>'
+        + '<td><a href="https://wa.me/' + String(l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);" title="Contactar"><i class="fab fa-whatsapp"></i></a></td>'
+        + '</tr>';
+    }).join('');
+  }
 }
 
 function renderAsesores() {
   var asesores = DATA.asesores || [];
-  var leads = DATA.leads || [];
   var total = asesores.length;
   var activos = asesores.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si'; }).length;
   var totalLeadsNum = 0, totalGanados = 0;
@@ -1378,21 +1576,36 @@ function renderAsesores() {
   setText('totalLeadsAsignados', totalLeadsNum);
   setText('tasaConversionGlobal', tasaGlobal + '%');
 
+  // Poblar dropdown de filtro
+  var select = document.getElementById('asesorFilterSelect');
+  var currentVal = select.value;
+  select.innerHTML = '<option value="__todos__">Todos los asesores</option>' + asesores.map(function(a) {
+    return '<option value="' + esc(a.WHATSAPP) + '">' + esc(a.NOMBRE) + ' (' + getAsesorStats(a.WHATSAPP).total + ' leads)</option>';
+  }).join('');
+  select.value = currentVal || '__todos__';
+
+  // Renderizar pipeline y leads filtrados
+  filterByAsesor();
+
+  // Tabla del equipo
   var tbody = document.getElementById('asesoresTable');
   if (!asesores.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fas fa-headset"></i><p>No hay asesores. Agrega uno para activar la asignacion automatica.</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state"><i class="fas fa-headset"></i><p>No hay asesores. Agrega uno para activar la asignacion automatica.</p></td></tr>';
     return;
   }
   tbody.innerHTML = asesores.map(function(a, i) {
     var activo = String(a.ACTIVO).toLowerCase() === 'si';
     var stats = getAsesorStats(a.WHATSAPP);
-    return '<tr style="cursor:pointer;" onclick="showAsesorAnalytics(' + i + ')">'
+    var sinGestionar = stats.nuevo;
+    var sinGestionarBadge = sinGestionar > 0 ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#b45309;background:#fff3cd;">' + sinGestionar + '</span>' : '<span style="color:#999;">0</span>';
+    return '<tr style="cursor:pointer;" onclick="document.getElementById(\'asesorFilterSelect\').value=\'' + esc(a.WHATSAPP) + '\';filterByAsesor();document.getElementById(\'asesorFilterCard\').scrollIntoView({behavior:\'smooth\'});">'
       + '<td><strong>' + esc(a.NOMBRE) + '</strong></td>'
-      + '<td><a href="https://wa.me/' + (a.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);" onclick="event.stopPropagation();">' + esc(a.WHATSAPP) + '</a></td>'
+      + '<td><a href="https://wa.me/' + String(a.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);" onclick="event.stopPropagation();">' + esc(a.WHATSAPP) + '</a></td>'
       + '<td>' + esc(a.EMAIL) + '</td>'
       + '<td>' + esc(a.ROL || 'Comercial') + '</td>'
       + '<td>' + (activo ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#166534;background:#dcfce7;">Activo</span>' : '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#991b1b;background:#fef2f2;">Inactivo</span>') + '</td>'
       + '<td style="text-align:center;">' + stats.total + '</td>'
+      + '<td style="text-align:center;">' + sinGestionarBadge + '</td>'
       + '<td style="text-align:center;color:var(--success);font-weight:600;">' + stats.ganados + '</td>'
       + '<td style="text-align:center;">' + stats.conversion + '%</td>'
       + '<td onclick="event.stopPropagation();">'
@@ -1463,31 +1676,6 @@ function removeAsesor(idx) {
   renderAsesores();
   DIRTY = true;
   toast('Asesor eliminado. Recuerda guardar.', 'info');
-}
-
-function showAsesorAnalytics(idx) {
-  var a = DATA.asesores[idx];
-  var stats = getAsesorStats(a.WHATSAPP);
-  document.getElementById('asesorAnalyticsCard').style.display = '';
-  document.getElementById('analyticsAsesorName').textContent = a.NOMBRE;
-  setText('anTotal', stats.total);
-  setText('anContactados', stats.contactados);
-  setText('anGanados', stats.ganados);
-  setText('anPerdidos', stats.perdidos);
-  setText('anDemo', stats.enDemo);
-  setText('anNegociando', stats.negociando);
-  setText('anSeguimiento', stats.seguimiento);
-  setText('anConversion', stats.conversion + '%');
-
-  var tbody = document.getElementById('asesorLeadsTable');
-  if (!stats.leads.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Este asesor no tiene leads asignados</td></tr>';
-  } else {
-    tbody.innerHTML = stats.leads.slice().reverse().map(function(l) {
-      return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td><td>' + esc(l.CIUDAD) + '</td><td>' + statusBadge(l.ESTADO) + '</td></tr>';
-    }).join('');
-  }
-  document.getElementById('asesorAnalyticsCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 // ─── NOVEDADES ───
