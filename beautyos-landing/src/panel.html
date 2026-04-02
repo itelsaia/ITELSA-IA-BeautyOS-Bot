@@ -270,7 +270,7 @@
           </select>
         </div>
         <div style="overflow-x:auto;">
-          <table><thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>WhatsApp</th><th>Ciudad</th><th>Categoria</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allLeadsTable"></tbody></table>
+          <table><thead><tr><th>Fecha</th><th>Contacto</th><th>Negocio</th><th>WhatsApp</th><th>Ciudad</th><th>Categoria</th><th>Asignado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="allLeadsTable"></tbody></table>
         </div>
       </div>
     </div>
@@ -563,7 +563,11 @@
         <option value="PERDIDO">Perdido - No compro</option>
       </select>
     </div>
-    <div class="form-group"><label>Asignado a</label><input class="form-control" id="modalAsignado" placeholder="Nombre"></div>
+    <div class="form-group"><label>Asignado a</label>
+      <select class="form-control" id="modalAsignado">
+        <option value="">Sin asignar</option>
+      </select>
+    </div>
     <div class="form-group"><label>Notas</label><textarea class="form-control" id="modalNotas" rows="3"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('leadModal')">Cancelar</button>
@@ -906,18 +910,28 @@ function renderLeads() {
   renderAllLeads(leads);
 }
 
+// Resuelve nombre del asesor por su WhatsApp
+function getAsesorNombre(whatsapp) {
+  if (!whatsapp) return '';
+  var wa = String(whatsapp).trim();
+  var asesor = (DATA.asesores || []).find(function(a) { return String(a.WHATSAPP).trim() === wa; });
+  return asesor ? asesor.NOMBRE : wa;
+}
+
 function renderAllLeads(leads) {
   var filter = document.getElementById('filterEstado').value;
   var filtered = filter ? leads.filter(function(l) { return l.ESTADO === filter || (!l.ESTADO && filter === 'NUEVO'); }) : leads;
   filtered = filtered.slice().reverse();
 
   var tbody = document.getElementById('allLeadsTable');
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay leads</td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No hay leads</td></tr>'; return; }
   tbody.innerHTML = filtered.map(function(l) {
     var row = l._rowNum || 2;
+    var asesorNombre = getAsesorNombre(l.ASIGNADO_A);
     return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
       + '<td><a href="https://wa.me/' + String(l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
       + '<td>' + esc(l.CIUDAD) + '</td><td>' + esc(l.CATEGORIA) + '</td>'
+      + '<td>' + (asesorNombre ? '<span style="font-size:12px;color:var(--primary);">' + esc(asesorNombre) + '</span>' : '<span style="font-size:12px;color:#999;">Sin asignar</span>') + '</td>'
       + '<td>' + statusBadge(l.ESTADO) + '</td>'
       + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')"><i class="fas fa-pen"></i></button></td></tr>';
   }).join('');
@@ -928,8 +942,25 @@ function filterLeads() { renderAllLeads(DATA.leads || []); }
 function openLeadModal(rowNum, estado) {
   document.getElementById('modalLeadRow').value = rowNum;
   document.getElementById('modalEstado').value = estado;
-  document.getElementById('modalAsignado').value = '';
-  document.getElementById('modalNotas').value = '';
+
+  // Poblar dropdown de asesores
+  var sel = document.getElementById('modalAsignado');
+  var asesores = DATA.asesores || [];
+  sel.innerHTML = '<option value="">Sin asignar</option>' + asesores.map(function(a) {
+    var activo = String(a.ACTIVO).toLowerCase() === 'si';
+    return '<option value="' + esc(String(a.WHATSAPP)) + '">' + esc(a.NOMBRE) + (activo ? '' : ' (inactivo)') + '</option>';
+  }).join('');
+
+  // Pre-seleccionar asesor asignado y cargar notas del lead
+  var lead = (DATA.leads || []).find(function(l) { return l._rowNum === rowNum; });
+  if (lead) {
+    sel.value = String(lead.ASIGNADO_A || '');
+    document.getElementById('modalNotas').value = lead.NOTAS || '';
+  } else {
+    sel.value = '';
+    document.getElementById('modalNotas').value = '';
+  }
+
   // Mostrar boton convertir si el lead esta en etapa avanzada
   var btn = document.getElementById('btnConvertLead');
   btn.style.display = (estado === 'GANADO' || estado === 'NEGOCIANDO' || estado === 'EN_DEMO') ? '' : 'none';
@@ -1319,6 +1350,11 @@ function refreshData() {
     toast('Error: ' + (err ? err.message : 'desconocido'), 'error');
   }).getPanelData();
 }
+
+// ─── Auto-refresh cada 60s para mantener datos actualizados ───
+setInterval(function() {
+  refreshData();
+}, 60000);
 
 // ═══════════════════════════════════════════════
 // ─── HELPERS ───

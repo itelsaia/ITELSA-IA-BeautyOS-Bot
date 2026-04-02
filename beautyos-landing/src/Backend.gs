@@ -762,18 +762,28 @@ function leerTabla(ss, nombreHoja) {
   return rows;
 }
 
-// Escribe hoja clave-valor completa (reemplaza todo el contenido)
+// Actualiza claves en hoja clave-valor sin borrar las que no vienen en obj
 function guardarClaveValor(ss, nombreHoja, obj) {
   var sheet = ss.getSheetByName(nombreHoja);
-  if (!sheet) sheet = ss.insertSheet(nombreHoja);
-  sheet.clear();
-  var data = [['CLAVE', 'VALOR']];
-  for (var key in obj) {
-    if (key === '_rowNum') continue;
-    data.push([key, obj[key]]);
+  if (!sheet) {
+    sheet = ss.insertSheet(nombreHoja);
+    sheet.getRange(1, 1, 1, 2).setValues([['CLAVE', 'VALOR']]).setFontWeight('bold');
   }
-  sheet.getRange(1, 1, data.length, 2).setValues(data);
-  sheet.getRange(1, 1, 1, 2).setFontWeight('bold');
+  var lastRow = sheet.getLastRow();
+  var existing = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 2).getValues() : [];
+  var map = {};
+  for (var i = 0; i < existing.length; i++) {
+    map[String(existing[i][0]).trim()] = i;
+  }
+  for (var key in obj) {
+    if (key === '_rowNum' || key === 'CLAVE') continue;
+    var val = obj[key] !== undefined && obj[key] !== null ? obj[key] : '';
+    if (map.hasOwnProperty(key)) {
+      sheet.getRange(map[key] + 2, 2).setValue(val);
+    } else {
+      sheet.appendRow([key, val]);
+    }
+  }
 }
 
 // Escribe hoja tipo tabla completa (reemplaza todo el contenido)
