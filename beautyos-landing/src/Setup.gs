@@ -105,6 +105,36 @@ function crearTriggerFacturacion() {
   Logger.log('Trigger creado: verificarFacturaciones() cada dia a las 8 AM.');
 }
 
+// ─── Crea hoja CAMPANAS si no existe ───
+function crearCampanas() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = getOrCreateSheet(ss, 'CAMPANAS');
+  if (sheet.getLastRow() > 0) { Logger.log('CAMPANAS ya tiene datos, no se sobreescribe.'); return; }
+  var headers = [
+    'ID_CAMPANA', 'NOMBRE', 'ESTADO', 'FECHA_INICIO', 'FECHA_FIN',
+    'PRECIO_MENSUAL', 'PRECIO_ANUAL', 'IMPLEMENTACION', 'PRIMER_MES_GRATIS',
+    'META_CLIENTES', 'CLIENTES_ACTUALES', 'CONDICIONES_ESPECIALES',
+    'MENSAJE_AGENTE', 'CANAL'
+  ];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#145251').setFontColor('white');
+  sheet.setFrozenRows(1);
+  // Campaña de lanzamiento por defecto
+  sheet.appendRow([
+    'CAMP-001', 'Lanzamiento BeautyOS 2026', 'ACTIVA',
+    new Date(), '',
+    180000, 160000, 0, 'SI',
+    5, 0,
+    'Implementacion GRATIS hasta completar 5 clientes. Primer mes GRATIS. Sin contrato de permanencia.',
+    'Estamos en lanzamiento. La implementacion que normalmente vale $400.000 es GRATIS para los primeros 5 clientes. Ademas, el primer mes te sale gratis. Son $180.000/mes todo incluido, sin contrato. Solo quedan CUPOS_DISPONIBLES cupos disponibles.',
+    'whatsapp,landing'
+  ]);
+  sheet.setColumnWidth(12, 300);
+  sheet.setColumnWidth(13, 400);
+  SpreadsheetApp.flush();
+  Logger.log('Hoja CAMPANAS creada con campaña de lanzamiento.');
+}
+
 // ═══════════════════════════════════════════════
 // ─── CREACION DE HOJAS ───
 // ═══════════════════════════════════════════════

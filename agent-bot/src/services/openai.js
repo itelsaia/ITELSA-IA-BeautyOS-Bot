@@ -814,9 +814,21 @@ Detecta su intención y actúa según corresponda.`;
 Estás en modo VENTAS. Tu objetivo es convertirlo en cliente.`;
     }
 
-    // Oferta de lanzamiento desde config
-    const ofertaLanzamiento = config.ofertaLanzamiento || 'Primer mes GRATIS al contratar. Implementación incluida.';
-    const implementacionPrecio = config.implementacionPrecio || '$400.000';
+    // Campaña activa desde hoja CAMPANAS (sincronizada cada 5 min)
+    const campana = config.campanaActiva || {};
+    const cuposDisponibles = config.cuposDisponibles !== undefined ? config.cuposDisponibles : '?';
+    const campanaMsg = campana.MENSAJE_AGENTE
+        ? String(campana.MENSAJE_AGENTE).replace('CUPOS_DISPONIBLES', cuposDisponibles)
+        : '';
+    const implementacionGratis = String(campana.IMPLEMENTACION || 0) === '0' || String(campana.IMPLEMENTACION) === '';
+    const primerMesGratis = String(campana.PRIMER_MES_GRATIS || '').toUpperCase() === 'SI';
+    const condicionesEspeciales = campana.CONDICIONES_ESPECIALES || '';
+    const metaClientes = Number(campana.META_CLIENTES || 0);
+    const clientesActuales = Number(campana.CLIENTES_ACTUALES || 0);
+
+    // Fallbacks si no hay campaña
+    const ofertaLanzamiento = config.ofertaLanzamiento || 'Primer mes GRATIS al contratar.';
+    const implementacionPrecio = implementacionGratis ? 'GRATIS (promo lanzamiento)' : (config.implementacionPrecio || '$400.000');
 
     return `Eres ${agentName}, asesora comercial de ${businessName}. Fecha: ${todayStr} (${todayDayName}).
 
@@ -843,11 +855,15 @@ Todo configurado y listo para usar en 24-48 horas.
 ## PLANES Y PRECIOS
 ${planesText || '- Plan Completo: $180.000/mes (Todo incluido)'}
 
-## OFERTA DE LANZAMIENTO — USAR COMO GANCHO DE CIERRE
-${ofertaLanzamiento}
-- Implementación: ${implementacionPrecio} (única vez — incluye configuración completa)
+## CAMPAÑA ACTIVA — ${campana.NOMBRE || 'Lanzamiento BeautyOS'}
+${campanaMsg || ofertaLanzamiento}
+${condicionesEspeciales ? '- Condiciones: ' + condicionesEspeciales : ''}
+- Implementación: ${implementacionPrecio}${implementacionGratis ? ' (normalmente vale $400.000, pero es GRATIS en esta campaña)' : ''}
+${primerMesGratis ? '- Primer mes: GRATIS' : ''}
 - Plan anual: $160.000/mes (ahorra 11%)
 - Sin contrato de permanencia. Cancela cuando quieras.
+${metaClientes > 0 ? '- CUPOS LIMITADOS: Solo ' + cuposDisponibles + ' de ' + metaClientes + ' cupos disponibles. Usa esto como urgencia real.' : ''}
+- IMPORTANTE: Cuando cierres un negocio, el asesor actualizará los clientes en el CRM.
 
 ## BASE DE CONOCIMIENTO
 ${knowledgeText || 'No hay FAQ cargadas aún.'}
@@ -855,11 +871,12 @@ ${knowledgeText || 'No hay FAQ cargadas aún.'}
 ## TÉCNICAS DE PERSUASIÓN — Usa estas durante la conversación
 1. DOLOR → SOLUCIÓN: "¿Cuántas citas has perdido este mes?" → "Con BeautyOS eso no pasa, el bot agenda y recuerda automáticamente."
 2. PRUEBA SOCIAL: "Tenemos salones en Bogotá, Medellín y Cali que ya redujeron los no-shows un 95%."
-3. ESCASEZ: "La oferta del primer mes gratis es por lanzamiento, no va a estar siempre."
+3. ESCASEZ REAL: "Solo tenemos ${cuposDisponibles} cupos con implementación GRATIS. Cuando se llenen, la implementación costará $400.000."
 4. COSTO DE NO ACTUAR: "Cada cita que pierdes son $XX.000 que dejas de ganar. Al mes eso suma más que el costo de BeautyOS."
 5. FACILIDAD: "Nosotros hacemos TODO. Tú solo nos das tu info y en 24 horas tu bot está atendiendo."
 6. INVERSIÓN vs GASTO: "No es un gasto, es una inversión. $180.000 son 2-3 citas de lo que cobras. Se paga solo."
 7. GARANTÍA: "Sin contrato. Si no te funciona, cancelas y ya. Cero riesgo."
+8. IMPLEMENTACIÓN GRATIS: "${implementacionGratis ? 'En esta campaña la implementación es GRATIS ($400.000 de ahorro). Úsalo como argumento fuerte.' : 'Implementación: ' + implementacionPrecio + ' (única vez).'}"
 
 ## FLUJO DE VENTA (prospectos nuevos) — Sigue estos pasos EN ORDEN
 1. SALUDO CÁLIDO: "¡Hola! Soy ${agentName} de ${businessName}. ¿Cómo te llamas y cuál es tu negocio?"

@@ -251,6 +251,14 @@ async function syncTenantData(tenantId) {
                     (resp.dolores || []).forEach(d => knowledge.push({ intent: `problema ${d.TITULO}`, response: `Entendemos ese dolor: ${d.DESCRIPCION}. BeautyOS lo resuelve.`, mediaType: '', url: '' }));
                     (resp.testimonios || []).forEach(t => knowledge.push({ intent: 'testimonio caso exito', response: `${t.NOMBRE} (${t.ROL}): "${t.TEXTO}"`, mediaType: '', url: '' }));
                     tenant.knowledgeCatalog = knowledge;
+
+                    // Cargar campaña activa para el prompt comercial
+                    if (resp.campanaActiva) {
+                        tenant.config.campanaActiva = resp.campanaActiva;
+                        const cuposDisp = Math.max(0, Number(resp.campanaActiva.META_CLIENTES || 0) - Number(resp.campanaActiva.CLIENTES_ACTUALES || 0));
+                        tenant.config.cuposDisponibles = cuposDisp;
+                        console.log(`[${tenantId}] 📢 Campaña activa: ${resp.campanaActiva.NOMBRE} — ${cuposDisp} cupos disponibles`);
+                    }
                 }
             }
 

@@ -607,16 +607,20 @@ function updateNovedad(rowNum, estado, asignado, notasResolucion) {
 // ─── AGENTE IA COMERCIAL: Datos para sync ───
 // ═══════════════════════════════════════════════
 
-// Retorna FAQ, planes, features y condiciones para el agente comercial
+// Retorna FAQ, planes, features, condiciones y campaña activa para el agente comercial
 function handleGetInfoComercial() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var campanas = [];
+  try { campanas = leerTabla(ss, 'CAMPANAS') || []; } catch(e) {}
+  var campanaActiva = campanas.find(function(c) { return c.ESTADO === 'ACTIVA'; }) || null;
   return {
     planes: leerTabla(ss, 'PLANES'),
     condiciones: leerClaveValor(ss, 'CONDICIONES'),
     faq: leerTabla(ss, 'FAQ'),
     funcionalidades: leerTabla(ss, 'FUNCIONALIDADES'),
     dolores: leerTabla(ss, 'DOLORES'),
-    testimonios: leerTabla(ss, 'TESTIMONIOS')
+    testimonios: leerTabla(ss, 'TESTIMONIOS'),
+    campanaActiva: campanaActiva
   };
 }
 
@@ -661,6 +665,7 @@ function getPanelData() {
   try { data.clientes = leerTabla(ss, 'CLIENTES') || []; } catch(e) { data.clientes = []; }
   try { data.novedades = leerTabla(ss, 'NOVEDADES') || []; } catch(e) { data.novedades = []; }
   try { data.asesores = leerTabla(ss, 'ASESORES') || []; } catch(e) { data.asesores = []; }
+  try { data.campanas = leerTabla(ss, 'CAMPANAS') || []; } catch(e) { data.campanas = []; }
 
   // Computar dias de mora/vencimiento en cada cliente
   var hoy = new Date();
