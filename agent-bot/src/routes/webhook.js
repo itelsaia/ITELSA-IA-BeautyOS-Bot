@@ -1557,23 +1557,21 @@ router.post('/evolution', async (req, res) => {
                 const nombreContacto = session.datos?.nombre || data.pushName || '';
                 const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar|riohacha|quibd[oó]|leticia|mocoa|yopal|arauca|in[ií]rida|mit[uú]|puerto\s*carre[ñn]o|san\s*andr[eé]s|soacha|envigado|bello|itag[uü][ií]|soledad|dosquebradas|floridablanca|zipaquir[aá]|girardot|fusagasug[aá]|facatativ[aá]|chia|cajic[aá]|funza|mosquera|madrid|ch[ií]a)/i;
 
-                // Extraer negocio: buscar nombre propio del negocio, no la categoría
+                // Extraer negocio: buscar MENSAJE POR MENSAJE para no mezclar frases
                 let negocio = '';
+                const userMessages = session.history.filter(h => h.role === 'user').map(h => h.content);
                 const negocioPatterns = [
-                    // "se llama cejas locas", "llama peluquería glamour"
-                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
-                    // "mi negocio es cejas locas", "mi salón es glamour"
-                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|peluqueria)\s+(?:es|se\s+llama)\s+)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
-                    // "el nombre es cejas locas", "nombre del negocio es glamour"
-                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
-                    // "tengo un salón que se llama X"
-                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+))["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
-                    // "negocio cejas locas" — solo si es nombre propio (empieza con mayúscula o tiene 2+ palabras)
-                    /(?:negocio|salon|sal[oó]n|spa|barberia|peluqueria)\s+["']?([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/
+                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda|est[aá]|tengo|trabajo|soy)|$)/i,
+                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|peluqueria)\s+(?:es|se\s+llama)\s+)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda|est[aá])|$)/i,
+                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda)|$)/i,
+                    /(?:negocio\s+(?:es\s+)?["']?)([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/
                 ];
-                for (const pat of negocioPatterns) {
-                    const m = allUserMsgs.match(pat);
-                    if (m) { negocio = m[1].trim(); break; }
+                for (const msg of userMessages) {
+                    if (negocio) break;
+                    for (const pat of negocioPatterns) {
+                        const m = msg.match(pat);
+                        if (m) { negocio = m[1].trim(); break; }
+                    }
                 }
 
                 // Extraer ciudad
@@ -1600,7 +1598,13 @@ router.post('/evolution', async (req, res) => {
                     if (aiNegocioMatch) negocio = (aiNegocioMatch[1] || aiNegocioMatch[2] || '').trim();
                 }
 
-                // Capturar si tenemos al menos nombre + negocio + ciudad
+                // Guardar datos parciales en la sesión para que Sofi sepa qué falta
+                if (negocio && !session._datosCaptura) session._datosCaptura = {};
+                if (negocio) session._datosCaptura.negocio = negocio;
+                if (ciudad) session._datosCaptura.ciudad = ciudad;
+                if (empleados) session._datosCaptura.empleados = empleados;
+
+                // Capturar si tenemos nombre + negocio + ciudad (empleados opcional pero preferido)
                 if (nombreContacto && negocio && ciudad) {
                     try {
                         const resp = await api.postToCRM(crmUrl, {
@@ -1655,8 +1659,8 @@ router.post('/evolution', async (req, res) => {
                 }
 
                 // QUIERE COMPRAR → GANADO
-                // Detectar intención clara de compra + colombianismos
-                const COMPRA_REGEX = /\b(s[ií]\s+(?:quiero|me\s+gustar[ií]a|claro|dale|por\s+favor|listo)|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|meterle|iniciar|comenzar)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco|hago\s+(?:pa|para)\s+pagar|inicio|comienzo)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:va|dale|parce|iniciemos|empecemos|arranquemos|comenzamos)|hag[aá]mosle|hag[aá]moslo|acepto|vamos\s+(?:con\s+eso|pues|a\s+(?:eso|darle))|dele|va\s+pues|met[aá]le|(?:eso\s+)?me\s+(?:interesa\s+)?(?:mucho|bastante|demasiado)|(?:listo|dale)\s+(?:entonces|pues)|arranquemos|iniciemos|empecemos|comenzamos|cierr[ea]lo|d[ée]mosle|(?:listo\s+)?(?:para\s+)?(?:empezar|arrancar|iniciar)|cuando\s+(?:empezamos|arrancamos|iniciamos)|(?:si\s+)?(?:me\s+)?gustar[ií]a\s+(?:empezar|arrancar|contratar|adquirir))\b/i;
+                // Solo frases de CIERRE REAL — no "si me gustaría" genérico
+                const COMPRA_REGEX = /\b(quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|iniciar)|d[oó]nde\s+pago|como\s+(?:pago|hago\s+(?:pa|para)\s+pagar)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:iniciemos|empecemos|arranquemos|comenzamos|para\s+empezar)|hag[aá]mosle|hag[aá]moslo|vamos\s+(?:con\s+eso|a\s+darle)|dele\s+pues|met[aá]le|arranquemos|iniciemos|empecemos|comenzamos|listo\s+(?:entonces\s+)?(?:arranquemos|iniciemos|empecemos)|cuando\s+(?:empezamos|arrancamos|iniciamos)|gustar[ií]a\s+(?:empezar|arrancar|contratar|adquirir|iniciar))\b/i;
                 if (!nuevoEstado && COMPRA_REGEX.test(msgLower)) {
                     nuevoEstado = 'GANADO';
                     motivo = 'Confirmó intención de compra';
