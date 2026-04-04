@@ -641,27 +641,42 @@
 
 <!-- Modal Lead -->
 <div class="modal-overlay" id="leadModal">
-  <div class="modal">
+  <div class="modal" style="max-width:600px;">
     <h3><i class="fas fa-user-pen"></i> Gestionar Lead</h3>
     <input type="hidden" id="modalLeadRow">
-    <div class="form-group"><label>Estado</label>
-      <select class="form-control" id="modalEstado">
-        <option value="NUEVO">Nuevo - Sin contactar</option>
-        <option value="CONTACTADO">Contactado - Ya se llamo/escribio</option>
-        <option value="EN_DEMO">En demo - Se le mostro BeautyOS</option>
-        <option value="NEGOCIANDO">Negociando - Esta evaluando</option>
-        <option value="SEGUIMIENTO">Seguimiento - Pide recontacto despues</option>
-        <option value="NO_CONTESTA">No contesta - Reintentar en 2-3 dias</option>
-        <option value="GANADO">Ganado - Cerro negocio</option>
-        <option value="PERDIDO">Perdido - No compro</option>
-      </select>
+    <!-- Info del lead (read-only) -->
+    <div id="leadInfoCard" style="padding:12px;background:var(--gray-50);border-radius:8px;margin-bottom:12px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:0.82rem;">
+        <div><strong>Contacto:</strong> <span id="leadInfoNombre">-</span></div>
+        <div><strong>Negocio:</strong> <span id="leadInfoNegocio">-</span></div>
+        <div><strong>WhatsApp:</strong> <span id="leadInfoWhatsapp">-</span></div>
+        <div><strong>Ciudad:</strong> <span id="leadInfoCiudad">-</span></div>
+        <div><strong>Empleados:</strong> <span id="leadInfoEmpleados">-</span></div>
+        <div><strong>Fuente:</strong> <span id="leadInfoFuente">-</span></div>
+        <div><strong>Fecha ingreso:</strong> <span id="leadInfoFecha">-</span></div>
+        <div><strong>Fecha contacto:</strong> <span id="leadInfoContacto">-</span></div>
+      </div>
     </div>
-    <div class="form-group"><label>Asignado a</label>
-      <select class="form-control" id="modalAsignado">
-        <option value="">Sin asignar</option>
-      </select>
+    <div class="form-grid">
+      <div class="form-group"><label>Estado</label>
+        <select class="form-control" id="modalEstado">
+          <option value="NUEVO">Nuevo - Sin contactar</option>
+          <option value="CONTACTADO">Contactado - Ya se llamo/escribio</option>
+          <option value="EN_DEMO">En demo - Se le mostro BeautyOS</option>
+          <option value="NEGOCIANDO">Negociando - Esta evaluando</option>
+          <option value="SEGUIMIENTO">Seguimiento - Pide recontacto despues</option>
+          <option value="NO_CONTESTA">No contesta - Reintentar en 2-3 dias</option>
+          <option value="GANADO">Ganado - Cerro negocio</option>
+          <option value="PERDIDO">Perdido - No compro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Asignado a</label>
+        <select class="form-control" id="modalAsignado">
+          <option value="">Sin asignar</option>
+        </select>
+      </div>
     </div>
-    <div class="form-group"><label>Notas</label><textarea class="form-control" id="modalNotas" rows="3"></textarea></div>
+    <div class="form-group"><label>Notas / Trazabilidad <span style="font-size:0.75rem;color:var(--gray-500);">(la IA agrega notas automaticamente)</span></label><textarea class="form-control" id="modalNotas" rows="4" style="font-size:0.85rem;"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('leadModal')">Cancelar</button>
       <button class="btn btn-accent" id="btnConvertLead" onclick="openConvertModal()" style="display:none;"><i class="fas fa-user-check"></i> Convertir a cliente</button>
@@ -1054,11 +1069,19 @@ function openLeadModal(rowNum, estado) {
     return '<option value="' + esc(String(a.WHATSAPP)) + '">' + esc(a.NOMBRE) + (activo ? '' : ' (inactivo)') + '</option>';
   }).join('');
 
-  // Pre-seleccionar asesor asignado y cargar notas del lead
+  // Cargar info completa del lead
   var lead = (DATA.leads || []).find(function(l) { return l._rowNum === rowNum; });
   if (lead) {
     sel.value = String(lead.ASIGNADO_A || '');
     document.getElementById('modalNotas').value = lead.NOTAS || '';
+    document.getElementById('leadInfoNombre').textContent = lead.NOMBRE_CONTACTO || '-';
+    document.getElementById('leadInfoNegocio').textContent = lead.NOMBRE_NEGOCIO || '-';
+    document.getElementById('leadInfoWhatsapp').textContent = String(lead.WHATSAPP || '-');
+    document.getElementById('leadInfoCiudad').textContent = lead.CIUDAD || '-';
+    document.getElementById('leadInfoEmpleados').textContent = lead.CANTIDAD_EMPLEADOS || lead.CANTIDAD_EMPLEAD || '-';
+    document.getElementById('leadInfoFuente').textContent = lead.FUENTE || '-';
+    document.getElementById('leadInfoFecha').textContent = formatDate(lead.FECHA);
+    document.getElementById('leadInfoContacto').textContent = lead.FECHA_CONTACTO ? formatDate(lead.FECHA_CONTACTO) : 'Pendiente';
   } else {
     sel.value = '';
     document.getElementById('modalNotas').value = '';
