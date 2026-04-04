@@ -1546,17 +1546,25 @@ router.post('/evolution', async (req, res) => {
             const msgLower = messageText.toLowerCase().trim();
             const allUserMsgs = session.history.filter(h => h.role === 'user').map(h => h.content.toLowerCase()).join(' ');
 
+            // ── 0. DETECCIÓN DE EMOJIS: marcar para que Sofi haga preguntas cerradas ──
+            const emojiOnly = /^[\p{Emoji}\p{Emoji_Presentation}\p{Extended_Pictographic}\s👍👎❤️😊😂🤔💪🙏✅❌🔥💯😍🤩😎👏🙌💰✨🎉👀🤷‍♀️🤷‍♂️]+$/u;
+            if (emojiOnly.test(messageText.trim()) || messageText.trim().length <= 3) {
+                session._emojiResponder = true;
+            }
+
             // ── 1. AUTO-CAPTURA: apenas tengamos nombre + negocio + ciudad ──
             if (session.estado === 'PROSPECTO' && !session._leadCapturado && session.history.length >= 4 && crmUrl) {
                 const nombreContacto = session.datos?.nombre || data.pushName || '';
-                const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar)/i;
+                const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar|riohacha|quibd[oó]|leticia|mocoa|yopal|arauca|in[ií]rida|mit[uú]|puerto\s*carre[ñn]o|san\s*andr[eé]s|soacha|envigado|bello|itag[uü][ií]|soledad|dosquebradas|floridablanca|zipaquir[aá]|girardot|fusagasug[aá]|facatativ[aá]|chia|cajic[aá]|funza|mosquera|madrid|ch[ií]a)/i;
 
-                // Extraer negocio de la conversación
+                // Extraer negocio de la conversación (colombiano: "mi negocio", "tengo un salón", "es un spa")
                 let negocio = '';
                 const negocioPatterns = [
-                    /(?:negocio|salon|spa|barberia|peluqueria|centro|local)\s+(?:se\s+llama\s+)?["']?([^"',.\n]{2,35})/i,
-                    /(?:se\s+llama|llama)\s+["']?([^"',.\n]{2,35})/i,
-                    /(?:mi\s+(?:negocio|salon|spa|local)\s+(?:es|se\s+llama))\s+["']?([^"',.\n]{2,35})/i
+                    /(?:negocio|salon|sal[oó]n|spa|barberia|barber[ií]a|peluqueria|peluquer[ií]a|centro|local|est[eé]tica)\s+(?:se\s+llama\s+)?["']?([^"',.\n]{2,35})/i,
+                    /(?:se\s+llama|llama|llamo)\s+["']?([^"',.\n]{2,35})/i,
+                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|tienda|barberia)\s+(?:es|se\s+llama))\s+["']?([^"',.\n]{2,35})/i,
+                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+)?)\s*["']?([^"',.\n]{2,35})/i,
+                    /(?:(?:el|la)\s+(?:salon|sal[oó]n|spa|barberia|peluqueria|negocio)\s+(?:se\s+llama\s+)?)\s*["']?([^"',.\n]{2,35})/i
                 ];
                 for (const pat of negocioPatterns) {
                     const m = allUserMsgs.match(pat);
@@ -1573,12 +1581,12 @@ router.post('/evolution', async (req, res) => {
                     if (enCiudad && CIUDADES.test(enCiudad[1])) ciudad = enCiudad[1].trim();
                 }
 
-                // Extraer empleados
+                // Extraer empleados (dialecto colombiano: "somos 3", "trabajo sola", "tengo 2 chicas")
                 let empleados = '';
-                if (allUserMsgs.match(/solo\s*yo|sola\b|yo\s+sol[oa]/i)) empleados = 'Solo yo';
-                else if (allUserMsgs.match(/[2-5]\s*(?:emplead|persona|trabajador)|tengo\s+[2-5]/i)) empleados = '2 a 5';
-                else if (allUserMsgs.match(/[6-9]|1[0-9]\s*(?:emplead|persona)|6\s+a\s+10/i)) empleados = '6 a 10';
-                else if (allUserMsgs.match(/(?:mas\s+de\s+10|11|m[aá]s\s+de\s+diez)/i)) empleados = '11 o mas';
+                if (allUserMsgs.match(/solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|nada\s+m[aá]s\s+yo|[uú]nicamente\s+yo|soy\s+(?:yo\s+)?sol[oa]/i)) empleados = 'Solo yo';
+                else if (allUserMsgs.match(/[2-5]\s*(?:emplead|persona|trabajador|chic[oa]s?|estilista|colaborador)|tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:persona|ninas|chicas|muchach)/i)) empleados = '2 a 5';
+                else if (allUserMsgs.match(/[6-9]|10\s*(?:emplead|persona|trabajador)|tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|6\s+a\s+10/i)) empleados = '6 a 10';
+                else if (allUserMsgs.match(/(?:m[aá]s\s+de\s+(?:10|diez)|11|1[1-9]|2[0-9]|muchos?\s+emplead|bastantes?\s+emplead|gran\s+equipo)/i)) empleados = '11 o mas';
 
                 // Capturar si tenemos al menos nombre + negocio + ciudad
                 if (nombreContacto && negocio && ciudad) {
@@ -1613,7 +1621,8 @@ router.post('/evolution', async (req, res) => {
                 let motivo = '';
 
                 // RECHAZO → contar y cerrar como PERDIDO al 2do "no"
-                const RECHAZO_REGEX = /\b(no\s+(?:me\s+)?(?:interesa|quiero|gracias|necesito)|no\s+gracias|ya\s+tengo|no\s+(?:por\s+)?ahora|no\s+(?:lo\s+)?necesito)\b/i;
+                // Colombianismos: "no pilla", "no me copa", "eso no es pa mi", "nel", "nah", "paso"
+                const RECHAZO_REGEX = /\b(no\s+(?:me\s+)?(?:interesa|quiero|gracias|necesito|copa|convence|sirve|llama\s+la\s+atencion)|no\s+gracias|ya\s+tengo|no\s+(?:por\s+)?ahora|no\s+(?:lo\s+)?necesito|no\s+(?:me\s+)?(?:parece|gusta)|paso|nel\b|nah\b|eso\s+no\s+es\s+(?:pa|para)\s+m[ií]|no\s+estoy\s+interesad[oa]|dejalo\s+as[ií]|no\s+va|olv[ií]da(?:lo|te)|no\s+(?:me\s+)?late)\b/i;
                 if (RECHAZO_REGEX.test(msgLower)) {
                     if (!session._rechazosCount) session._rechazosCount = 0;
                     session._rechazosCount++;
@@ -1626,28 +1635,32 @@ router.post('/evolution', async (req, res) => {
                 }
 
                 // INTERÉS EN PRECIOS → NEGOCIANDO
-                const PRECIO_REGEX = /\b(cuanto\s+(?:cuesta|vale|es)|precio|valor|que\s+cuesta|tarifas?|cuanto\s+(?:cobran|sale)|cotiza)/i;
+                // Colombianismos: "a cómo es", "qué vale eso", "cuánto me sale"
+                const PRECIO_REGEX = /\b(cuanto\s+(?:cuesta|vale|es|sale|cobran)|precio|valor|que\s+(?:cuesta|vale)|tarifas?|cotiza|a\s+c[oó]mo\s+(?:es|sale|queda)|cu[aá]nto\s+(?:me\s+)?(?:sale|queda|cobran|toca\s+pagar)|qu[eé]\s+(?:tan\s+)?caro|cuanto\s+(?:hay\s+que\s+)?pagar)/i;
                 if (!nuevoEstado && PRECIO_REGEX.test(msgLower) && ['NUEVO', 'CONTACTADO'].includes(estadoActual)) {
                     nuevoEstado = 'NEGOCIANDO';
                     motivo = 'Preguntó por precios';
                 }
 
                 // QUIERE COMPRAR → GANADO
-                const COMPRA_REGEX = /\b(s[ií]\s+quiero|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco)|me\s+(?:inscribo|registro|anoto)|listo\s+(?:va|dale)|hagamoslo|acepto|vamos\s+con\s+eso)\b/i;
+                // Colombianismos: "dele", "va pues", "listo parce", "métale", "hagámosle"
+                const COMPRA_REGEX = /\b(s[ií]\s+quiero|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|meterle)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco|hago\s+(?:pa|para)\s+pagar)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:va|dale|parce)|hag[aá]mosle|hag[aá]moslo|acepto|vamos\s+(?:con\s+eso|pues)|dele|va\s+pues|met[aá]le|(?:eso\s+)?me\s+(?:interesa\s+)?(?:mucho|bastante|demasiado)|(?:listo|dale)\s+(?:entonces|pues)|arranquemos|cierr[ea]lo|d[ée]mosle)\b/i;
                 if (!nuevoEstado && COMPRA_REGEX.test(msgLower)) {
                     nuevoEstado = 'GANADO';
                     motivo = 'Confirmó intención de compra';
                 }
 
                 // PIDE TIEMPO → SEGUIMIENTO
-                const SEGUIMIENTO_REGEX = /\b((?:lo\s+)?(?:voy\s+a\s+)?(?:pensar|mirar|consultar|revisar)|despu[eé]s\s+te\s+(?:cuento|aviso|escribo)|m[aá]s\s+adelante|ahora\s+no\s+(?:puedo|tengo)|dame\s+(?:unos\s+)?d[ií]as)\b/i;
+                // Colombianismos: "déjame camellar y después hablamos", "toca cuadrar con mi socio"
+                const SEGUIMIENTO_REGEX = /\b((?:lo\s+)?(?:voy\s+a\s+)?(?:pensar|mirar|consultar|revisar|analizar|estudiar)|despu[eé]s\s+te\s+(?:cuento|aviso|escribo|digo)|m[aá]s\s+adelante|ahora\s+no\s+(?:puedo|tengo)|dame\s+(?:unos\s+)?d[ií]as|(?:la|esta)\s+(?:pr[oó]xima\s+)?semana|(?:me\s+)?(?:toca|necesito)\s+(?:cuadrar|hablar|consultar)|voy\s+a\s+(?:mirar|ver)\s+(?:si\s+)?(?:vale\s+la\s+pena|me\s+conviene)|luego\s+(?:te\s+)?(?:cuento|aviso|escribo|hablamos)|despu[eé]s\s+hablamos|(?:tengo\s+que\s+)?(?:hablarlo|consultarlo)\s+con\s+mi\s+(?:soci[oa]|espos[oa]|pareja))\b/i;
                 if (!nuevoEstado && SEGUIMIENTO_REGEX.test(msgLower) && ['NUEVO', 'CONTACTADO', 'NEGOCIANDO'].includes(estadoActual)) {
                     nuevoEstado = 'SEGUIMIENTO';
                     motivo = 'Pide tiempo para decidir';
                 }
 
                 // INTERÉS GENERAL (responde positivo) → CONTACTADO
-                const CONTACTO_REGEX = /\b(s[ií]\b|claro|dale|me\s+interesa|cu[eé]ntame|como\s+funciona|quiero\s+saber)\b/i;
+                // Colombianismos: "de una", "va pues", "listo", "suena bien", "a ver"
+                const CONTACTO_REGEX = /\b(s[ií]\b|claro|dale|me\s+interesa|cu[eé]ntame|como\s+funciona|quiero\s+saber|de\s+una|va\s+pues|listo|bueno|suena\s+(?:bien|interesante|chévere|chevere)|a\s+ver|dime\s+m[aá]s|cont[aá]me|qu[eé]\s+(?:incluye|tiene|ofrece)|me\s+llama\s+la\s+atenci[oó]n|chévere|chevere|bacano|genial|interesante)\b/i;
                 if (!nuevoEstado && CONTACTO_REGEX.test(msgLower) && estadoActual === 'NUEVO') {
                     nuevoEstado = 'CONTACTADO';
                     motivo = 'Mostró interés inicial';
