@@ -1584,12 +1584,16 @@ router.post('/evolution', async (req, res) => {
                     if (enCiudad && CIUDADES.test(enCiudad[1])) ciudad = enCiudad[1].trim();
                 }
 
-                // Extraer empleados (dialecto colombiano: "somos 3", "trabajo sola", "tengo 2 chicas")
+                // Extraer empleados — buscar mensaje por mensaje para precisión
                 let empleados = '';
-                if (allUserMsgs.match(/solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|nada\s+m[aá]s\s+yo|[uú]nicamente\s+yo|soy\s+(?:yo\s+)?sol[oa]/i)) empleados = 'Solo yo';
-                else if (allUserMsgs.match(/[2-5]\s*(?:emplead|persona|trabajador|chic[oa]s?|estilista|colaborador)|tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:persona|ninas|chicas|muchach)/i)) empleados = '2 a 5';
-                else if (allUserMsgs.match(/[6-9]|10\s*(?:emplead|persona|trabajador)|tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|6\s+a\s+10/i)) empleados = '6 a 10';
-                else if (allUserMsgs.match(/(?:m[aá]s\s+de\s+(?:10|diez)|11|1[1-9]|2[0-9]|muchos?\s+emplead|bastantes?\s+emplead|gran\s+equipo)/i)) empleados = '11 o mas';
+                for (const msg of userMessages) {
+                    if (empleados) break;
+                    const m = msg.toLowerCase();
+                    if (m.match(/\b(solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|nada\s+m[aá]s\s+yo|[uú]nicamente\s+yo|soy\s+(?:yo\s+)?sol[oa]|una?\s+sol[oa]\s+persona|independiente)\b/i)) empleados = 'Solo yo';
+                    else if (m.match(/\b(tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:emplead|persona|trabajador|chic[oa]s?|estilista|colaborador))\b/i)) empleados = '2 a 5';
+                    else if (m.match(/\b(tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|(?:[6-9]|10)\s+(?:emplead|persona|trabajador))\b/i)) empleados = '6 a 10';
+                    else if (m.match(/\b(tengo\s+(?:1[1-9]|[2-9]\d)|somos\s+(?:1[1-9]|[2-9]\d)|(?:1[1-9]|[2-9]\d)\s+(?:emplead|persona)|m[aá]s\s+de\s+(?:10|diez)|muchos?\s+emplead|bastantes?\s+emplead|gran\s+equipo)\b/i)) empleados = '11 o mas';
+                }
 
                 // También buscar en respuestas de la IA que confirman el nombre del negocio
                 if (!negocio) {
@@ -1627,6 +1631,35 @@ router.post('/evolution', async (req, res) => {
                     } catch (err) {
                         console.error(`[${instanceName}] Error auto-captura:`, err.message);
                     }
+                }
+            }
+
+            // ── 1b. ACTUALIZAR EMPLEADOS si se capturó el lead sin esa info ──
+            if (session._leadCapturado && !session._empleadosActualizado && crmUrl) {
+                // Re-extraer empleados del mensaje actual
+                let empActual = '';
+                const mLow = messageText.toLowerCase();
+                if (mLow.match(/\b(solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|independiente)\b/i)) empActual = 'Solo yo';
+                else if (mLow.match(/\b(tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:emplead|persona|trabajador|estilista))\b/i)) empActual = '2 a 5';
+                else if (mLow.match(/\b(tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|(?:[6-9]|10)\s+(?:emplead|persona))\b/i)) empActual = '6 a 10';
+                else if (mLow.match(/\b(tengo\s+(?:1[1-9]|[2-9]\d)|somos\s+(?:1[1-9]|[2-9]\d)|(?:1[1-9]|[2-9]\d)\s+(?:emplead|persona)|m[aá]s\s+de\s+(?:10|diez))\b/i)) empActual = '11 o mas';
+                if (empActual) {
+                    try {
+                        await api.postToCRM(crmUrl, {
+                            action: 'updateLeadByWhatsapp',
+                            whatsapp: phoneNumber,
+                            estado: session.datos?.estadoLead || 'NUEVO',
+                            notas: 'Empleados: ' + empActual
+                        });
+                        // También actualizar la celda de empleados directamente
+                        await api.postToCRM(crmUrl, {
+                            action: 'updateLeadEmpleados',
+                            whatsapp: phoneNumber,
+                            cantidadEmpleados: empActual
+                        });
+                        session._empleadosActualizado = true;
+                        console.log(`[${instanceName}] 👥 Empleados actualizado: ${phoneNumber} → ${empActual}`);
+                    } catch (err) { /* no crítico */ }
                 }
             }
 
