@@ -1537,98 +1537,149 @@ router.post('/evolution', async (req, res) => {
             delete session._pendingPromoMedia;
         }
 
-        // ── GUARDRAIL: Auto-captura de lead si la IA no llamó capturar_lead() ──
-        // Después de 4+ mensajes con datos suficientes, forzar captura por código
-        if (isComercial && session.estado === 'PROSPECTO' && !session._leadCapturado && session.history.length >= 8) {
+        // ═══════════════════════════════════════════════════════════
+        // ── GUARDRAILS COMERCIALES: Captura + Estados por CÓDIGO ──
+        // No dependemos de la IA — todo se fuerza desde aquí
+        // ═══════════════════════════════════════════════════════════
+        if (isComercial) {
+            const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
+            const msgLower = messageText.toLowerCase().trim();
             const allUserMsgs = session.history.filter(h => h.role === 'user').map(h => h.content.toLowerCase()).join(' ');
-            // Extraer datos de la conversación
-            const nombreContacto = session.datos?.nombre || data.pushName || '';
-            const hasNegocio = allUserMsgs.match(/(?:se\s+llama|negocio|salon|spa|barberia|peluqueria|cejas|centro)\s+(.{2,30})/i);
-            const hasCiudad = allUserMsgs.match(/(?:en\s+|bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s+marta|pereira|manizales)/i);
-            const hasInteres = allUserMsgs.match(/(?:s[ií]\s|me\s+interesa|quiero\s+saber|cuanto\s+(?:cuesta|vale)|precios|como\s+funciona|demo)/i);
 
-            if (nombreContacto && (hasNegocio || session.datos?.negocio) && hasCiudad && hasInteres) {
-                const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
-                if (crmUrl) {
+            // ── 1. AUTO-CAPTURA: apenas tengamos nombre + negocio + ciudad ──
+            if (session.estado === 'PROSPECTO' && !session._leadCapturado && session.history.length >= 4 && crmUrl) {
+                const nombreContacto = session.datos?.nombre || data.pushName || '';
+                const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar)/i;
+
+                // Extraer negocio de la conversación
+                let negocio = '';
+                const negocioPatterns = [
+                    /(?:negocio|salon|spa|barberia|peluqueria|centro|local)\s+(?:se\s+llama\s+)?["']?([^"',.\n]{2,35})/i,
+                    /(?:se\s+llama|llama)\s+["']?([^"',.\n]{2,35})/i,
+                    /(?:mi\s+(?:negocio|salon|spa|local)\s+(?:es|se\s+llama))\s+["']?([^"',.\n]{2,35})/i
+                ];
+                for (const pat of negocioPatterns) {
+                    const m = allUserMsgs.match(pat);
+                    if (m) { negocio = m[1].trim(); break; }
+                }
+
+                // Extraer ciudad
+                let ciudad = '';
+                const ciudadMatch = allUserMsgs.match(CIUDADES);
+                if (ciudadMatch) ciudad = ciudadMatch[1].trim();
+                // También detectar "en [ciudad]"
+                if (!ciudad) {
+                    const enCiudad = allUserMsgs.match(/\ben\s+([a-záéíóúñ]{3,20})\b/i);
+                    if (enCiudad && CIUDADES.test(enCiudad[1])) ciudad = enCiudad[1].trim();
+                }
+
+                // Extraer empleados
+                let empleados = '';
+                if (allUserMsgs.match(/solo\s*yo|sola\b|yo\s+sol[oa]/i)) empleados = 'Solo yo';
+                else if (allUserMsgs.match(/[2-5]\s*(?:emplead|persona|trabajador)|tengo\s+[2-5]/i)) empleados = '2 a 5';
+                else if (allUserMsgs.match(/[6-9]|1[0-9]\s*(?:emplead|persona)|6\s+a\s+10/i)) empleados = '6 a 10';
+                else if (allUserMsgs.match(/(?:mas\s+de\s+10|11|m[aá]s\s+de\s+diez)/i)) empleados = '11 o mas';
+
+                // Capturar si tenemos al menos nombre + negocio + ciudad
+                if (nombreContacto && negocio && ciudad) {
                     try {
-                        // Extraer negocio y ciudad de la conversación
-                        let negocio = '';
-                        const negocioMatch = allUserMsgs.match(/(?:negocio\s+(?:se\s+llama\s+)?|llama\s+)([^,.\n]{2,30})/i) || allUserMsgs.match(/(?:salon|spa|barberia|peluqueria|centro\s+\w+)\s+([^,.\n]{2,20})/i);
-                        if (negocioMatch) negocio = negocioMatch[1].trim();
-                        if (!negocio && session.datos?.negocio) negocio = session.datos.negocio;
-
-                        let ciudad = '';
-                        const ciudadMatch = allUserMsgs.match(/(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s+marta|pereira|manizales|[a-záéíóú]{3,20})/i);
-                        if (ciudadMatch) ciudad = ciudadMatch[1].trim();
-
-                        let empleados = '';
-                        if (allUserMsgs.match(/solo\s*yo|sola|solo/i)) empleados = 'Solo yo';
-                        else if (allUserMsgs.match(/\b[2-5]\b.*emplead|[2-5]\s*personas/i)) empleados = '2 a 5';
-                        else if (allUserMsgs.match(/\b[6-9]|10\b.*emplead/i)) empleados = '6 a 10';
-
                         const resp = await api.postToCRM(crmUrl, {
                             action: 'saveLead',
                             nombreContacto: nombreContacto,
-                            nombreNegocio: negocio || 'Sin especificar',
+                            nombreNegocio: negocio,
                             whatsapp: phoneNumber,
                             email: '',
                             ciudad: ciudad,
                             cantidadEmpleados: empleados,
-                            notas: 'Auto-capturado por guardrail (la IA no llamó capturar_lead)',
+                            notas: '',
                             fuente: 'whatsapp-agente'
                         });
                         if (resp && !resp.error) {
-                            session._leadCapturado = negocio || 'lead';
-                            console.log(`[${instanceName}] 📋 GUARDRAIL: Lead auto-capturado: ${nombreContacto} - ${negocio} (${phoneNumber})`);
+                            session._leadCapturado = negocio;
+                            session.estado = 'LEAD_EXISTENTE';
+                            session.datos = { ...session.datos, negocio, ciudad, estadoLead: 'NUEVO' };
+                            console.log(`[${instanceName}] 📋 Lead auto-capturado: ${nombreContacto} - ${negocio} - ${ciudad} (${phoneNumber})`);
                         }
                     } catch (err) {
                         console.error(`[${instanceName}] Error auto-captura:`, err.message);
                     }
                 }
             }
-        }
 
-        // ── GUARDRAIL: Detectar rechazo y actualizar estado del lead por código ──
-        // No dependemos de que la IA llame la función — lo forzamos desde aquí
-        if (isComercial && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado) && !session._leadPerdido) {
-            const msgLower = messageText.toLowerCase().trim();
-            const RECHAZO_REGEX = /\b(no\s+(?:me\s+)?(?:interesa|quiero|gracias|necesito)|no\s+gracias|ya\s+tengo|no\s+(?:por\s+)?ahora)\b/i;
-            // Contar rechazos en la conversación
-            if (RECHAZO_REGEX.test(msgLower)) {
-                if (!session._rechazosCount) session._rechazosCount = 0;
-                session._rechazosCount++;
-                // Al segundo rechazo, cerrar como PERDIDO automáticamente
-                if (session._rechazosCount >= 2) {
-                    const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
-                    if (crmUrl) {
-                        try {
-                            // Extraer motivo de los últimos mensajes del usuario
-                            const userMsgs = session.history.filter(h => h.role === 'user').map(h => h.content);
-                            const motivo = userMsgs.slice(-3).join(' | ') || 'No interesado (sin motivo específico)';
-                            await api.postToCRM(crmUrl, {
-                                action: 'updateLeadByWhatsapp',
-                                whatsapp: phoneNumber,
-                                estado: 'PERDIDO',
-                                notas: motivo
-                            });
-                            session._leadPerdido = true;
-                            console.log(`[${instanceName}] ⛔ Lead ${phoneNumber} → PERDIDO (guardrail código). Motivo: ${motivo.substring(0, 100)}`);
-                        } catch (err) {
-                            console.error(`[${instanceName}] Error actualizando lead perdido:`, err.message);
-                        }
+            // ── 2. TRANSICIÓN DE ESTADOS: detectar señales y actualizar GAS ──
+            if ((session.estado === 'LEAD_EXISTENTE' || session._leadCapturado) && !session._leadPerdido && crmUrl) {
+                const estadoActual = session.datos?.estadoLead || 'NUEVO';
+                let nuevoEstado = null;
+                let motivo = '';
+
+                // RECHAZO → contar y cerrar como PERDIDO al 2do "no"
+                const RECHAZO_REGEX = /\b(no\s+(?:me\s+)?(?:interesa|quiero|gracias|necesito)|no\s+gracias|ya\s+tengo|no\s+(?:por\s+)?ahora|no\s+(?:lo\s+)?necesito)\b/i;
+                if (RECHAZO_REGEX.test(msgLower)) {
+                    if (!session._rechazosCount) session._rechazosCount = 0;
+                    session._rechazosCount++;
+                    if (session._rechazosCount >= 2) {
+                        const userMsgs = session.history.filter(h => h.role === 'user').map(h => h.content);
+                        nuevoEstado = 'PERDIDO';
+                        motivo = userMsgs.slice(-3).join(' | ') || 'No interesado';
+                        session._leadPerdido = true;
                     }
                 }
-            }
-            // Detectar interés positivo y avanzar estado
-            const INTERES_REGEX = /\b(me\s+interesa|cuanto\s+(?:cuesta|vale)|quiero\s+(?:saber|ver|probar)|como\s+funciona|demo|cotizacion)\b/i;
-            if (INTERES_REGEX.test(msgLower) && session.estado === 'LEAD_EXISTENTE' && session.datos?.estadoLead === 'NUEVO') {
-                const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
-                if (crmUrl) {
+
+                // INTERÉS EN PRECIOS → NEGOCIANDO
+                const PRECIO_REGEX = /\b(cuanto\s+(?:cuesta|vale|es)|precio|valor|que\s+cuesta|tarifas?|cuanto\s+(?:cobran|sale)|cotiza)/i;
+                if (!nuevoEstado && PRECIO_REGEX.test(msgLower) && ['NUEVO', 'CONTACTADO'].includes(estadoActual)) {
+                    nuevoEstado = 'NEGOCIANDO';
+                    motivo = 'Preguntó por precios';
+                }
+
+                // QUIERE COMPRAR → GANADO
+                const COMPRA_REGEX = /\b(s[ií]\s+quiero|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco)|me\s+(?:inscribo|registro|anoto)|listo\s+(?:va|dale)|hagamoslo|acepto|vamos\s+con\s+eso)\b/i;
+                if (!nuevoEstado && COMPRA_REGEX.test(msgLower)) {
+                    nuevoEstado = 'GANADO';
+                    motivo = 'Confirmó intención de compra';
+                }
+
+                // PIDE TIEMPO → SEGUIMIENTO
+                const SEGUIMIENTO_REGEX = /\b((?:lo\s+)?(?:voy\s+a\s+)?(?:pensar|mirar|consultar|revisar)|despu[eé]s\s+te\s+(?:cuento|aviso|escribo)|m[aá]s\s+adelante|ahora\s+no\s+(?:puedo|tengo)|dame\s+(?:unos\s+)?d[ií]as)\b/i;
+                if (!nuevoEstado && SEGUIMIENTO_REGEX.test(msgLower) && ['NUEVO', 'CONTACTADO', 'NEGOCIANDO'].includes(estadoActual)) {
+                    nuevoEstado = 'SEGUIMIENTO';
+                    motivo = 'Pide tiempo para decidir';
+                }
+
+                // INTERÉS GENERAL (responde positivo) → CONTACTADO
+                const CONTACTO_REGEX = /\b(s[ií]\b|claro|dale|me\s+interesa|cu[eé]ntame|como\s+funciona|quiero\s+saber)\b/i;
+                if (!nuevoEstado && CONTACTO_REGEX.test(msgLower) && estadoActual === 'NUEVO') {
+                    nuevoEstado = 'CONTACTADO';
+                    motivo = 'Mostró interés inicial';
+                }
+
+                // Aplicar cambio de estado si se detectó uno
+                if (nuevoEstado && nuevoEstado !== estadoActual) {
                     try {
-                        await api.postToCRM(crmUrl, { action: 'updateLeadByWhatsapp', whatsapp: phoneNumber, estado: 'CONTACTADO', notas: 'Retomó contacto con interés' });
-                        if (session.datos) session.datos.estadoLead = 'CONTACTADO';
-                        console.log(`[${instanceName}] 📈 Lead ${phoneNumber} → CONTACTADO (guardrail código)`);
-                    } catch (err) { /* no crítico */ }
+                        await api.postToCRM(crmUrl, {
+                            action: 'updateLeadByWhatsapp',
+                            whatsapp: phoneNumber,
+                            estado: nuevoEstado,
+                            notas: motivo
+                        });
+                        if (session.datos) session.datos.estadoLead = nuevoEstado;
+                        const emoji = { CONTACTADO: '📞', NEGOCIANDO: '💰', SEGUIMIENTO: '⏳', GANADO: '🎉', PERDIDO: '⛔' };
+                        console.log(`[${instanceName}] ${emoji[nuevoEstado] || '📊'} Lead ${phoneNumber}: ${estadoActual} → ${nuevoEstado} (${motivo})`);
+
+                        // GANADO: alertar al asesor para onboarding
+                        if (nuevoEstado === 'GANADO') {
+                            const asesores = (tenant.config?.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
+                            if (asesores.length > 0) {
+                                const nombre = session.datos?.nombre || '';
+                                const negocio = session.datos?.negocio || session._leadCapturado || '';
+                                const alertMsg = `*🎉 NEGOCIO CERRADO*\n\n👤 ${nombre}\n💼 ${negocio}\n📱 ${phoneNumber}\n\n👉 Iniciar onboarding técnico.`;
+                                if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
+                                session._pendingTransferMessages.push({ to: asesores[0], text: alertMsg });
+                            }
+                        }
+                    } catch (err) {
+                        console.error(`[${instanceName}] Error actualizando estado:`, err.message);
+                    }
                 }
             }
         }
