@@ -106,16 +106,19 @@ function handleSaveLead(payload) {
     asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
   }
 
+  // Limpiar undefined/null que pueden venir del bot
+  var clean = function(v) { return (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim(); };
+
   sheet.appendRow([
-    new Date(),
-    payload.nombreContacto || '',
-    payload.nombreNegocio || '',
-    payload.whatsapp || '',
-    payload.email || '',
-    payload.ciudad || '',
+    Utilities.formatDate(new Date(), 'America/Bogota', 'M/d/yyyy HH:mm:ss'),
+    clean(payload.nombreContacto),
+    clean(payload.nombreNegocio),
+    clean(payload.whatsapp),
+    clean(payload.email),
+    clean(payload.ciudad),
     cant,
     categoria,
-    payload.fuente || 'landing',
+    clean(payload.fuente) || 'landing',
     'NUEVO', asesorAsignado, '', ''
   ]);
 

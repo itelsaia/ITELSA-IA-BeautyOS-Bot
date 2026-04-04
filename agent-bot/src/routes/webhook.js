@@ -1537,6 +1537,57 @@ router.post('/evolution', async (req, res) => {
             delete session._pendingPromoMedia;
         }
 
+        // ── GUARDRAIL: Auto-captura de lead si la IA no llamó capturar_lead() ──
+        // Después de 4+ mensajes con datos suficientes, forzar captura por código
+        if (isComercial && session.estado === 'PROSPECTO' && !session._leadCapturado && session.history.length >= 8) {
+            const allUserMsgs = session.history.filter(h => h.role === 'user').map(h => h.content.toLowerCase()).join(' ');
+            // Extraer datos de la conversación
+            const nombreContacto = session.datos?.nombre || data.pushName || '';
+            const hasNegocio = allUserMsgs.match(/(?:se\s+llama|negocio|salon|spa|barberia|peluqueria|cejas|centro)\s+(.{2,30})/i);
+            const hasCiudad = allUserMsgs.match(/(?:en\s+|bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s+marta|pereira|manizales)/i);
+            const hasInteres = allUserMsgs.match(/(?:s[ií]\s|me\s+interesa|quiero\s+saber|cuanto\s+(?:cuesta|vale)|precios|como\s+funciona|demo)/i);
+
+            if (nombreContacto && (hasNegocio || session.datos?.negocio) && hasCiudad && hasInteres) {
+                const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
+                if (crmUrl) {
+                    try {
+                        // Extraer negocio y ciudad de la conversación
+                        let negocio = '';
+                        const negocioMatch = allUserMsgs.match(/(?:negocio\s+(?:se\s+llama\s+)?|llama\s+)([^,.\n]{2,30})/i) || allUserMsgs.match(/(?:salon|spa|barberia|peluqueria|centro\s+\w+)\s+([^,.\n]{2,20})/i);
+                        if (negocioMatch) negocio = negocioMatch[1].trim();
+                        if (!negocio && session.datos?.negocio) negocio = session.datos.negocio;
+
+                        let ciudad = '';
+                        const ciudadMatch = allUserMsgs.match(/(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s+marta|pereira|manizales|[a-záéíóú]{3,20})/i);
+                        if (ciudadMatch) ciudad = ciudadMatch[1].trim();
+
+                        let empleados = '';
+                        if (allUserMsgs.match(/solo\s*yo|sola|solo/i)) empleados = 'Solo yo';
+                        else if (allUserMsgs.match(/\b[2-5]\b.*emplead|[2-5]\s*personas/i)) empleados = '2 a 5';
+                        else if (allUserMsgs.match(/\b[6-9]|10\b.*emplead/i)) empleados = '6 a 10';
+
+                        const resp = await api.postToCRM(crmUrl, {
+                            action: 'saveLead',
+                            nombreContacto: nombreContacto,
+                            nombreNegocio: negocio || 'Sin especificar',
+                            whatsapp: phoneNumber,
+                            email: '',
+                            ciudad: ciudad,
+                            cantidadEmpleados: empleados,
+                            notas: 'Auto-capturado por guardrail (la IA no llamó capturar_lead)',
+                            fuente: 'whatsapp-agente'
+                        });
+                        if (resp && !resp.error) {
+                            session._leadCapturado = negocio || 'lead';
+                            console.log(`[${instanceName}] 📋 GUARDRAIL: Lead auto-capturado: ${nombreContacto} - ${negocio} (${phoneNumber})`);
+                        }
+                    } catch (err) {
+                        console.error(`[${instanceName}] Error auto-captura:`, err.message);
+                    }
+                }
+            }
+        }
+
         // ── GUARDRAIL: Detectar rechazo y actualizar estado del lead por código ──
         // No dependemos de que la IA llame la función — lo forzamos desde aquí
         if (isComercial && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado) && !session._leadPerdido) {

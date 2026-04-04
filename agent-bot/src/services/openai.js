@@ -2075,15 +2075,17 @@ PASO 5 — POST-CONFIRMACIÓN:
                     } else {
                         // ── GUARDRAIL: Usar el número real del remitente, no el que inventa la IA ──
                         const whatsappReal = session.datos?.celular || functionArgs.whatsapp;
+                        // Limpiar valores undefined/null que la IA puede enviar como string
+                        const cleanVal = (v) => (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim();
                         const resp = await api.postToCRM(crmUrl, {
                             action: 'saveLead',
-                            nombreContacto: functionArgs.nombreContacto || session.datos?.nombre || '',
-                            nombreNegocio: functionArgs.nombreNegocio,
+                            nombreContacto: cleanVal(functionArgs.nombreContacto) || cleanVal(session.datos?.nombre),
+                            nombreNegocio: cleanVal(functionArgs.nombreNegocio),
                             whatsapp: whatsappReal,
-                            email: functionArgs.email || '',
-                            ciudad: functionArgs.ciudad || '',
-                            cantidadEmpleados: functionArgs.cantidadEmpleados || '',
-                            notas: functionArgs.notas || '',
+                            email: cleanVal(functionArgs.email),
+                            ciudad: cleanVal(functionArgs.ciudad),
+                            cantidadEmpleados: cleanVal(functionArgs.cantidadEmpleados),
+                            notas: cleanVal(functionArgs.notas),
                             fuente: 'whatsapp-agente'
                         });
                         if (resp && !resp.error) {
