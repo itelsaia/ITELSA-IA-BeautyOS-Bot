@@ -508,6 +508,22 @@ async function syncComercialData(tenant, tenantId) {
     const crmUrl = tenant.crmUrl || tenant.config.crmBeautyosUrl;
     if (!crmUrl) return;
 
+    // 0. Cache de leads para reconocer prospectos que vuelven a escribir
+    try {
+        const leadsResp = await api.postToCRM(crmUrl, { action: 'getLeads' });
+        if (Array.isArray(leadsResp)) {
+            tenant._leadsCache = leadsResp.map(l => ({
+                whatsapp: String(l.WHATSAPP || '').trim(),
+                nombre: l.NOMBRE_CONTACTO || '',
+                negocio: l.NOMBRE_NEGOCIO || '',
+                ciudad: l.CIUDAD || '',
+                estado: l.ESTADO || 'NUEVO'
+            }));
+        }
+    } catch (err) {
+        // No critico — si falla, leads no se reconocen pero el bot sigue funcionando
+    }
+
     // 1. Sincronizar clientes CRM
     try {
         const crmResp = await api.postToCRM(crmUrl, { action: 'getClientesCRM' });

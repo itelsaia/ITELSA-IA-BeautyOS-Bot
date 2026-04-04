@@ -178,7 +178,7 @@ router.post('/evolution', async (req, res) => {
 
         if (!tenant.userSessions[phoneNumber]) {
             if (isComercial) {
-                // Comercial: detectar cliente existente vs prospecto
+                // Comercial: detectar cliente existente vs lead existente vs prospecto nuevo
                 const clientesCRM = tenant.clientesCRM || {};
                 const clienteMatch = clientesCRM[phoneNumber];
                 if (clienteMatch) {
@@ -188,11 +188,24 @@ router.post('/evolution', async (req, res) => {
                         datos: { celular: phoneNumber, nombre: clienteMatch.nombre, idCliente: clienteMatch.id }
                     };
                 } else {
-                    tenant.userSessions[phoneNumber] = {
-                        history: [],
-                        estado: 'PROSPECTO',
-                        datos: { celular: phoneNumber, nombre: data.pushName || '' }
-                    };
+                    // Buscar si ya es un lead capturado previamente
+                    const leadsCache = tenant._leadsCache || [];
+                    const leadMatch = leadsCache.find(l => String(l.whatsapp).trim() === phoneNumber);
+                    if (leadMatch) {
+                        tenant.userSessions[phoneNumber] = {
+                            history: [],
+                            estado: 'LEAD_EXISTENTE',
+                            datos: { celular: phoneNumber, nombre: leadMatch.nombre || data.pushName || '', negocio: leadMatch.negocio || '', ciudad: leadMatch.ciudad || '', estadoLead: leadMatch.estado || 'NUEVO' },
+                            _leadCapturado: leadMatch.negocio
+                        };
+                        console.log(`[${instanceName}] Lead existente reconocido: ${leadMatch.nombre} - ${leadMatch.negocio}`);
+                    } else {
+                        tenant.userSessions[phoneNumber] = {
+                            history: [],
+                            estado: 'PROSPECTO',
+                            datos: { celular: phoneNumber, nombre: data.pushName || '' }
+                        };
+                    }
                 }
             } else if (tenant.registeredClients[phoneNumber]) {
                 tenant.userSessions[phoneNumber] = {

@@ -805,10 +805,25 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     const clienteNombre = userData.nombre || 'Usuario';
 
     let modoContexto = '';
+    const esLeadExistente = userData.estado === 'LEAD_EXISTENTE' || userData.negocio;
+
     if (esCliente) {
         modoContexto = `El usuario que te escribe YA es cliente de ${businessName}: ${clienteNombre}${userData.idCliente ? ' (ID: ' + userData.idCliente + ')' : ''}.
 Puede estar en modo SOPORTE (problemas técnicos) o CARTERA (facturación/pagos).
 Detecta su intención y actúa según corresponda.`;
+    } else if (esLeadExistente) {
+        modoContexto = `Este usuario YA habló contigo antes. Es un lead existente:
+- Nombre: ${userData.nombre || 'No registrado'}
+- Negocio: ${userData.negocio || 'No registrado'}
+- Ciudad: ${userData.ciudad || 'No registrada'}
+- Estado actual: ${userData.estadoLead || 'NUEVO'}
+
+IMPORTANTE: Ya lo conoces. NO le preguntes datos que ya tienes. NO repitas el flujo de venta desde cero.
+- Si su estado es NUEVO: retoma con calidez, pregunta si tuvo tiempo de pensar la propuesta.
+- Si es CONTACTADO: pregunta si le quedaron dudas, ofrece resolver cualquier inquietud.
+- Si es EN_DEMO o NEGOCIANDO: pregunta cómo le fue, si está listo para arrancar.
+- Tono: amigable, como si retomaran una conversación pendiente. NO seas insistente.
+- Ejemplo: "¡Hola ${userData.nombre ? userData.nombre.split(' ')[0] : ''}! Qué gusto verte de nuevo. ¿Tuviste chance de pensar lo de ${businessName} para ${userData.negocio || 'tu negocio'}?"`;
     } else {
         modoContexto = `El usuario es un PROSPECTO nuevo. No conoce ${businessName} aún.
 Estás en modo VENTAS. Tu objetivo es convertirlo en cliente.`;

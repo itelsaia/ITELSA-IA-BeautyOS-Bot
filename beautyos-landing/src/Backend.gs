@@ -42,6 +42,7 @@ function doPost(e) {
     if (payload.action === 'saveNovedad') return jsonResponse(handleSaveNovedad(payload));
     if (payload.action === 'getInfoComercial') return jsonResponse(handleGetInfoComercial());
     if (payload.action === 'getClientesCRM') return jsonResponse(handleGetClientesCRM());
+    if (payload.action === 'getLeads') return jsonResponse(leerTabla(SpreadsheetApp.getActiveSpreadsheet(), 'LEADS') || []);
     if (payload.action === 'migrateLeads') return jsonResponse(migrateLeadsSheet());
     return jsonResponse({ error: 'Accion no reconocida' });
   } catch (err) {
