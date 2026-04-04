@@ -1557,14 +1557,19 @@ router.post('/evolution', async (req, res) => {
                 const nombreContacto = session.datos?.nombre || data.pushName || '';
                 const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar|riohacha|quibd[oó]|leticia|mocoa|yopal|arauca|in[ií]rida|mit[uú]|puerto\s*carre[ñn]o|san\s*andr[eé]s|soacha|envigado|bello|itag[uü][ií]|soledad|dosquebradas|floridablanca|zipaquir[aá]|girardot|fusagasug[aá]|facatativ[aá]|chia|cajic[aá]|funza|mosquera|madrid|ch[ií]a)/i;
 
-                // Extraer negocio de la conversación (colombiano: "mi negocio", "tengo un salón", "es un spa")
+                // Extraer negocio: buscar nombre propio del negocio, no la categoría
                 let negocio = '';
                 const negocioPatterns = [
-                    /(?:negocio|salon|sal[oó]n|spa|barberia|barber[ií]a|peluqueria|peluquer[ií]a|centro|local|est[eé]tica)\s+(?:se\s+llama\s+)?["']?([^"',.\n]{2,35})/i,
-                    /(?:se\s+llama|llama|llamo)\s+["']?([^"',.\n]{2,35})/i,
-                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|tienda|barberia)\s+(?:es|se\s+llama))\s+["']?([^"',.\n]{2,35})/i,
-                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+)?)\s*["']?([^"',.\n]{2,35})/i,
-                    /(?:(?:el|la)\s+(?:salon|sal[oó]n|spa|barberia|peluqueria|negocio)\s+(?:se\s+llama\s+)?)\s*["']?([^"',.\n]{2,35})/i
+                    // "se llama cejas locas", "llama peluquería glamour"
+                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
+                    // "mi negocio es cejas locas", "mi salón es glamour"
+                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|peluqueria)\s+(?:es|se\s+llama)\s+)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
+                    // "el nombre es cejas locas", "nombre del negocio es glamour"
+                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
+                    // "tengo un salón que se llama X"
+                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+))["']?([A-Za-záéíóúñÁÉÍÓÚÑ][^"',.\n]{1,30})/i,
+                    // "negocio cejas locas" — solo si es nombre propio (empieza con mayúscula o tiene 2+ palabras)
+                    /(?:negocio|salon|sal[oó]n|spa|barberia|peluqueria)\s+["']?([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/
                 ];
                 for (const pat of negocioPatterns) {
                     const m = allUserMsgs.match(pat);
@@ -1587,6 +1592,13 @@ router.post('/evolution', async (req, res) => {
                 else if (allUserMsgs.match(/[2-5]\s*(?:emplead|persona|trabajador|chic[oa]s?|estilista|colaborador)|tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:persona|ninas|chicas|muchach)/i)) empleados = '2 a 5';
                 else if (allUserMsgs.match(/[6-9]|10\s*(?:emplead|persona|trabajador)|tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|6\s+a\s+10/i)) empleados = '6 a 10';
                 else if (allUserMsgs.match(/(?:m[aá]s\s+de\s+(?:10|diez)|11|1[1-9]|2[0-9]|muchos?\s+emplead|bastantes?\s+emplead|gran\s+equipo)/i)) empleados = '11 o mas';
+
+                // También buscar en respuestas de la IA que confirman el nombre del negocio
+                if (!negocio) {
+                    const aiMsgs = session.history.filter(h => h.role === 'assistant').map(h => h.content).join(' ');
+                    const aiNegocioMatch = aiMsgs.match(/[""]([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})[""]|(?:tu\s+(?:negocio|salon|sal[oó]n|spa)\s+)[""]?([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/);
+                    if (aiNegocioMatch) negocio = (aiNegocioMatch[1] || aiNegocioMatch[2] || '').trim();
+                }
 
                 // Capturar si tenemos al menos nombre + negocio + ciudad
                 if (nombreContacto && negocio && ciudad) {
@@ -1643,8 +1655,8 @@ router.post('/evolution', async (req, res) => {
                 }
 
                 // QUIERE COMPRAR → GANADO
-                // Colombianismos: "dele", "va pues", "listo parce", "métale", "hagámosle"
-                const COMPRA_REGEX = /\b(s[ií]\s+quiero|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|meterle)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco|hago\s+(?:pa|para)\s+pagar)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:va|dale|parce)|hag[aá]mosle|hag[aá]moslo|acepto|vamos\s+(?:con\s+eso|pues)|dele|va\s+pues|met[aá]le|(?:eso\s+)?me\s+(?:interesa\s+)?(?:mucho|bastante|demasiado)|(?:listo|dale)\s+(?:entonces|pues)|arranquemos|cierr[ea]lo|d[ée]mosle)\b/i;
+                // Detectar intención clara de compra + colombianismos
+                const COMPRA_REGEX = /\b(s[ií]\s+(?:quiero|me\s+gustar[ií]a|claro|dale|por\s+favor|listo)|quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|meterle|iniciar|comenzar)|d[oó]nde\s+pago|como\s+(?:pago|empiezo|arranco|hago\s+(?:pa|para)\s+pagar|inicio|comienzo)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:va|dale|parce|iniciemos|empecemos|arranquemos|comenzamos)|hag[aá]mosle|hag[aá]moslo|acepto|vamos\s+(?:con\s+eso|pues|a\s+(?:eso|darle))|dele|va\s+pues|met[aá]le|(?:eso\s+)?me\s+(?:interesa\s+)?(?:mucho|bastante|demasiado)|(?:listo|dale)\s+(?:entonces|pues)|arranquemos|iniciemos|empecemos|comenzamos|cierr[ea]lo|d[ée]mosle|(?:listo\s+)?(?:para\s+)?(?:empezar|arrancar|iniciar)|cuando\s+(?:empezamos|arrancamos|iniciamos)|(?:si\s+)?(?:me\s+)?gustar[ií]a\s+(?:empezar|arrancar|contratar|adquirir))\b/i;
                 if (!nuevoEstado && COMPRA_REGEX.test(msgLower)) {
                     nuevoEstado = 'GANADO';
                     motivo = 'Confirmó intención de compra';
