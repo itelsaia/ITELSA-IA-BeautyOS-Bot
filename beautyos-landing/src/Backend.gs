@@ -43,6 +43,7 @@ function doPost(e) {
     if (payload.action === 'getInfoComercial') return jsonResponse(handleGetInfoComercial());
     if (payload.action === 'getClientesCRM') return jsonResponse(handleGetClientesCRM());
     if (payload.action === 'getLeads') return jsonResponse(leerTabla(SpreadsheetApp.getActiveSpreadsheet(), 'LEADS') || []);
+    if (payload.action === 'updateLeadByWhatsapp') return jsonResponse(handleUpdateLeadByWhatsapp(payload));
     if (payload.action === 'migrateLeads') return jsonResponse(migrateLeadsSheet());
     return jsonResponse({ error: 'Accion no reconocida' });
   } catch (err) {
@@ -174,6 +175,30 @@ function enviarWhatsAppEvolution(config, destinatario, mensaje) {
   };
   var response = UrlFetchApp.fetch(url, options);
   Logger.log('[whatsapp] Respuesta Evolution: ' + response.getContentText().substring(0, 200));
+}
+
+// Actualiza estado de un lead buscando por WhatsApp (usado por el agente IA)
+function handleUpdateLeadByWhatsapp(payload) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('LEADS');
+  if (!sheet) return { error: 'Hoja LEADS no encontrada' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { error: 'No hay leads' };
+  var data = sheet.getRange(2, 1, lastRow - 1, 13).getValues();
+  var wa = String(payload.whatsapp || '').trim();
+  // Buscar la fila más reciente de este WhatsApp
+  var foundRow = -1;
+  for (var i = data.length - 1; i >= 0; i--) {
+    if (String(data[i][3]).trim() === wa) { foundRow = i + 2; break; }
+  }
+  if (foundRow < 0) return { error: 'Lead no encontrado para WhatsApp: ' + wa };
+  // Actualizar estado (col 10) y notas (col 13) — append notas, no reemplazar
+  sheet.getRange(foundRow, 10).setValue(payload.estado);
+  sheet.getRange(foundRow, 12).setValue(new Date());
+  var notasActuales = sheet.getRange(foundRow, 13).getValue() || '';
+  var nuevaNota = (notasActuales ? notasActuales + ' | ' : '') + '[IA ' + new Date().toLocaleDateString('es-CO') + '] ' + (payload.notas || '');
+  sheet.getRange(foundRow, 13).setValue(nuevaNota);
+  return { success: true, row: foundRow, estado: payload.estado };
 }
 
 // Actualiza estado, asignado y notas de un lead desde el panel

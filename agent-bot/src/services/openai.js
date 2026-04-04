@@ -308,6 +308,21 @@ const COMMERCIAL_TOOLS = [
     {
         type: "function",
         function: {
+            name: "actualizar_estado_lead",
+            description: "Cambia el estado de un lead en el CRM. Usar para avanzar el prospecto en el pipeline de ventas o cerrarlo como perdido.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nuevoEstado: { type: "string", enum: ["CONTACTADO", "EN_DEMO", "NEGOCIANDO", "SEGUIMIENTO", "NO_CONTESTA", "GANADO", "PERDIDO"], description: "Nuevo estado del lead" },
+                    motivo: { type: "string", description: "Razon del cambio: por que se avanza o por que se pierde (objecion, no le interesa, competencia, precio, etc)" }
+                },
+                required: ["nuevoEstado", "motivo"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
             name: "reportar_novedad",
             description: "Registra un reporte tecnico de un cliente existente de BeautyOS. Usar cuando el cliente reporta un problema con su bot, CRM, citas, etc.",
             parameters: {
@@ -936,6 +951,30 @@ Si un cliente existente escribe, puedes comentar las mejoras relevantes para su 
 - NO pidas todos los datos de golpe. Recopílalos naturalmente durante la conversación.
 - SOLO captura UNA VEZ por conversación. Si ya capturaste, NO vuelvas a llamar capturar_lead().
 - Si el prospecto dice "solo estoy preguntando": no captures aún. Sigue vendiendo con empatía.
+
+## GESTIÓN DEL PIPELINE — Usa actualizar_estado_lead() para avanzar o cerrar leads
+Cambia el estado del lead según cómo avanza la conversación:
+
+AVANZAR (el prospecto progresa):
+- Después de capturar el lead → automáticamente queda como NUEVO
+- Cuando le explicas el producto y muestra interés → actualizar a CONTACTADO
+- Si pide ver una demo o el sistema → actualizar a EN_DEMO
+- Si pregunta precios, condiciones, o compara opciones → actualizar a NEGOCIANDO
+- Si dice "lo pienso" o "hablamos luego" → actualizar a SEGUIMIENTO
+- Si dice "sí quiero", "dónde pago", "arranquemos" → actualizar a GANADO + transferir_asesor()
+
+CERRAR COMO PERDIDO (dejar de insistir):
+- Si dice claramente "no me interesa", "no gracias", "ya tengo algo" → PREGUNTA por qué de forma amable:
+  "Entiendo perfectamente. Solo para mejorar, ¿puedo saber qué fue lo que no te convenció?"
+- Registra el motivo exacto en actualizar_estado_lead(PERDIDO, motivo)
+- Despídete con calidez: "Gracias por tu tiempo, [nombre]. Si en el futuro necesitas algo, aquí estaré."
+- NO insistas más después de marcar como PERDIDO.
+
+REGLAS IMPORTANTES:
+- Si la sesión tiene _leadPerdido = true, NO intentes vender. Solo responde preguntas si las hace.
+- Si el lead vuelve a escribir después de ser PERDIDO, sé amable pero no hagas pitch. Deja que él retome el tema.
+- SIEMPRE registra el motivo de pérdida. Es clave para aprender qué mejorar.
+- Los estados los cambias TÚ automáticamente. El asesor humano NO tiene que hacerlo.
 
 ## MANEJO DE OBJECIONES
 - "Es muy caro": "Entiendo. Pero piénsalo así: ¿cuánto pierdes al mes por citas que no llegan? $180.000 son 2-3 servicios. Se paga solo."
@@ -2063,6 +2102,48 @@ PASO 5 — POST-CONFIRMACIÓN:
                         } else {
                             toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
                         }
+                    }
+                }
+            }
+
+            // ── HANDLER: Actualizar estado del lead en el pipeline ──
+            else if (functionName === "actualizar_estado_lead") {
+                const crmUrl = config.crmBeautyosUrl;
+                const whatsappLead = session.datos?.celular || '';
+                if (!crmUrl || !whatsappLead) {
+                    toolResultText = '❌ No se pudo actualizar: CRM URL o WhatsApp no disponible.';
+                } else {
+                    try {
+                        const resp = await api.postToCRM(crmUrl, {
+                            action: 'updateLeadByWhatsapp',
+                            whatsapp: whatsappLead,
+                            estado: functionArgs.nuevoEstado,
+                            notas: functionArgs.motivo || ''
+                        });
+                        if (resp && resp.success) {
+                            if (session.datos) session.datos.estadoLead = functionArgs.nuevoEstado;
+                            toolResultText = `✅ Lead actualizado a ${functionArgs.nuevoEstado}. Motivo registrado: ${functionArgs.motivo}`;
+                            console.log(`[openai] 📊 Lead ${whatsappLead} → ${functionArgs.nuevoEstado}: ${functionArgs.motivo}`);
+
+                            // GANADO: alertar al asesor para iniciar onboarding
+                            if (functionArgs.nuevoEstado === 'GANADO') {
+                                const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
+                                if (asesores.length > 0) {
+                                    const alertMsg = `*🎉 NEGOCIO CERRADO*\n\n👤 ${session.datos?.nombre || ''}\n💼 ${session.datos?.negocio || ''}\n📱 ${whatsappLead}\n\n📝 ${functionArgs.motivo}\n\n👉 Iniciar onboarding técnico.`;
+                                    if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
+                                    session._pendingTransferMessages.push({ to: asesores[0], text: alertMsg });
+                                }
+                            }
+
+                            // PERDIDO: marcar sesión para no insistir más
+                            if (functionArgs.nuevoEstado === 'PERDIDO') {
+                                session._leadPerdido = true;
+                            }
+                        } else {
+                            toolResultText = `⚠️ No se encontró el lead. ${resp?.error || ''}`;
+                        }
+                    } catch (err) {
+                        toolResultText = `⚠️ Error actualizando: ${err.message}`;
                     }
                 }
             }
