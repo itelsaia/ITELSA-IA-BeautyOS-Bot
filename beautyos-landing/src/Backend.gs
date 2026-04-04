@@ -620,7 +620,8 @@ function handleGetInfoComercial() {
     funcionalidades: leerTabla(ss, 'FUNCIONALIDADES'),
     dolores: leerTabla(ss, 'DOLORES'),
     testimonios: leerTabla(ss, 'TESTIMONIOS'),
-    campanaActiva: campanaActiva
+    campanaActiva: campanaActiva,
+    anunciosActivos: (function() { try { return (leerTabla(ss, 'ANUNCIOS') || []).filter(function(a) { return a.ESTADO === 'ACTIVO' && a.CANAL !== 'landing'; }); } catch(e) { return []; } })()
   };
 }
 
@@ -666,6 +667,7 @@ function getPanelData() {
   try { data.novedades = leerTabla(ss, 'NOVEDADES') || []; } catch(e) { data.novedades = []; }
   try { data.asesores = leerTabla(ss, 'ASESORES') || []; } catch(e) { data.asesores = []; }
   try { data.campanas = leerTabla(ss, 'CAMPANAS') || []; } catch(e) { data.campanas = []; }
+  try { data.anuncios = leerTabla(ss, 'ANUNCIOS') || []; } catch(e) { data.anuncios = []; }
 
   // Computar dias de mora/vencimiento en cada cliente
   var hoy = new Date();
@@ -712,6 +714,12 @@ function savePanelData(data) {
         if (configData[i][0] === 'WHATSAPP_ASESORES') { configSheet.getRange(i + 1, 2).setValue(listaWa); break; }
       }
     }
+  }
+  if (data.campanas && data.campanas.length > 0) {
+    guardarTabla(ss, 'CAMPANAS', ['ID_CAMPANA', 'NOMBRE', 'ESTADO', 'FECHA_INICIO', 'FECHA_FIN', 'PRECIO_MENSUAL', 'PRECIO_ANUAL', 'IMPLEMENTACION', 'PRIMER_MES_GRATIS', 'META_CLIENTES', 'CLIENTES_ACTUALES', 'CONDICIONES_ESPECIALES', 'MENSAJE_AGENTE', 'CANAL'], data.campanas);
+  }
+  if (data.anuncios && data.anuncios.length > 0) {
+    guardarTabla(ss, 'ANUNCIOS', ['FECHA', 'TITULO', 'TIPO', 'ESTADO', 'CANAL', 'DESCRIPCION', 'MENSAJE_SOFI'], data.anuncios);
   }
 
   SpreadsheetApp.flush();

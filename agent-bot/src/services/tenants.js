@@ -252,6 +252,12 @@ async function syncTenantData(tenantId) {
                     (resp.testimonios || []).forEach(t => knowledge.push({ intent: 'testimonio caso exito', response: `${t.NOMBRE} (${t.ROL}): "${t.TEXTO}"`, mediaType: '', url: '' }));
                     tenant.knowledgeCatalog = knowledge;
 
+                    // Cargar anuncios activos para el prompt comercial
+                    if (resp.anunciosActivos && resp.anunciosActivos.length > 0) {
+                        tenant.config.anunciosActivos = resp.anunciosActivos;
+                        console.log(`[${tenantId}] 📰 Anuncios activos: ${resp.anunciosActivos.length}`);
+                    }
+
                     // Cargar campaña activa para el prompt comercial
                     if (resp.campanaActiva) {
                         tenant.config.campanaActiva = resp.campanaActiva;

@@ -873,6 +873,12 @@ DATO CLAVE PARA PERSUADIR: Cada lead que captures es un interesado más. Usa fra
 ## BASE DE CONOCIMIENTO
 ${knowledgeText || 'No hay FAQ cargadas aún.'}
 
+## 📰 NOVEDADES Y MEJORAS DEL PRODUCTO
+${(config.anunciosActivos || []).length > 0 ? (config.anunciosActivos || []).map(a => `- ${a.TIPO}: ${a.TITULO} — ${a.MENSAJE_SOFI || a.DESCRIPCION}`).join('\n') : 'No hay anuncios activos.'}
+Usa estas novedades durante la conversación para mostrar que el producto MEJORA constantemente.
+Si un prospecto pregunta "qué hay de nuevo" o "qué funciones tienen", menciona estas novedades.
+Si un cliente existente escribe, puedes comentar las mejoras relevantes para su caso.
+
 ## TÉCNICAS DE PERSUASIÓN — Usa estas durante la conversación
 1. DOLOR → SOLUCIÓN: "¿Cuántas citas has perdido este mes?" → "Con BeautyOS eso no pasa, el bot agenda y recuerda automáticamente."
 2. PRUEBA SOCIAL: "Tenemos salones en Bogotá, Medellín y Cali que ya redujeron los no-shows un 95%."

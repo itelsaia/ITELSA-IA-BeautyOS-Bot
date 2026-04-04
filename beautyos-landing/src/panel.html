@@ -194,6 +194,8 @@
     <div class="nav-section">Comercial</div>
     <div class="nav-item" data-page="precios"><i class="fas fa-tags"></i> Precios</div>
     <div class="nav-item" data-page="asesores"><i class="fas fa-headset"></i> Asesores</div>
+    <div class="nav-item" data-page="campanas"><i class="fas fa-bullhorn"></i> Campanas</div>
+    <div class="nav-item" data-page="anuncios"><i class="fas fa-newspaper"></i> Anuncios</div>
 
     <div class="nav-section">Configuracion</div>
     <div class="nav-item" data-page="configuracion"><i class="fas fa-cog"></i> General</div>
@@ -421,6 +423,97 @@
           <thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Rol</th><th>Activo</th><th>Leads</th><th>Sin gestionar</th><th>Ganados</th><th>Conversion</th><th>Acciones</th></tr></thead>
           <tbody id="asesoresTable"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- ═══ CAMPAÑAS ═══ -->
+    <div class="page" id="page-campanas">
+      <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-bullhorn"></i></div><div><div class="stat-value" id="campanasActivas">0</div><div class="stat-label">Activas</div></div></div>
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-users"></i></div><div><div class="stat-value" id="campanasClientes">0</div><div class="stat-label">Clientes conseguidos</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-bullseye"></i></div><div><div class="stat-value" id="campanasCupos">0</div><div class="stat-label">Cupos disponibles</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;"><i class="fas fa-bullhorn"></i> Campanas de marketing</h3>
+          <button class="btn btn-primary btn-sm" onclick="openCampanaModal(-1)"><i class="fas fa-plus"></i> Nueva campaña</button>
+        </div>
+        <table>
+          <thead><tr><th>Nombre</th><th>Estado</th><th>Precio</th><th>Implementacion</th><th>1er mes gratis</th><th>Meta</th><th>Clientes</th><th>Cupos</th><th>Acciones</th></tr></thead>
+          <tbody id="campanasTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ═══ ANUNCIOS ═══ -->
+    <div class="page" id="page-anuncios">
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;"><i class="fas fa-newspaper"></i> Anuncios y novedades del producto</h3>
+          <button class="btn btn-primary btn-sm" onclick="openAnuncioModal(-1)"><i class="fas fa-plus"></i> Nuevo anuncio</button>
+        </div>
+        <div class="info-banner"><i class="fas fa-info-circle"></i> Los anuncios activos se muestran a Sofi para que informe a prospectos y clientes sobre nuevas funcionalidades.</div>
+        <table>
+          <thead><tr><th>Fecha</th><th>Titulo</th><th>Tipo</th><th>Estado</th><th>Canal</th><th>Acciones</th></tr></thead>
+          <tbody id="anunciosTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal Campaña -->
+    <div class="modal-overlay" id="campanaModal">
+      <div class="modal" style="max-width:600px;">
+        <h3 id="campanaModalTitle"><i class="fas fa-bullhorn"></i> Nueva campaña</h3>
+        <input type="hidden" id="campanaIdx" value="-1">
+        <div class="form-grid">
+          <div class="form-group"><label>Nombre de la campaña *</label><input class="form-control" id="cmNombre" placeholder="Ej: Lanzamiento 2026"></div>
+          <div class="form-group"><label>Estado</label>
+            <select class="form-control" id="cmEstado"><option value="ACTIVA">Activa</option><option value="PAUSADA">Pausada</option><option value="FINALIZADA">Finalizada</option></select>
+          </div>
+          <div class="form-group"><label>Precio mensual ($)</label><input class="form-control" type="number" id="cmPrecio" placeholder="180000"></div>
+          <div class="form-group"><label>Precio anual ($)</label><input class="form-control" type="number" id="cmPrecioAnual" placeholder="160000"></div>
+          <div class="form-group"><label>Implementacion ($)</label><input class="form-control" type="number" id="cmImplementacion" placeholder="0 = gratis"></div>
+          <div class="form-group"><label>Primer mes gratis</label>
+            <select class="form-control" id="cmPrimerMes"><option value="SI">Si</option><option value="NO">No</option></select>
+          </div>
+          <div class="form-group"><label>Meta de clientes</label><input class="form-control" type="number" id="cmMeta" placeholder="5"></div>
+          <div class="form-group"><label>Clientes actuales</label><input class="form-control" type="number" id="cmClientesAct" placeholder="0"></div>
+          <div class="form-group"><label>Canal</label>
+            <select class="form-control" id="cmCanal"><option value="whatsapp,landing">WhatsApp + Landing</option><option value="whatsapp">Solo WhatsApp</option><option value="landing">Solo Landing</option></select>
+          </div>
+        </div>
+        <div class="form-group"><label>Condiciones especiales</label><textarea class="form-control" id="cmCondiciones" rows="2" placeholder="Ej: Implementacion gratis hasta completar meta..."></textarea></div>
+        <div class="form-group"><label>Mensaje para el agente (Sofi)</label><textarea class="form-control" id="cmMensajeAgente" rows="4" placeholder="Texto que Sofi usara como gancho de venta. Usa CUPOS_DISPONIBLES para cupos dinamicos."></textarea></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" onclick="closeModal('campanaModal')">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveCampanaModal()"><i class="fas fa-save"></i> Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Anuncio -->
+    <div class="modal-overlay" id="anuncioModal">
+      <div class="modal" style="max-width:560px;">
+        <h3 id="anuncioModalTitle"><i class="fas fa-newspaper"></i> Nuevo anuncio</h3>
+        <input type="hidden" id="anuncioIdx" value="-1">
+        <div class="form-grid">
+          <div class="form-group"><label>Titulo *</label><input class="form-control" id="anTitulo" placeholder="Ej: Nueva funcion de recordatorios"></div>
+          <div class="form-group"><label>Tipo</label>
+            <select class="form-control" id="anTipo"><option value="NUEVA_FUNCION">Nueva funcion</option><option value="MEJORA">Mejora</option><option value="PROMO">Promocion</option><option value="NOTICIA">Noticia</option><option value="MANTENIMIENTO">Mantenimiento</option></select>
+          </div>
+          <div class="form-group"><label>Estado</label>
+            <select class="form-control" id="anEstado"><option value="ACTIVO">Activo</option><option value="BORRADOR">Borrador</option><option value="ARCHIVADO">Archivado</option></select>
+          </div>
+          <div class="form-group"><label>Canal</label>
+            <select class="form-control" id="anCanal"><option value="todos">Todos (Sofi + Landing)</option><option value="sofi">Solo Sofi</option><option value="landing">Solo Landing</option></select>
+          </div>
+        </div>
+        <div class="form-group"><label>Descripcion *</label><textarea class="form-control" id="anDescripcion" rows="3" placeholder="Describe la novedad o mejora..."></textarea></div>
+        <div class="form-group"><label>Mensaje para Sofi (como lo comunica al cliente)</label><textarea class="form-control" id="anMensajeSofi" rows="2" placeholder="Ej: Ahora nuestro sistema tambien envia recordatorios por email..."></textarea></div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" onclick="closeModal('anuncioModal')">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveAnuncioModal()"><i class="fas fa-save"></i> Guardar</button>
+        </div>
       </div>
     </div>
 
@@ -830,7 +923,7 @@ function navigateTo(page) {
   document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
   var pageEl = document.getElementById('page-' + page);
   if (pageEl) pageEl.style.display = 'block';
-  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', asesores: 'Asesores Comerciales', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
+  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', asesores: 'Asesores Comerciales', campanas: 'Campanas de Marketing', anuncios: 'Anuncios y Novedades', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   document.getElementById('sidebar').classList.remove('open');
 }
@@ -867,6 +960,8 @@ function renderAll() {
   renderClientes();
   renderNovedades();
   renderAsesores();
+  renderCampanas();
+  renderAnuncios();
   renderContentList('dolores', DATA.dolores || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('funcionalidades', DATA.funcionalidades || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('faq', DATA.faq || [], ['PREGUNTA', 'RESPUESTA']);
@@ -1331,7 +1426,9 @@ function saveCurrentPage() {
     faq: DATA.faq,
     testimonios: DATA.testimonios,
     planes: DATA.planes,
-    asesores: DATA.asesores || []
+    asesores: DATA.asesores || [],
+    campanas: DATA.campanas || [],
+    anuncios: DATA.anuncios || []
   };
   var btn = document.getElementById('btnSaveAll');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
@@ -1745,6 +1842,161 @@ function removeAsesor(idx) {
   renderAsesores();
   DIRTY = true;
   toast('Asesor eliminado. Recuerda guardar.', 'info');
+}
+
+// ─── CAMPAÑAS ───
+function renderCampanas() {
+  var campanas = DATA.campanas || [];
+  var activas = campanas.filter(function(c) { return c.ESTADO === 'ACTIVA'; });
+  var totalClientes = 0, totalCupos = 0;
+  activas.forEach(function(c) {
+    totalClientes += Number(c.CLIENTES_ACTUALES || 0);
+    totalCupos += Math.max(0, Number(c.META_CLIENTES || 0) - Number(c.CLIENTES_ACTUALES || 0));
+  });
+  setText('campanasActivas', activas.length);
+  setText('campanasClientes', totalClientes);
+  setText('campanasCupos', totalCupos);
+
+  var tbody = document.getElementById('campanasTable');
+  if (!campanas.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><i class="fas fa-bullhorn"></i><p>No hay campanas. Crea una para que Sofi la use.</p></td></tr>'; return; }
+  tbody.innerHTML = campanas.map(function(c, i) {
+    var cupos = Math.max(0, Number(c.META_CLIENTES || 0) - Number(c.CLIENTES_ACTUALES || 0));
+    var estadoColor = c.ESTADO === 'ACTIVA' ? '#166534;background:#dcfce7' : (c.ESTADO === 'PAUSADA' ? '#b45309;background:#fff3cd' : '#991b1b;background:#fef2f2');
+    var impl = Number(c.IMPLEMENTACION || 0) === 0 ? 'GRATIS' : '$' + Number(c.IMPLEMENTACION).toLocaleString('es-CO');
+    return '<tr>'
+      + '<td><strong>' + esc(c.NOMBRE) + '</strong></td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:' + estadoColor + ';">' + esc(c.ESTADO) + '</span></td>'
+      + '<td>$' + Number(c.PRECIO_MENSUAL || 0).toLocaleString('es-CO') + '</td>'
+      + '<td>' + impl + '</td>'
+      + '<td>' + (String(c.PRIMER_MES_GRATIS).toUpperCase() === 'SI' ? '<span style="color:#166534;font-weight:600;">Si</span>' : 'No') + '</td>'
+      + '<td style="text-align:center;">' + (c.META_CLIENTES || '-') + '</td>'
+      + '<td style="text-align:center;font-weight:600;">' + (c.CLIENTES_ACTUALES || 0) + '</td>'
+      + '<td style="text-align:center;">' + (cupos > 0 ? '<span style="color:#b45309;font-weight:600;">' + cupos + '</span>' : '<span style="color:#991b1b;">Agotados</span>') + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="openCampanaModal(' + i + ')"><i class="fas fa-pen"></i></button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function openCampanaModal(idx) {
+  document.getElementById('campanaIdx').value = idx;
+  if (idx >= 0 && DATA.campanas && DATA.campanas[idx]) {
+    var c = DATA.campanas[idx];
+    document.getElementById('campanaModalTitle').innerHTML = '<i class="fas fa-bullhorn"></i> Editar campaña';
+    document.getElementById('cmNombre').value = c.NOMBRE || '';
+    document.getElementById('cmEstado').value = c.ESTADO || 'ACTIVA';
+    document.getElementById('cmPrecio').value = c.PRECIO_MENSUAL || '';
+    document.getElementById('cmPrecioAnual').value = c.PRECIO_ANUAL || '';
+    document.getElementById('cmImplementacion').value = c.IMPLEMENTACION || '0';
+    document.getElementById('cmPrimerMes').value = String(c.PRIMER_MES_GRATIS || 'SI').toUpperCase();
+    document.getElementById('cmMeta').value = c.META_CLIENTES || '';
+    document.getElementById('cmClientesAct').value = c.CLIENTES_ACTUALES || '0';
+    document.getElementById('cmCanal').value = c.CANAL || 'whatsapp,landing';
+    document.getElementById('cmCondiciones').value = c.CONDICIONES_ESPECIALES || '';
+    document.getElementById('cmMensajeAgente').value = c.MENSAJE_AGENTE || '';
+  } else {
+    document.getElementById('campanaModalTitle').innerHTML = '<i class="fas fa-bullhorn"></i> Nueva campaña';
+    ['cmNombre','cmCondiciones','cmMensajeAgente'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('cmEstado').value = 'ACTIVA';
+    document.getElementById('cmPrecio').value = '180000';
+    document.getElementById('cmPrecioAnual').value = '160000';
+    document.getElementById('cmImplementacion').value = '0';
+    document.getElementById('cmPrimerMes').value = 'SI';
+    document.getElementById('cmMeta').value = '5';
+    document.getElementById('cmClientesAct').value = '0';
+    document.getElementById('cmCanal').value = 'whatsapp,landing';
+  }
+  document.getElementById('campanaModal').classList.add('open');
+}
+
+function saveCampanaModal() {
+  var nombre = document.getElementById('cmNombre').value.trim();
+  if (!nombre) { toast('El nombre es obligatorio', 'error'); return; }
+  var idx = Number(document.getElementById('campanaIdx').value);
+  if (!DATA.campanas) DATA.campanas = [];
+  var obj = {
+    ID_CAMPANA: idx >= 0 && DATA.campanas[idx] ? DATA.campanas[idx].ID_CAMPANA : 'CAMP-' + String(DATA.campanas.length + 1).padStart(3, '0'),
+    NOMBRE: nombre,
+    ESTADO: document.getElementById('cmEstado').value,
+    FECHA_INICIO: idx >= 0 && DATA.campanas[idx] ? DATA.campanas[idx].FECHA_INICIO : new Date().toISOString(),
+    FECHA_FIN: '',
+    PRECIO_MENSUAL: Number(document.getElementById('cmPrecio').value) || 0,
+    PRECIO_ANUAL: Number(document.getElementById('cmPrecioAnual').value) || 0,
+    IMPLEMENTACION: Number(document.getElementById('cmImplementacion').value) || 0,
+    PRIMER_MES_GRATIS: document.getElementById('cmPrimerMes').value,
+    META_CLIENTES: Number(document.getElementById('cmMeta').value) || 0,
+    CLIENTES_ACTUALES: Number(document.getElementById('cmClientesAct').value) || 0,
+    CONDICIONES_ESPECIALES: document.getElementById('cmCondiciones').value.trim(),
+    MENSAJE_AGENTE: document.getElementById('cmMensajeAgente').value.trim(),
+    CANAL: document.getElementById('cmCanal').value
+  };
+  if (idx >= 0) { DATA.campanas[idx] = obj; } else { DATA.campanas.push(obj); }
+  closeModal('campanaModal');
+  renderCampanas();
+  DIRTY = true;
+  toast(idx >= 0 ? 'Campaña actualizada. Recuerda guardar.' : 'Campaña creada. Recuerda guardar.', 'info');
+}
+
+// ─── ANUNCIOS ───
+function renderAnuncios() {
+  var anuncios = DATA.anuncios || [];
+  var tbody = document.getElementById('anunciosTable');
+  if (!anuncios.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><i class="fas fa-newspaper"></i><p>No hay anuncios. Crea uno para comunicar novedades.</p></td></tr>'; return; }
+  tbody.innerHTML = anuncios.slice().reverse().map(function(a, ri) {
+    var i = anuncios.length - 1 - ri;
+    var tipoIcons = { NUEVA_FUNCION: 'star', MEJORA: 'arrow-up', PROMO: 'gift', NOTICIA: 'bullhorn', MANTENIMIENTO: 'tools' };
+    var estadoColor = a.ESTADO === 'ACTIVO' ? '#166534;background:#dcfce7' : (a.ESTADO === 'BORRADOR' ? '#b45309;background:#fff3cd' : '#64748b;background:#f1f5f9');
+    return '<tr>'
+      + '<td>' + formatDate(a.FECHA) + '</td>'
+      + '<td><strong>' + esc(a.TITULO) + '</strong><br><span style="font-size:0.8rem;color:var(--gray-500);">' + esc(a.DESCRIPCION || '').substring(0, 80) + '</span></td>'
+      + '<td><i class="fas fa-' + (tipoIcons[a.TIPO] || 'info-circle') + '" style="margin-right:4px;"></i>' + esc(a.TIPO || '') + '</td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:' + estadoColor + ';">' + esc(a.ESTADO) + '</span></td>'
+      + '<td>' + esc(a.CANAL || 'todos') + '</td>'
+      + '<td><button class="btn btn-outline btn-sm" onclick="openAnuncioModal(' + i + ')"><i class="fas fa-pen"></i></button></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function openAnuncioModal(idx) {
+  document.getElementById('anuncioIdx').value = idx;
+  if (idx >= 0 && DATA.anuncios && DATA.anuncios[idx]) {
+    var a = DATA.anuncios[idx];
+    document.getElementById('anuncioModalTitle').innerHTML = '<i class="fas fa-newspaper"></i> Editar anuncio';
+    document.getElementById('anTitulo').value = a.TITULO || '';
+    document.getElementById('anTipo').value = a.TIPO || 'NUEVA_FUNCION';
+    document.getElementById('anEstado').value = a.ESTADO || 'ACTIVO';
+    document.getElementById('anCanal').value = a.CANAL || 'todos';
+    document.getElementById('anDescripcion').value = a.DESCRIPCION || '';
+    document.getElementById('anMensajeSofi').value = a.MENSAJE_SOFI || '';
+  } else {
+    document.getElementById('anuncioModalTitle').innerHTML = '<i class="fas fa-newspaper"></i> Nuevo anuncio';
+    ['anTitulo','anDescripcion','anMensajeSofi'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('anTipo').value = 'NUEVA_FUNCION';
+    document.getElementById('anEstado').value = 'ACTIVO';
+    document.getElementById('anCanal').value = 'todos';
+  }
+  document.getElementById('anuncioModal').classList.add('open');
+}
+
+function saveAnuncioModal() {
+  var titulo = document.getElementById('anTitulo').value.trim();
+  var desc = document.getElementById('anDescripcion').value.trim();
+  if (!titulo || !desc) { toast('Titulo y descripcion son obligatorios', 'error'); return; }
+  var idx = Number(document.getElementById('anuncioIdx').value);
+  if (!DATA.anuncios) DATA.anuncios = [];
+  var obj = {
+    FECHA: idx >= 0 && DATA.anuncios[idx] ? DATA.anuncios[idx].FECHA : new Date().toISOString(),
+    TITULO: titulo,
+    TIPO: document.getElementById('anTipo').value,
+    ESTADO: document.getElementById('anEstado').value,
+    CANAL: document.getElementById('anCanal').value,
+    DESCRIPCION: desc,
+    MENSAJE_SOFI: document.getElementById('anMensajeSofi').value.trim()
+  };
+  if (idx >= 0) { DATA.anuncios[idx] = obj; } else { DATA.anuncios.push(obj); }
+  closeModal('anuncioModal');
+  renderAnuncios();
+  DIRTY = true;
+  toast(idx >= 0 ? 'Anuncio actualizado. Recuerda guardar.' : 'Anuncio creado. Recuerda guardar.', 'info');
 }
 
 // ─── NOVEDADES ───
