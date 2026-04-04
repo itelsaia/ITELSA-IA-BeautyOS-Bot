@@ -125,13 +125,13 @@ function crearCampanas() {
     new Date(), '',
     180000, 160000, 0, 'SI',
     5, 0,
-    'Implementacion GRATIS hasta completar 5 clientes. Primer mes GRATIS. Sin contrato de permanencia. Valor normal implementacion: $400.000.',
+    'Implementacion GRATIS hasta completar 5 clientes. Primer mes GRATIS dedicado a configuracion completa. Sin contrato de permanencia. Valor normal implementacion: $400.000.',
     '🚀 *PROMO LANZAMIENTO* 🚀\n\n'
     + '🎁 Implementacion GRATIS (valor normal $400.000)\n'
-    + '🆓 Primer mes GRATIS\n'
-    + '💰 Despues solo $180.000/mes TODO incluido\n'
-    + '📱 Agente IA WhatsApp 24/7 + CRM + Landing\n'
-    + '⚡ Listo en 24 horas\n'
+    + '🆓 Primer mes GRATIS y dedicado a configurar TODO tu negocio\n'
+    + '🛠️ Durante ese mes configuramos, ajustamos y personalizamos la herramienta contigo\n'
+    + '💰 Desde el segundo mes solo $180.000/mes TODO incluido\n'
+    + '📱 Agente IA WhatsApp 24/7 + CRM + Landing con tu marca\n'
     + '🔓 Sin contrato — cancela cuando quieras\n\n'
     + '⚠️ Solo CUPOS_DISPONIBLES cupos disponibles con implementacion gratis.\n'
     + 'Cuando se llenen, la implementacion costara $400.000.\n\n'
