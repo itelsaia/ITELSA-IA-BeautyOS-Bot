@@ -1537,6 +1537,51 @@ router.post('/evolution', async (req, res) => {
             delete session._pendingPromoMedia;
         }
 
+        // ── GUARDRAIL: Detectar rechazo y actualizar estado del lead por código ──
+        // No dependemos de que la IA llame la función — lo forzamos desde aquí
+        if (isComercial && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado) && !session._leadPerdido) {
+            const msgLower = messageText.toLowerCase().trim();
+            const RECHAZO_REGEX = /\b(no\s+(?:me\s+)?(?:interesa|quiero|gracias|necesito)|no\s+gracias|ya\s+tengo|no\s+(?:por\s+)?ahora)\b/i;
+            // Contar rechazos en la conversación
+            if (RECHAZO_REGEX.test(msgLower)) {
+                if (!session._rechazosCount) session._rechazosCount = 0;
+                session._rechazosCount++;
+                // Al segundo rechazo, cerrar como PERDIDO automáticamente
+                if (session._rechazosCount >= 2) {
+                    const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
+                    if (crmUrl) {
+                        try {
+                            // Extraer motivo de los últimos mensajes del usuario
+                            const userMsgs = session.history.filter(h => h.role === 'user').map(h => h.content);
+                            const motivo = userMsgs.slice(-3).join(' | ') || 'No interesado (sin motivo específico)';
+                            await api.postToCRM(crmUrl, {
+                                action: 'updateLeadByWhatsapp',
+                                whatsapp: phoneNumber,
+                                estado: 'PERDIDO',
+                                notas: motivo
+                            });
+                            session._leadPerdido = true;
+                            console.log(`[${instanceName}] ⛔ Lead ${phoneNumber} → PERDIDO (guardrail código). Motivo: ${motivo.substring(0, 100)}`);
+                        } catch (err) {
+                            console.error(`[${instanceName}] Error actualizando lead perdido:`, err.message);
+                        }
+                    }
+                }
+            }
+            // Detectar interés positivo y avanzar estado
+            const INTERES_REGEX = /\b(me\s+interesa|cuanto\s+(?:cuesta|vale)|quiero\s+(?:saber|ver|probar)|como\s+funciona|demo|cotizacion)\b/i;
+            if (INTERES_REGEX.test(msgLower) && session.estado === 'LEAD_EXISTENTE' && session.datos?.estadoLead === 'NUEVO') {
+                const crmUrl = tenant.crmUrl || tenant.config?.crmBeautyosUrl;
+                if (crmUrl) {
+                    try {
+                        await api.postToCRM(crmUrl, { action: 'updateLeadByWhatsapp', whatsapp: phoneNumber, estado: 'CONTACTADO', notas: 'Retomó contacto con interés' });
+                        if (session.datos) session.datos.estadoLead = 'CONTACTADO';
+                        console.log(`[${instanceName}] 📈 Lead ${phoneNumber} → CONTACTADO (guardrail código)`);
+                    } catch (err) { /* no crítico */ }
+                }
+            }
+        }
+
         // ── Enviar mensajes de transferencia a asesores (comercial) ──
         if (session._pendingTransferMessages) {
             for (const msg of session._pendingTransferMessages) {
