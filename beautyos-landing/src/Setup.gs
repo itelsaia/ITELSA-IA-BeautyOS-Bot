@@ -221,7 +221,7 @@ function crearClientes(ss) {
     'FECHA_INICIO_FACTURACION', 'FECHA_PROXIMO_COBRO', 'ESTADO_PAGO',
     'SHEET_ID', 'SCRIPT_ID', 'CHATGPT_API_KEY',
     'TELEFONO_BEAUTYOS', 'MENSAJE_BIENVENIDA', 'NOTAS_TECNICAS',
-    'ESTADO', 'LEAD_ORIGEN_ROW', 'DIAS_GRACIA'
+    'ESTADO', 'LEAD_ORIGEN_ROW', 'DIAS_GRACIA', 'CARPETA_GOOGLE_WORKSPACE'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#145251').setFontColor('white');

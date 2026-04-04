@@ -130,7 +130,49 @@ function handleSaveLead(payload) {
     Logger.log('[leads] Error enviando email: ' + mailErr.message);
   }
 
+  // Alerta WhatsApp al asesor asignado via Evolution API
+  if (asesorAsignado) {
+    var alertMsg = '*🔔 Nuevo Lead ' + nombreProducto + '*\n\n'
+      + '👤 Contacto: ' + (payload.nombreContacto || 'Sin nombre') + '\n'
+      + '💼 Negocio: ' + (payload.nombreNegocio || '') + '\n'
+      + '📱 WhatsApp: ' + (payload.whatsapp || '') + '\n'
+      + '📍 Ciudad: ' + (payload.ciudad || 'No indicada') + '\n'
+      + '👥 Empleados: ' + (cant || 'No indicado') + '\n'
+      + '📋 Fuente: ' + (payload.fuente || 'landing') + '\n\n'
+      + '✅ *Asignado a ti (' + asesorNombre + ').* Contactalo para cerrar la venta.';
+    try {
+      enviarWhatsAppEvolution(config, asesorAsignado, alertMsg);
+    } catch (waErr) {
+      Logger.log('[leads] Error enviando WhatsApp: ' + waErr.message);
+    }
+  }
+
   return { success: true, asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
+}
+
+// Envía mensaje WhatsApp via Evolution API al asesor asignado
+function enviarWhatsAppEvolution(config, destinatario, mensaje) {
+  var evolutionUrl = config.EVOLUTION_API_URL || 'http://136.119.198.196:8080';
+  var evolutionApiKey = config.EVOLUTION_API_KEY || '';
+  var instanceName = config.EVOLUTION_INSTANCE || 'beautyos-comercial';
+  if (!evolutionApiKey) {
+    Logger.log('[whatsapp] API Key de Evolution no configurada');
+    return;
+  }
+  var url = evolutionUrl + '/message/sendText/' + instanceName;
+  var payload = {
+    number: String(destinatario).replace(/\D/g, ''),
+    text: mensaje
+  };
+  var options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'apikey': evolutionApiKey },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+  var response = UrlFetchApp.fetch(url, options);
+  Logger.log('[whatsapp] Respuesta Evolution: ' + response.getContentText().substring(0, 200));
 }
 
 // Actualiza estado, asignado y notas de un lead desde el panel
@@ -209,8 +251,18 @@ function crearClienteDirecto(data) {
     fechaInicio, proximoCobro, 'VIGENTE',
     data.sheetId || '', data.scriptId || '', data.chatgptApiKey || '',
     data.telefonoBeautyos || '', data.mensajeBienvenida || '', data.notasTecnicas || '',
-    'ACTIVO', '', 15
+    'ACTIVO', data.leadRowNum || '', 15,
+    data.carpetaGoogleWorkspace || ''
   ]);
+
+  // Si viene de un lead, marcarlo como CLIENTE
+  if (data.leadRowNum) {
+    var leadsSheet = ss.getSheetByName('LEADS');
+    if (leadsSheet) {
+      leadsSheet.getRange(data.leadRowNum, 10).setValue('CLIENTE');
+      leadsSheet.getRange(data.leadRowNum, 12).setValue(hoy);
+    }
+  }
 
   return { success: true, idCliente: idCliente };
 }

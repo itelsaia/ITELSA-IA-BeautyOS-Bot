@@ -687,6 +687,13 @@
 <div class="modal-overlay" id="nuevoClienteModal">
   <div class="modal" style="max-width:620px;">
     <h3><i class="fas fa-user-plus"></i> Nuevo cliente</h3>
+    <div style="margin-bottom:12px;">
+      <label style="font-size:0.85rem;font-weight:600;color:var(--gray-500);">Importar datos desde un lead</label>
+      <select class="form-control" id="ncImportLead" onchange="importLeadToCliente()" style="margin-top:4px;">
+        <option value="">-- Crear desde cero --</option>
+      </select>
+    </div>
+    <input type="hidden" id="ncLeadRow" value="">
     <div class="tabs" style="margin-top:0;">
       <div class="tab active" data-tab="ncTab-info">Datos del negocio</div>
       <div class="tab" data-tab="ncTab-facturacion">Facturacion</div>
@@ -721,6 +728,7 @@
     </div>
     <div class="tab-content" id="ncTab-tecnico">
       <div class="form-grid">
+        <div class="form-group"><label>Carpeta Google Workspace</label><input class="form-control" id="ncCarpetaGW" placeholder="Nombre de la carpeta en Google Drive"></div>
         <div class="form-group"><label>Sheet ID</label><input class="form-control" id="ncSheetId" placeholder="ID de la hoja de Google Sheets"></div>
         <div class="form-group"><label>Script ID</label><input class="form-control" id="ncScriptId" placeholder="ID del proyecto Apps Script"></div>
         <div class="form-group"><label>ChatGPT API Key</label><input class="form-control" id="ncApiKey" placeholder="sk-... (opcional)"></div>
@@ -1110,16 +1118,38 @@ function openNuevoClienteModal() {
   // Llenar select de planes
   var sel = document.getElementById('ncPlan');
   sel.innerHTML = (DATA.planes || []).map(function(p) { return '<option value="' + esc(p.ID) + '">' + esc(p.NOMBRE) + '</option>'; }).join('');
+  // Llenar select de leads disponibles (no convertidos)
+  var leadSel = document.getElementById('ncImportLead');
+  var leadsDisponibles = (DATA.leads || []).filter(function(l) { return l.ESTADO !== 'CLIENTE' && l.ESTADO !== 'PERDIDO'; });
+  leadSel.innerHTML = '<option value="">-- Crear desde cero --</option>' + leadsDisponibles.map(function(l) {
+    return '<option value="' + l._rowNum + '">' + esc(l.NOMBRE_CONTACTO || '') + ' - ' + esc(l.NOMBRE_NEGOCIO || '') + ' (' + esc(l.CIUDAD || '') + ')</option>';
+  }).join('');
+  document.getElementById('ncLeadRow').value = '';
   // Defaults desde config
   var config = DATA.config || {};
   document.getElementById('ncFechaInicio').value = new Date().toISOString().split('T')[0];
   document.getElementById('ncMensaje').value = config.MENSAJE_BIENVENIDA_DEFAULT || '';
   document.getElementById('ncTelefono').value = config.BEAUTYOS_WHATSAPP || '';
   // Limpiar campos
-  ['ncNombre','ncWhatsapp','ncEmail','ncCiudad','ncSheetId','ncScriptId','ncApiKey','ncNotas'].forEach(function(id) { document.getElementById(id).value = ''; });
+  ['ncNombre','ncWhatsapp','ncEmail','ncCiudad','ncSheetId','ncScriptId','ncApiKey','ncNotas','ncCarpetaGW'].forEach(function(id) { document.getElementById(id).value = ''; });
   document.getElementById('ncEmpleados').value = 'Solo yo';
   document.getElementById('ncPeriodo').value = 'Mensual';
   document.getElementById('nuevoClienteModal').classList.add('open');
+}
+
+// Importa datos de un lead seleccionado al formulario de nuevo cliente
+function importLeadToCliente() {
+  var rowNum = Number(document.getElementById('ncImportLead').value);
+  if (!rowNum) { document.getElementById('ncLeadRow').value = ''; return; }
+  var lead = (DATA.leads || []).find(function(l) { return l._rowNum === rowNum; });
+  if (!lead) return;
+  document.getElementById('ncLeadRow').value = rowNum;
+  document.getElementById('ncNombre').value = lead.NOMBRE_NEGOCIO || '';
+  document.getElementById('ncWhatsapp').value = String(lead.WHATSAPP || '');
+  document.getElementById('ncEmail').value = lead.EMAIL || '';
+  document.getElementById('ncCiudad').value = lead.CIUDAD || '';
+  document.getElementById('ncEmpleados').value = lead.CANTIDAD_EMPLEADOS || lead.CANTIDAD_EMPLEAD || 'Solo yo';
+  toast('Datos del lead importados. Completa la info tecnica.', 'info');
 }
 
 function crearClienteDirecto() {
@@ -1128,6 +1158,7 @@ function crearClienteDirecto() {
   if (!nombre) { toast('El nombre del negocio es obligatorio', 'error'); return; }
   if (!whatsapp) { toast('El WhatsApp es obligatorio', 'error'); return; }
 
+  var leadRow = document.getElementById('ncLeadRow').value;
   var data = {
     nombreNegocio: nombre,
     whatsapp: whatsapp,
@@ -1137,12 +1168,14 @@ function crearClienteDirecto() {
     planActivo: document.getElementById('ncPlan').value,
     periodoFacturacion: document.getElementById('ncPeriodo').value,
     fechaInicioFacturacion: document.getElementById('ncFechaInicio').value,
+    carpetaGoogleWorkspace: document.getElementById('ncCarpetaGW').value.trim(),
     sheetId: document.getElementById('ncSheetId').value.trim(),
     scriptId: document.getElementById('ncScriptId').value.trim(),
     chatgptApiKey: document.getElementById('ncApiKey').value.trim(),
     telefonoBeautyos: document.getElementById('ncTelefono').value.trim(),
     mensajeBienvenida: document.getElementById('ncMensaje').value.trim(),
-    notasTecnicas: document.getElementById('ncNotas').value.trim()
+    notasTecnicas: document.getElementById('ncNotas').value.trim(),
+    leadRowNum: leadRow ? Number(leadRow) : null
   };
 
   closeModal('nuevoClienteModal');

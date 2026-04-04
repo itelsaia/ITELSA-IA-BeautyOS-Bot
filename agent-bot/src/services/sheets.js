@@ -68,6 +68,10 @@ async function loadClientConfig(sheetId) {
             whatsappAsesores: configRaw['WHATSAPP_ASESORES'] || '',
             paymentInstructionsComercial: configRaw['DATOS_PAGO_BEAUTYOS'] || '',
             aiModel: configRaw['IA_MODEL'] || configRaw['MODELO_IA'] || '',
+            // Oferta comercial configurable desde CRM
+            ofertaLanzamiento: configRaw['OFERTA_LANZAMIENTO'] || '',
+            implementacionPrecio: configRaw['IMPLEMENTACION_PRECIO'] || '',
+            nombreAgente: configRaw['AGENTE_NOMBRE'] || configRaw['NOMBRE_AGENTE'] || '',
         };
     } catch (e) {
         console.error("❌ Error conectando a Google Sheets (CONFIGURACION):", e.message);
