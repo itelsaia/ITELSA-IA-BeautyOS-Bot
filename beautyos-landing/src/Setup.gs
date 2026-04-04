@@ -125,8 +125,17 @@ function crearCampanas() {
     new Date(), '',
     180000, 160000, 0, 'SI',
     5, 0,
-    'Implementacion GRATIS hasta completar 5 clientes. Primer mes GRATIS. Sin contrato de permanencia.',
-    'Estamos en lanzamiento. La implementacion que normalmente vale $400.000 es GRATIS para los primeros 5 clientes. Ademas, el primer mes te sale gratis. Son $180.000/mes todo incluido, sin contrato. Solo quedan CUPOS_DISPONIBLES cupos disponibles.',
+    'Implementacion GRATIS hasta completar 5 clientes. Primer mes GRATIS. Sin contrato de permanencia. Valor normal implementacion: $400.000.',
+    '🚀 *PROMO LANZAMIENTO* 🚀\n\n'
+    + '🎁 Implementacion GRATIS (valor normal $400.000)\n'
+    + '🆓 Primer mes GRATIS\n'
+    + '💰 Despues solo $180.000/mes TODO incluido\n'
+    + '📱 Agente IA WhatsApp 24/7 + CRM + Landing\n'
+    + '⚡ Listo en 24 horas\n'
+    + '🔓 Sin contrato — cancela cuando quieras\n\n'
+    + '⚠️ Solo CUPOS_DISPONIBLES cupos disponibles con implementacion gratis.\n'
+    + 'Cuando se llenen, la implementacion costara $400.000.\n\n'
+    + '👉 ¿Te cuento como funciona?',
     'whatsapp,landing'
   ]);
   sheet.setColumnWidth(12, 300);
