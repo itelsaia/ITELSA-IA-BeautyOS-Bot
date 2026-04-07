@@ -246,9 +246,10 @@ router.post('/evolution', async (req, res) => {
             }
 
             // ── Datos del usuario para contexto de IA ──
+            const datosCaptura = session._datosCaptura || {};
             userData = session.datos
-                ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true }
-                : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false };
+                ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true, estado: session.estado, negocio: session.datos.negocio || '', ciudad: session.datos.ciudad || '', estadoLead: session.datos.estadoLead || '', _negocio: datosCaptura.negocio || '', _ciudad: datosCaptura.ciudad || '', _empleados: datosCaptura.empleados || '' }
+                : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false, _negocio: '', _ciudad: '', _empleados: '' };
         }
 
         // ── Bloques de salon: saludo personalizado + comprobantes de pago (NO aplican a comercial) ──
@@ -1625,7 +1626,7 @@ router.post('/evolution', async (req, res) => {
                 }
 
                 // Guardar datos parciales en la sesión para que Sofi sepa qué falta
-                if (negocio && !session._datosCaptura) session._datosCaptura = {};
+                if (!session._datosCaptura) session._datosCaptura = {};
                 if (negocio) session._datosCaptura.negocio = negocio;
                 if (ciudad) session._datosCaptura.ciudad = ciudad;
                 if (empleados) session._datosCaptura.empleados = empleados;

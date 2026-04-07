@@ -843,9 +843,9 @@ IMPORTANTE: Ya lo conoces. NO le preguntes datos que ya tienes. NO repitas el fl
         // Calcular qué datos faltan del prospecto
         const datosFaltan = [];
         if (!userData.nombre || userData.nombre === 'Usuario') datosFaltan.push('NOMBRE de la persona');
-        if (!userData.negocio && !session?._datosCaptura?.negocio) datosFaltan.push('NOMBRE DEL NEGOCIO');
-        if (!userData.ciudad && !session?._datosCaptura?.ciudad) datosFaltan.push('CIUDAD');
-        if (!session?._datosCaptura?.empleados) datosFaltan.push('CANTIDAD DE EMPLEADOS');
+        if (!userData.negocio && !userData._negocio) datosFaltan.push('NOMBRE DEL NEGOCIO');
+        if (!userData.ciudad && !userData._ciudad) datosFaltan.push('CIUDAD');
+        if (!userData._empleados) datosFaltan.push('CANTIDAD DE EMPLEADOS');
 
         modoContexto = `El usuario es un PROSPECTO nuevo. No conoce ${businessName} aún.
 Estás en modo VENTAS. Tu objetivo es convertirlo en cliente.
