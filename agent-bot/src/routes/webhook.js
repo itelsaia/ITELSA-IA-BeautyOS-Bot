@@ -248,8 +248,8 @@ router.post('/evolution', async (req, res) => {
             // ── Datos del usuario para contexto de IA ──
             const datosCaptura = session._datosCaptura || {};
             userData = session.datos
-                ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true, estado: session.estado, negocio: session.datos.negocio || '', ciudad: session.datos.ciudad || '', estadoLead: session.datos.estadoLead || '', _negocio: datosCaptura.negocio || '', _ciudad: datosCaptura.ciudad || '', _empleados: datosCaptura.empleados || '' }
-                : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false, _negocio: '', _ciudad: '', _empleados: '' };
+                ? { nombre: session.datos.nombre, celular: phoneNumber, cumple: session.datos.cumple || '', tipo: session.datos.tipo || 'Nuevo', exentoAnticipo: session.datos.exemptFromPayment === true, estado: session.estado, negocio: session.datos.negocio || '', ciudad: session.datos.ciudad || '', estadoLead: session.datos.estadoLead || '', _negocio: datosCaptura.negocio || '', _ciudad: datosCaptura.ciudad || '', _empleados: datosCaptura.empleados || '', _email: datosCaptura.email || '' }
+                : { nombre: data.pushName || "Cliente", celular: phoneNumber, cumple: '', tipo: 'Nuevo', exentoAnticipo: false, _negocio: '', _ciudad: '', _empleados: '', _email: '' };
         }
 
         // ── Bloques de salon: saludo personalizado + comprobantes de pago (NO aplican a comercial) ──
@@ -1558,6 +1558,15 @@ router.post('/evolution', async (req, res) => {
 
             // ── 1. INICIALIZAR DATOS PARCIALES ──
             if (!session._datosCaptura) session._datosCaptura = {};
+
+            // ── 1a. DETECTAR EMAIL en el mensaje actual ──
+            if (!session._datosCaptura.email) {
+                const emailMatch = messageText.match(/[\w.+-]+@[\w-]+\.[\w.]+/i);
+                if (emailMatch) {
+                    session._datosCaptura.email = emailMatch[0].toLowerCase();
+                    console.log(`[${instanceName}] 📧 Email detectado: ${emailMatch[0]}`);
+                }
+            }
 
             // ── 1b. DETECTAR EMPLEADOS en el mensaje actual (para cualquier estado) ──
             if (!session._datosCaptura.empleados && crmUrl) {
