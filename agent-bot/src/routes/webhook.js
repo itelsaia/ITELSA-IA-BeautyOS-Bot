@@ -1618,7 +1618,7 @@ router.post('/evolution', async (req, res) => {
 
                 // QUIERE COMPRAR → GANADO
                 // Solo frases de CIERRE REAL — no "si me gustaría" genérico
-                const COMPRA_REGEX = /\b(quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|iniciar)|d[oó]nde\s+pago|como\s+(?:pago|hago\s+(?:pa|para)\s+pagar)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:iniciemos|empecemos|arranquemos|comenzamos|para\s+empezar)|hag[aá]mosle|hag[aá]moslo|vamos\s+(?:con\s+eso|a\s+darle)|dele\s+pues|met[aá]le|arranquemos|iniciemos|empecemos|comenzamos|listo\s+(?:entonces\s+)?(?:arranquemos|iniciemos|empecemos)|cuando\s+(?:empezamos|arrancamos|iniciamos)|gustar[ií]a\s+(?:empezar|arrancar|contratar|adquirir|iniciar))\b/i;
+                const COMPRA_REGEX = /\b(quiero\s+(?:contratar|empezar|arrancar|adquirir|comprar|iniciar|obtener|tomar|el\s+servicio)|gustar[ií]a\s+(?:empezar|arrancar|contratar|adquirir|iniciar|obtener|tomar|el\s+servicio)|d[oó]nde\s+pago|como\s+(?:pago|hago\s+(?:pa|para)\s+pagar)|me\s+(?:inscribo|registro|anoto|apunto)|listo\s+(?:iniciemos|empecemos|arranquemos|comenzamos|para\s+empezar|dale)|hag[aá]mosle|hag[aá]moslo|vamos\s+(?:con\s+eso|a\s+darle)|dele\s+pues|met[aá]le|arranquemos|iniciemos|empecemos|comenzamos|cuando\s+(?:empezamos|arrancamos|iniciamos)|(?:si\s+)?(?:me\s+)?gustar[ií]a\s+obtener|(?:quiero|deseo)\s+(?:el\s+)?servicio|(?:si\s+)?(?:estoy\s+)?interesad[oa]\s+en\s+(?:adquirir|contratar|obtener|tomar))\b/i;
                 if (!nuevoEstado && COMPRA_REGEX.test(msgLower)) {
                     nuevoEstado = 'GANADO';
                     motivo = 'Confirmó intención de compra';
