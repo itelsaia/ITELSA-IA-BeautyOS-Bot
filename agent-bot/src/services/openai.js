@@ -299,9 +299,10 @@ const COMMERCIAL_TOOLS = [
                     email: { type: "string", description: "Correo electronico (opcional)" },
                     ciudad: { type: "string", description: "Ciudad del negocio" },
                     cantidadEmpleados: { type: "string", enum: ["Solo yo", "2 a 5", "6 a 10", "11 o mas"], description: "Cuantos empleados tiene" },
-                    notas: { type: "string", description: "Contexto: que busca, objeciones, interes especifico" }
+                    notas: { type: "string", description: "Contexto: que busca, objeciones, interes especifico" },
+                    autorizaDatos: { type: "string", enum: ["SI", "NO"], description: "Si el prospecto autorizo el tratamiento de sus datos personales" }
                 },
-                required: ["nombreContacto", "nombreNegocio", "whatsapp"]
+                required: ["nombreContacto", "nombreNegocio", "whatsapp", "autorizaDatos"]
             }
         }
     },
@@ -940,9 +941,11 @@ Si un cliente existente escribe, puedes comentar las mejoras relevantes para su 
 3. EMPATÍA + HISTORIA: Valida su dolor con un caso real:
    - "Eso le pasaba a una clienta nuestra en [ciudad]. Perdía como 5 citas por semana."
    - "Muchos dueños de salón viven pegados al celular respondiendo WhatsApp. Eso se acaba con BeautyOS."
-4. PRESENTACIÓN (máx 2-3 mensajes cortos, NO listas):
-   - Relaciona SU dolor específico con UNA función de BeautyOS.
-   - "Imagínate: un cliente te escribe a las 11pm para agendar. Con BeautyOS, el bot le agenda automáticamente."
+4. PRESENTACIÓN GRADUAL (máx 2-3 mensajes cortos, NO listas) — Cuenta UNA función por mensaje:
+   Mensaje A: Responde al dolor que mencionó. "Eso le pasa a muchos. Con BeautyOS un bot atiende tu WhatsApp 24/7 y agenda solo."
+   Mensaje B: Otra función. "Además te envía recordatorios automáticos para que no te fallen las citas."
+   Mensaje C: El diferencial. "Y todo viene con un CRM con tu marca y una landing page profesional de tu negocio."
+   IMPORTANTE: NO menciones todo de golpe. Ve soltando info poco a poco según la conversación fluya.
 5. RECOLECCIÓN — DEBES tener estos 5 datos ANTES de hablar de precio o funcionalidades:
    ✅ Nombre de la persona → del saludo o pregunta directa
    ✅ Nombre del negocio → "¿Cómo se llama tu negocio/salón?"
@@ -975,12 +978,16 @@ Si un cliente existente escribe, puedes comentar las mejoras relevantes para su 
 - Cuando el prospecto dice "sí quiero" o "listo arranquemos", NO le pidas más datos. Llama capturar_lead() con los datos que ya tienes y confirma.
 - Si el prospecto te da información que ya tienes, NO le digas "como te dije anteriormente". Solo fluye natural.
 
-## CAPTURA DEL LEAD — OBLIGATORIO
-Cuando tengas los 5 datos (nombre, negocio, ciudad, empleados, email), DEBES llamar capturar_lead() INMEDIATAMENTE.
-NO esperes a que el prospecto diga "sí quiero". Captura apenas tengas los datos, durante la conversación.
-Si el prospecto te da nombre + negocio + ciudad + empleados + email → llama capturar_lead() en tu SIGUIENTE respuesta.
+## AUTORIZACIÓN DE DATOS — OBLIGATORIO ANTES DE CAPTURAR
+Antes de llamar capturar_lead(), SIEMPRE pide autorización:
+"Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos 'sí' o 'no'."
+- Si dice SÍ → llama capturar_lead() con autorizaDatos: "SI"
+- Si dice NO → NO captures. Sigue la conversación pero no guardes datos. Di: "Entendido, respeto tu decisión. Si cambias de opinión, aquí estoy."
+
+## CAPTURA DEL LEAD — OBLIGATORIO (después de autorización)
+Cuando tengas los 5 datos + autorización, DEBES llamar capturar_lead() INMEDIATAMENTE.
 El WhatsApp ya lo tienes del chat, NO lo inventes ni lo preguntes.
-Si el prospecto dice que no tiene email o no quiere darlo, captura con email vacío. El email NO es bloqueante.
+Si el prospecto dice que no tiene email, captura con email vacío. El email NO es bloqueante.
 
 ## GESTIÓN DEL PIPELINE — Usa actualizar_estado_lead() para avanzar o cerrar leads
 Cambia el estado del lead según cómo avanza la conversación:
@@ -2172,7 +2179,8 @@ PASO 5 — POST-CONFIRMACIÓN:
                             ciudad: cleanVal(functionArgs.ciudad),
                             cantidadEmpleados: cleanVal(functionArgs.cantidadEmpleados),
                             notas: cleanVal(functionArgs.notas),
-                            fuente: 'whatsapp-agente'
+                            fuente: 'whatsapp-agente',
+                            autorizaDatos: cleanVal(functionArgs.autorizaDatos) || 'SI'
                         });
                         if (resp && !resp.error) {
                             session._leadCapturado = functionArgs.nombreNegocio;

@@ -57,6 +57,22 @@ function jsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// Convierte imágenes de Google Drive a base64 para compatibilidad móvil
+function getCarouselImages(fileIds) {
+  var results = [];
+  for (var i = 0; i < fileIds.length; i++) {
+    try {
+      var file = DriveApp.getFileById(fileIds[i]);
+      var blob = file.getBlob();
+      var base64 = Utilities.base64Encode(blob.getBytes());
+      results.push('data:' + blob.getContentType() + ';base64,' + base64);
+    } catch (e) {
+      results.push('');
+    }
+  }
+  return results;
+}
+
 // ═══════════════════════════════════════════════
 // ─── LANDING: Datos para renderizar la pagina ───
 // ═══════════════════════════════════════════════
@@ -110,6 +126,17 @@ function handleSaveLead(payload) {
   // Limpiar undefined/null que pueden venir del bot
   var clean = function(v) { return (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim(); };
 
+  // ── GUARDRAIL: Validar duplicados por WhatsApp ──
+  var waLimpio = String(payload.whatsapp || '').replace(/\D/g, '');
+  if (waLimpio && sheet.getLastRow() > 1) {
+    var existentes = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
+    for (var d = 0; d < existentes.length; d++) {
+      if (String(existentes[d][0]).replace(/\D/g, '') === waLimpio) {
+        return { success: true, duplicado: true, mensaje: 'Este WhatsApp ya esta registrado como lead', asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
+      }
+    }
+  }
+
   sheet.appendRow([
     Utilities.formatDate(new Date(), 'America/Bogota', 'M/d/yyyy HH:mm:ss'),
     clean(payload.nombreContacto),
@@ -120,7 +147,8 @@ function handleSaveLead(payload) {
     cant,
     categoria,
     clean(payload.fuente) || 'landing',
-    'NUEVO', asesorAsignado, '', ''
+    'NUEVO', asesorAsignado, '', '',
+    clean(payload.autorizaDatos) || 'SI'
   ]);
 
   // Notificacion por email
@@ -702,7 +730,7 @@ function handleGetClientesCRM() {
 
 // ═══════════════════════════════════════════════
 // ─── PANEL ADMIN ───
-// ═══════════════════════════════════════════════
+// ═════════���═════════════════════════════════════
 
 // Carga todos los datos necesarios para el panel CRM
 // Computa _diasMora y _diasParaVencer en cada cliente para las alertas visuales

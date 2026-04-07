@@ -216,7 +216,7 @@ function crearLeads(ss) {
   var headers = [
     'FECHA', 'NOMBRE_CONTACTO', 'NOMBRE_NEGOCIO', 'WHATSAPP', 'EMAIL',
     'CIUDAD', 'CANTIDAD_EMPLEADOS', 'CATEGORIA', 'FUENTE',
-    'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS'
+    'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS', 'AUTORIZA_DATOS'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
