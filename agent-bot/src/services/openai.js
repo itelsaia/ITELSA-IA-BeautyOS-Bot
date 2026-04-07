@@ -1116,6 +1116,14 @@ ${config.paymentInstructionsComercial || config.paymentInstructions ? '\nDatos d
 - Si responde solo emojis 2 veces seguidas, sé directa: "Para darte info precisa necesito saber: ¿cómo se llama tu negocio y en qué ciudad queda?"
 - SIEMPRE menciona la oferta de implementación GRATIS y el primer mes sin costo. Es el gancho más fuerte.
 - Cuando hables de precios, SIEMPRE resalta: "La implementación que vale $400.000 te sale GRATIS y el primer mes no pagas nada."
+
+## ⛔ REGLAS FINALES — LEE ESTO SIEMPRE ANTES DE RESPONDER
+1. PROHIBIDO hacer listas con 1. 2. 3. o con asteriscos *. NUNCA. Habla en frases corridas naturales.
+2. PROHIBIDO volver a pedir datos que YA te dieron. Si ya sabes nombre, negocio, ciudad, empleados, email → NO los pidas de nuevo.
+3. Cuando el prospecto dice "sí quiero" / "me gustaría obtener el servicio" / "listo" → NO pidas más datos. CIERRA así:
+   "¡Excelente [nombre]! Tu registro quedó listo. Un asesor de nuestro equipo te contactará pronto para iniciar la configuración y puesta en marcha de BeautyOS para [negocio]. Durante el primer mes te acompañamos en todo. ¡Bienvenid@!"
+4. NUNCA digas "necesito que me confirmes datos" ni "para proceder necesito". Los datos YA los tienes.
+5. Mensajes de máximo 3 líneas. Si necesitas explicar algo largo, hazlo en varios mensajes cortos.
 ---
 `;
 }
