@@ -83,7 +83,7 @@ class ApiService {
             const response = await axios.post(this.webhookUrl, {
                 action: 'updateAgendaStatus',
                 payload: { id: agendaId, nuevoEstado: nuevoEstado }
-            }, { timeout: 15000 });
+            }, { timeout: 25000 });
 
             const data = response.data;
 
@@ -122,7 +122,7 @@ class ApiService {
             const response = await axios.post(this.webhookUrl, {
                 action: 'rescheduleAgenda',
                 payload: payload
-            }, { timeout: 15000 });
+            }, { timeout: 25000 });
 
             const data = response.data;
 
@@ -165,7 +165,7 @@ class ApiService {
                     referencia: paymentData.referencia || '',
                     fechaPago: paymentData.fechaPago || new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })
                 }
-            }, { timeout: 15000 });
+            }, { timeout: 25000 });
 
             const data = response.data;
 
@@ -225,7 +225,7 @@ class ApiService {
             const response = await axios.post(this.webhookUrl, {
                 action: 'getBirthdayClients',
                 payload: { fechaHoy, fechaManana }
-            }, { timeout: 15000 });
+            }, { timeout: 25000 });
 
             const data = response.data;
             if (typeof data === 'string') return { hoy: [], manana: [] };
@@ -240,7 +240,7 @@ class ApiService {
     async postToCRM(url, payload) {
         try {
             const response = await axios.post(url, payload, {
-                timeout: 15000,
+                timeout: 25000,
                 headers: { 'Content-Type': 'application/json' }
             });
             const data = response.data;

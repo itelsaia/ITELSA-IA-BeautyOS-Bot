@@ -1146,7 +1146,7 @@ async function generateAIResponse(
     }
 
     try {
-        const openai = new OpenAI({ apiKey: config.openApiKey });
+        const openai = new OpenAI({ apiKey: config.openApiKey, timeout: 30000, maxRetries: 2 });
 
         // 1. Construir contexto de servicios
         const catalogText = servicesCatalog.map(s => {
@@ -2364,7 +2364,21 @@ PASO 5 — POST-CONFIRMACIÓN:
 
     } catch (e) {
         console.error("❌ Error comunicando con OpenAI:", e.message);
-        return "Disculpa, en este momento tengo problemas de conexión y no puedo procesar tu solicitud.";
+        // Reintentar 1 vez con modelo más rápido si falla
+        try {
+            console.log("🔄 Reintentando con gpt-4o-mini...");
+            const retryOpenai = new OpenAI({ apiKey: config.openApiKey });
+            const retryCompletion = await retryOpenai.chat.completions.create({
+                model: "gpt-4o-mini",
+                messages: [{ role: "system", content: "Eres Sofi, asesora comercial de BeautyOS. Responde breve y amable en español colombiano." }, ...messageHistory.slice(-4), { role: "user", content: incomingMessage }],
+                temperature: 0.5,
+                max_tokens: 500
+            });
+            return retryCompletion.choices[0].message.content;
+        } catch (retryErr) {
+            console.error("❌ Reintento también falló:", retryErr.message);
+            return "Dame un momento, estoy procesando tu mensaje. ¿Podrías repetirme lo último que me dijiste? 😊";
+        }
     }
 }
 
