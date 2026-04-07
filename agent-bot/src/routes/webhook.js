@@ -1556,133 +1556,26 @@ router.post('/evolution', async (req, res) => {
                 session._emojiResponder = true;
             }
 
-            // ── 1. AUTO-CAPTURA: apenas tengamos nombre + negocio + ciudad ──
-            if (session.estado === 'PROSPECTO' && !session._leadCapturado && session.history.length >= 4 && crmUrl) {
-                const nombreContacto = session.datos?.nombre || data.pushName || '';
-                const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar|riohacha|quibd[oó]|leticia|mocoa|yopal|arauca|in[ií]rida|mit[uú]|puerto\s*carre[ñn]o|san\s*andr[eé]s|soacha|envigado|bello|itag[uü][ií]|soledad|dosquebradas|floridablanca|zipaquir[aá]|girardot|fusagasug[aá]|facatativ[aá]|chia|cajic[aá]|funza|mosquera|madrid|ch[ií]a)/i;
+            // ── 1. INICIALIZAR DATOS PARCIALES ──
+            if (!session._datosCaptura) session._datosCaptura = {};
 
-                // Extraer negocio: buscar MENSAJE POR MENSAJE
-                let negocio = '';
-                const userMessages = session.history.filter(h => h.role === 'user').map(h => h.content);
-                const negocioPatterns = [
-                    // "se llama X", "llama X"
-                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][\w\sáéíóúñ]{1,25}?)(?:\s*[,.]|\s+(?:y|en|queda|est[aá]|tengo|trabajo)|$)/i,
-                    // "mi negocio/salón es X"
-                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|barber[ií]a|peluqueria|peluquer[ií]a|centro)\s+(?:es|se\s+llama)\s+)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
-                    // "nombre es X" / "nombre: X"
-                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
-                    // "tengo un salón/spa X" / "tengo una peluquería X"
-                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+)?)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
-                    // "mi peluquería/salón X" (sin verbo)
-                    /(?:mi\s+(?:peluqueria|peluquer[ií]a|salon|sal[oó]n|spa|barberia|barber[ií]a|negocio|centro|local))\s+["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda|est[aá])|$)/i,
-                    // Respuesta directa a "¿cómo se llama tu negocio?" — el mensaje es solo el nombre
-                    /^["']?([\wáéíóúñÁÉÍÓÚÑ][\w\sáéíóúñÁÉÍÓÚÑ]{1,25}?)["']?$/i
-                ];
-                for (const msg of userMessages) {
-                    if (negocio) break;
-                    // Los primeros 5 patrones buscan frases específicas
-                    for (let p = 0; p < negocioPatterns.length - 1; p++) {
-                        const m = msg.match(negocioPatterns[p]);
-                        if (m) { negocio = m[1].trim(); break; }
-                    }
-                    // El último patrón (respuesta directa) solo aplica si Sofi preguntó por el negocio
-                    if (!negocio) {
-                        const prevAiMsg = session.history[session.history.indexOf(session.history.find(h => h.content === msg)) - 1];
-                        if (prevAiMsg && prevAiMsg.role === 'assistant' && prevAiMsg.content.match(/negocio|sal[oó]n|nombre.*negocio/i)) {
-                            const m = msg.match(negocioPatterns[negocioPatterns.length - 1]);
-                            if (m && m[1].length >= 3 && !m[1].match(/^(si|no|hola|bueno|dale|ok|claro|gracias)$/i)) {
-                                negocio = m[1].trim();
-                            }
-                        }
-                    }
-                }
-
-                // Extraer ciudad
-                let ciudad = '';
-                const ciudadMatch = allUserMsgs.match(CIUDADES);
-                if (ciudadMatch) ciudad = ciudadMatch[1].trim();
-                // También detectar "en [ciudad]"
-                if (!ciudad) {
-                    const enCiudad = allUserMsgs.match(/\ben\s+([a-záéíóúñ]{3,20})\b/i);
-                    if (enCiudad && CIUDADES.test(enCiudad[1])) ciudad = enCiudad[1].trim();
-                }
-
-                // Extraer empleados — buscar mensaje por mensaje para precisión
-                let empleados = '';
-                for (const msg of userMessages) {
-                    if (empleados) break;
-                    const m = msg.toLowerCase();
-                    if (m.match(/\b(solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|nada\s+m[aá]s\s+yo|[uú]nicamente\s+yo|soy\s+(?:yo\s+)?sol[oa]|una?\s+sol[oa]\s+persona|independiente)\b/i)) empleados = 'Solo yo';
-                    else if (m.match(/\b(tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:emplead|persona|trabajador|chic[oa]s?|estilista|colaborador))\b/i)) empleados = '2 a 5';
-                    else if (m.match(/\b(tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|(?:[6-9]|10)\s+(?:emplead|persona|trabajador))\b/i)) empleados = '6 a 10';
-                    else if (m.match(/\b(tengo\s+(?:1[1-9]|[2-9]\d)|somos\s+(?:1[1-9]|[2-9]\d)|(?:1[1-9]|[2-9]\d)\s+(?:emplead|persona)|m[aá]s\s+de\s+(?:10|diez)|muchos?\s+emplead|bastantes?\s+emplead|gran\s+equipo)\b/i)) empleados = '11 o mas';
-                }
-
-                // También buscar en respuestas de la IA que confirman el nombre del negocio
-                if (!negocio) {
-                    const aiMsgs = session.history.filter(h => h.role === 'assistant').map(h => h.content).join(' ');
-                    const aiNegocioMatch = aiMsgs.match(/[""]([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})[""]|(?:tu\s+(?:negocio|salon|sal[oó]n|spa)\s+)[""]?([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/);
-                    if (aiNegocioMatch) negocio = (aiNegocioMatch[1] || aiNegocioMatch[2] || '').trim();
-                }
-
-                // Guardar datos parciales en la sesión para que Sofi sepa qué falta
-                if (!session._datosCaptura) session._datosCaptura = {};
-                if (negocio) session._datosCaptura.negocio = negocio;
-                if (ciudad) session._datosCaptura.ciudad = ciudad;
-                if (empleados) session._datosCaptura.empleados = empleados;
-
-                // Capturar si tenemos nombre + negocio + ciudad (empleados opcional pero preferido)
-                if (nombreContacto && negocio && ciudad) {
-                    try {
-                        const resp = await api.postToCRM(crmUrl, {
-                            action: 'saveLead',
-                            nombreContacto: nombreContacto,
-                            nombreNegocio: negocio,
-                            whatsapp: phoneNumber,
-                            email: '',
-                            ciudad: ciudad,
-                            cantidadEmpleados: empleados,
-                            notas: '',
-                            fuente: 'whatsapp-agente'
-                        });
-                        if (resp && !resp.error) {
-                            session._leadCapturado = negocio;
-                            session.estado = 'LEAD_EXISTENTE';
-                            session.datos = { ...session.datos, negocio, ciudad, estadoLead: 'NUEVO' };
-                            console.log(`[${instanceName}] 📋 Lead auto-capturado: ${nombreContacto} - ${negocio} - ${ciudad} (${phoneNumber})`);
-                        }
-                    } catch (err) {
-                        console.error(`[${instanceName}] Error auto-captura:`, err.message);
-                    }
-                }
-            }
-
-            // ── 1b. ACTUALIZAR EMPLEADOS si se capturó el lead sin esa info ──
-            if (session._leadCapturado && !session._empleadosActualizado && crmUrl) {
-                // Re-extraer empleados del mensaje actual
-                let empActual = '';
+            // ── 1b. DETECTAR EMPLEADOS en el mensaje actual (para cualquier estado) ──
+            if (!session._datosCaptura.empleados && crmUrl) {
                 const mLow = messageText.toLowerCase();
-                if (mLow.match(/\b(solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|independiente)\b/i)) empActual = 'Solo yo';
-                else if (mLow.match(/\b(tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:emplead|persona|trabajador|estilista))\b/i)) empActual = '2 a 5';
-                else if (mLow.match(/\b(tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|(?:[6-9]|10)\s+(?:emplead|persona))\b/i)) empActual = '6 a 10';
-                else if (mLow.match(/\b(tengo\s+(?:1[1-9]|[2-9]\d)|somos\s+(?:1[1-9]|[2-9]\d)|(?:1[1-9]|[2-9]\d)\s+(?:emplead|persona)|m[aá]s\s+de\s+(?:10|diez))\b/i)) empActual = '11 o mas';
-                if (empActual) {
-                    try {
-                        await api.postToCRM(crmUrl, {
-                            action: 'updateLeadByWhatsapp',
-                            whatsapp: phoneNumber,
-                            estado: session.datos?.estadoLead || 'NUEVO',
-                            notas: 'Empleados: ' + empActual
-                        });
-                        // También actualizar la celda de empleados directamente
-                        await api.postToCRM(crmUrl, {
-                            action: 'updateLeadEmpleados',
-                            whatsapp: phoneNumber,
-                            cantidadEmpleados: empActual
-                        });
-                        session._empleadosActualizado = true;
-                        console.log(`[${instanceName}] 👥 Empleados actualizado: ${phoneNumber} → ${empActual}`);
-                    } catch (err) { /* no crítico */ }
+                let emp = '';
+                if (mLow.match(/\b(solo\s*yo|sola\b|yo\s+sol[oa]|trabajo\s+sol[oa]|independiente|[uú]nico\s+empleado|yo\s+soy\s+el\s+[uú]nico)\b/i)) emp = 'Solo yo';
+                else if (mLow.match(/\b(tengo\s+[2-5]|somos\s+[2-5]|[2-5]\s+(?:emplead|persona|trabajador|estilista|colaborador|chic[oa]s?))\b/i)) emp = '2 a 5';
+                else if (mLow.match(/\b(tengo\s+(?:[6-9]|10)|somos\s+(?:[6-9]|10)|(?:[6-9]|10)\s+(?:emplead|persona|trabajador))\b/i)) emp = '6 a 10';
+                else if (mLow.match(/\b(tengo\s+(?:1[1-9]|[2-9]\d)|(?:1[1-9]|[2-9]\d)\s+(?:emplead|persona)|m[aá]s\s+de\s+(?:10|diez))\b/i)) emp = '11 o mas';
+                if (emp) {
+                    session._datosCaptura.empleados = emp;
+                    // Si ya se capturó el lead, actualizar empleados en GAS
+                    if (session._leadCapturado) {
+                        try {
+                            await api.postToCRM(crmUrl, { action: 'updateLeadEmpleados', whatsapp: phoneNumber, cantidadEmpleados: emp });
+                            console.log(`[${instanceName}] 👥 Empleados: ${phoneNumber} → ${emp}`);
+                        } catch (err) { /* no crítico */ }
+                    }
                 }
             }
 
