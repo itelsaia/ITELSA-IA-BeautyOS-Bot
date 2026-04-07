@@ -200,9 +200,12 @@ router.post('/evolution', async (req, res) => {
                         };
                         console.log(`[${instanceName}] Lead existente reconocido: ${leadMatch.nombre} - ${leadMatch.negocio}`);
                     } else {
+                        // Detectar si viene de un link de campaña (mensaje pre-llenado)
+                        const esCampana = messageText.match(/beautyos|beauty.?os|sofi|eliminar.*caos|quiero.*automatizar/i);
                         tenant.userSessions[phoneNumber] = {
                             history: [],
                             estado: 'PROSPECTO',
+                            _deCampana: !!esCampana,
                             datos: { celular: phoneNumber, nombre: data.pushName || '' }
                         };
                     }
@@ -1557,20 +1560,39 @@ router.post('/evolution', async (req, res) => {
                 const nombreContacto = session.datos?.nombre || data.pushName || '';
                 const CIUDADES = /(bogot[aá]|medell[ií]n|cali|barranquilla|bucaramanga|cartagena|santa\s*marta|pereira|manizales|ibagu[eé]|c[uú]cuta|villavicencio|monter[ií]a|neiva|pasto|popay[aá]n|armenia|sincelejo|tunja|florencia|valledupar|riohacha|quibd[oó]|leticia|mocoa|yopal|arauca|in[ií]rida|mit[uú]|puerto\s*carre[ñn]o|san\s*andr[eé]s|soacha|envigado|bello|itag[uü][ií]|soledad|dosquebradas|floridablanca|zipaquir[aá]|girardot|fusagasug[aá]|facatativ[aá]|chia|cajic[aá]|funza|mosquera|madrid|ch[ií]a)/i;
 
-                // Extraer negocio: buscar MENSAJE POR MENSAJE para no mezclar frases
+                // Extraer negocio: buscar MENSAJE POR MENSAJE
                 let negocio = '';
                 const userMessages = session.history.filter(h => h.role === 'user').map(h => h.content);
                 const negocioPatterns = [
-                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda|est[aá]|tengo|trabajo|soy)|$)/i,
-                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|peluqueria)\s+(?:es|se\s+llama)\s+)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda|est[aá])|$)/i,
-                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([A-Za-záéíóúñÁÉÍÓÚÑ][a-záéíóúñA-Za-z\s]{1,25}?)(?:\s+(?:y|en|queda)|$)/i,
-                    /(?:negocio\s+(?:es\s+)?["']?)([A-Z][a-záéíóúñ]+(?:\s+[a-záéíóúñA-Z]+){0,3})/
+                    // "se llama X", "llama X"
+                    /(?:se\s+llama|llama)\s+["']?([A-Za-záéíóúñÁÉÍÓÚÑ][\w\sáéíóúñ]{1,25}?)(?:\s*[,.]|\s+(?:y|en|queda|est[aá]|tengo|trabajo)|$)/i,
+                    // "mi negocio/salón es X"
+                    /(?:mi\s+(?:negocio|salon|sal[oó]n|spa|local|barberia|barber[ií]a|peluqueria|peluquer[ií]a|centro)\s+(?:es|se\s+llama)\s+)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
+                    // "nombre es X" / "nombre: X"
+                    /(?:(?:el\s+)?nombre\s+(?:del\s+negocio\s+)?(?:es|:)\s*)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
+                    // "tengo un salón/spa X" / "tengo una peluquería X"
+                    /(?:tengo\s+(?:un[ao]?\s+)?(?:salon|sal[oó]n|spa|barberia|peluqueria|centro|negocio)\s+(?:que\s+se\s+llama\s+)?)["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda)|$)/i,
+                    // "mi peluquería/salón X" (sin verbo)
+                    /(?:mi\s+(?:peluqueria|peluquer[ií]a|salon|sal[oó]n|spa|barberia|barber[ií]a|negocio|centro|local))\s+["']?([\w\sáéíóúñÁÉÍÓÚÑ]{2,25}?)(?:\s*[,.]|\s+(?:y|en|queda|est[aá])|$)/i,
+                    // Respuesta directa a "¿cómo se llama tu negocio?" — el mensaje es solo el nombre
+                    /^["']?([\wáéíóúñÁÉÍÓÚÑ][\w\sáéíóúñÁÉÍÓÚÑ]{1,25}?)["']?$/i
                 ];
                 for (const msg of userMessages) {
                     if (negocio) break;
-                    for (const pat of negocioPatterns) {
-                        const m = msg.match(pat);
+                    // Los primeros 5 patrones buscan frases específicas
+                    for (let p = 0; p < negocioPatterns.length - 1; p++) {
+                        const m = msg.match(negocioPatterns[p]);
                         if (m) { negocio = m[1].trim(); break; }
+                    }
+                    // El último patrón (respuesta directa) solo aplica si Sofi preguntó por el negocio
+                    if (!negocio) {
+                        const prevAiMsg = session.history[session.history.indexOf(session.history.find(h => h.content === msg)) - 1];
+                        if (prevAiMsg && prevAiMsg.role === 'assistant' && prevAiMsg.content.match(/negocio|sal[oó]n|nombre.*negocio/i)) {
+                            const m = msg.match(negocioPatterns[negocioPatterns.length - 1]);
+                            if (m && m[1].length >= 3 && !m[1].match(/^(si|no|hola|bueno|dale|ok|claro|gracias)$/i)) {
+                                negocio = m[1].trim();
+                            }
+                        }
                     }
                 }
 
