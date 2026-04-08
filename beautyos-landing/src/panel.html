@@ -197,6 +197,9 @@
     <div class="nav-item" data-page="campanas"><i class="fas fa-bullhorn"></i> Campanas</div>
     <div class="nav-item" data-page="anuncios"><i class="fas fa-newspaper"></i> Anuncios</div>
 
+    <div class="nav-section">Soporte</div>
+    <div class="nav-item" data-page="soporte"><i class="fas fa-tools"></i> Soporte Tecnico</div>
+
     <div class="nav-section">Configuracion</div>
     <div class="nav-item" data-page="configuracion"><i class="fas fa-cog"></i> General</div>
 
@@ -513,6 +516,84 @@
         <div class="modal-actions">
           <button class="btn btn-outline" onclick="closeModal('anuncioModal')">Cancelar</button>
           <button class="btn btn-primary" onclick="saveAnuncioModal()"><i class="fas fa-save"></i> Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ CONFIGURACION ═══ -->
+    <!-- ═══ SOPORTE TÉCNICO ═══ -->
+    <div class="page" id="page-soporte">
+      <!-- Métricas -->
+      <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
+        <div class="stat-card"><div class="stat-icon blue"><i class="fas fa-ticket-alt"></i></div><div><div class="stat-value" id="soporteTotal">0</div><div class="stat-label">Total tickets</div></div></div>
+        <div class="stat-card"><div class="stat-icon yellow"><i class="fas fa-exclamation-triangle"></i></div><div><div class="stat-value" id="soporteAbiertos">0</div><div class="stat-label">Abiertos</div></div></div>
+        <div class="stat-card"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div><div><div class="stat-value" id="soporteResueltos">0</div><div class="stat-label">Resueltos</div></div></div>
+        <div class="stat-card"><div class="stat-icon red"><i class="fas fa-fire"></i></div><div><div class="stat-value" id="soporteAlta">0</div><div class="stat-label">Prioridad alta</div></div></div>
+      </div>
+
+      <!-- Tipificación de fallas -->
+      <div class="card">
+        <h3><i class="fas fa-chart-pie"></i> Tipificacion de fallas</h3>
+        <div id="soporteTipificacion" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;"></div>
+      </div>
+
+      <!-- Tickets de soporte -->
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <h3 style="margin:0;"><i class="fas fa-clipboard-list"></i> Tickets de soporte</h3>
+          <select class="form-control" id="filterSoporteEstado" onchange="renderSoporte()" style="width:auto;">
+            <option value="">Todos</option>
+            <option value="ABIERTA">Abiertos</option>
+            <option value="EN_REVISION">En revisión</option>
+            <option value="EN_PROGRESO">En progreso</option>
+            <option value="ESPERANDO_CLIENTE">Esperando cliente</option>
+            <option value="RESUELTA">Resueltos</option>
+            <option value="CERRADA">Cerrados</option>
+          </select>
+        </div>
+        <div style="overflow-x:auto;">
+          <table><thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Prioridad</th><th>Asignado</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="soporteTicketsTable"></tbody></table>
+        </div>
+      </div>
+
+      <!-- Equipo de ingenieros -->
+      <div class="card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h3 style="margin:0;"><i class="fas fa-user-cog"></i> Equipo de ingenieros</h3>
+          <button class="btn btn-primary btn-sm" onclick="openIngenieroModal(-1)"><i class="fas fa-plus"></i> Agregar ingeniero</button>
+        </div>
+        <table>
+          <thead><tr><th>Nombre</th><th>Celular</th><th>Email</th><th>Especialidad</th><th>Activo</th><th>Tickets</th><th>Acciones</th></tr></thead>
+          <tbody id="ingenierosTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal Ingeniero -->
+    <div class="modal-overlay" id="ingenieroModal">
+      <div class="modal" style="max-width:500px;">
+        <h3 id="ingenieroModalTitle"><i class="fas fa-user-cog"></i> Agregar ingeniero</h3>
+        <input type="hidden" id="ingenieroIdx" value="-1">
+        <div class="form-grid">
+          <div class="form-group"><label>Nombre completo *</label><input class="form-control" id="ingNombre" placeholder="Nombre del ingeniero"></div>
+          <div class="form-group"><label>Celular *</label><input class="form-control" id="ingCelular" placeholder="573001234567"></div>
+          <div class="form-group"><label>Email</label><input class="form-control" id="ingEmail" type="email" placeholder="ingeniero@email.com"></div>
+          <div class="form-group"><label>Especialidad</label>
+            <select class="form-control" id="ingEspecialidad">
+              <option value="General">General</option>
+              <option value="Bot WhatsApp">Bot WhatsApp</option>
+              <option value="CRM">CRM</option>
+              <option value="Integraciones">Integraciones</option>
+              <option value="Infraestructura">Infraestructura</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Activo</label>
+            <select class="form-control" id="ingActivo"><option value="si">Si</option><option value="no">No</option></select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-outline" onclick="closeModal('ingenieroModal')">Cancelar</button>
+          <button class="btn btn-primary" onclick="saveIngenieroModal()"><i class="fas fa-save"></i> Guardar</button>
         </div>
       </div>
     </div>
@@ -938,7 +1019,7 @@ function navigateTo(page) {
   document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
   var pageEl = document.getElementById('page-' + page);
   if (pageEl) pageEl.style.display = 'block';
-  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', asesores: 'Asesores Comerciales', campanas: 'Campanas de Marketing', anuncios: 'Anuncios y Novedades', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
+  var titles = { dashboard: 'Dashboard', leads: 'Leads', clientes: 'Clientes', novedades: 'Novedades Tecnicas', precios: 'Precios y Planes', asesores: 'Asesores Comerciales', campanas: 'Campanas de Marketing', anuncios: 'Anuncios y Novedades', soporte: 'Soporte Tecnico', configuracion: 'Configuracion', contenido: 'Contenido Landing' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   document.getElementById('sidebar').classList.remove('open');
 }
@@ -977,6 +1058,7 @@ function renderAll() {
   renderAsesores();
   renderCampanas();
   renderAnuncios();
+  renderSoporte();
   renderContentList('dolores', DATA.dolores || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('funcionalidades', DATA.funcionalidades || [], ['ICONO', 'TITULO', 'DESCRIPCION']);
   renderContentList('faq', DATA.faq || [], ['PREGUNTA', 'RESPUESTA']);
@@ -1451,7 +1533,8 @@ function saveCurrentPage() {
     planes: DATA.planes,
     asesores: DATA.asesores || [],
     campanas: DATA.campanas || [],
-    anuncios: DATA.anuncios || []
+    anuncios: DATA.anuncios || [],
+    soporteTecnico: DATA.soporteTecnico || []
   };
   var btn = document.getElementById('btnSaveAll');
   btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
@@ -1865,6 +1948,148 @@ function removeAsesor(idx) {
   renderAsesores();
   DIRTY = true;
   toast('Asesor eliminado. Recuerda guardar.', 'info');
+}
+
+// ─── SOPORTE TÉCNICO ───
+function renderSoporte() {
+  var novedades = DATA.novedades || [];
+  var filter = document.getElementById('filterSoporteEstado').value;
+  var total = novedades.length;
+  var abiertos = novedades.filter(function(n) { return ['ABIERTA','EN_REVISION','EN_PROGRESO','ESPERANDO_CLIENTE','NUEVO'].indexOf(n.ESTADO) >= 0 || !n.ESTADO; }).length;
+  var resueltos = novedades.filter(function(n) { return n.ESTADO === 'RESUELTA' || n.ESTADO === 'RESUELTO' || n.ESTADO === 'CERRADA' || n.ESTADO === 'CERRADO'; }).length;
+  var alta = novedades.filter(function(n) { return n.PRIORIDAD === 'ALTA'; }).length;
+
+  setText('soporteTotal', total);
+  setText('soporteAbiertos', abiertos);
+  setText('soporteResueltos', resueltos);
+  setText('soporteAlta', alta);
+
+  // Tipificación de fallas
+  var tipos = {};
+  novedades.forEach(function(n) { var t = n.TIPO_NOVEDAD || 'Otro'; tipos[t] = (tipos[t] || 0) + 1; });
+  var tipDiv = document.getElementById('soporteTipificacion');
+  var tipColors = { 'Bot no responde': '#ef4444', 'Error en citas': '#f59e0b', 'Problema con pagos': '#8b5cf6', 'Error en CRM': '#3b82f6', 'Consulta tecnica': '#06b6d4', 'Otro': '#64748b' };
+  tipDiv.innerHTML = Object.keys(tipos).map(function(t) {
+    var color = tipColors[t] || '#64748b';
+    return '<div style="background:' + color + '15;border:1px solid ' + color + '30;padding:8px 14px;border-radius:8px;text-align:center;">'
+      + '<div style="font-size:1.4rem;font-weight:700;color:' + color + ';">' + tipos[t] + '</div>'
+      + '<div style="font-size:0.75rem;color:' + color + ';font-weight:600;">' + esc(t) + '</div></div>';
+  }).join('') || '<span style="color:var(--gray-500);">Sin tickets aún</span>';
+
+  // Tabla de tickets
+  var filtered = filter ? novedades.filter(function(n) { return n.ESTADO === filter; }) : novedades;
+  filtered = filtered.slice().reverse();
+  var tbody = document.getElementById('soporteTicketsTable');
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay tickets</td></tr>'; return; }
+  tbody.innerHTML = filtered.map(function(n) {
+    var priColor = n.PRIORIDAD === 'ALTA' ? '#ef4444' : (n.PRIORIDAD === 'MEDIA' ? '#f59e0b' : '#3b82f6');
+    var estColor = (n.ESTADO === 'RESUELTA' || n.ESTADO === 'RESUELTO') ? '#166534;background:#dcfce7' : (n.ESTADO === 'ABIERTA' || n.ESTADO === 'NUEVO' ? '#b45309;background:#fff3cd' : '#64748b;background:#f1f5f9');
+    return '<tr onclick="openNovedadModalFromSoporte(' + n._rowNum + ')" style="cursor:pointer;">'
+      + '<td><strong>' + esc(n.ID_NOVEDAD || '') + '</strong></td>'
+      + '<td>' + formatDate(n.FECHA) + '</td>'
+      + '<td>' + esc(n.NOMBRE_NEGOCIO || '') + '</td>'
+      + '<td>' + esc(n.TIPO_NOVEDAD || '') + '</td>'
+      + '<td><span style="color:' + priColor + ';font-weight:600;">' + esc(n.PRIORIDAD || 'MEDIA') + '</span></td>'
+      + '<td>' + esc(n.ASIGNADO_A || 'Sin asignar') + '</td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:' + estColor + ';">' + esc(n.ESTADO || 'ABIERTA') + '</span></td>'
+      + '<td onclick="event.stopPropagation();"><button class="btn btn-outline btn-sm" onclick="openNovedadModalFromSoporte(' + n._rowNum + ')"><i class="fas fa-pen"></i></button></td>'
+      + '</tr>';
+  }).join('');
+
+  // Tabla de ingenieros
+  renderIngenieros();
+}
+
+function openNovedadModalFromSoporte(rowNum) {
+  var nov = (DATA.novedades || []).find(function(n) { return n._rowNum === rowNum; });
+  if (!nov) return;
+  // Reutilizar el modal de novedades existente
+  document.getElementById('novedadRow').value = rowNum;
+  document.getElementById('novId').textContent = nov.ID_NOVEDAD || '-';
+  document.getElementById('novFecha').textContent = formatDate(nov.FECHA);
+  document.getElementById('novNegocio').textContent = nov.NOMBRE_NEGOCIO || '-';
+  document.getElementById('novWhatsapp').textContent = String(nov.WHATSAPP || '-');
+  document.getElementById('novTipo').textContent = nov.TIPO_NOVEDAD || '-';
+  document.getElementById('novPrioridad').textContent = nov.PRIORIDAD || '-';
+  document.getElementById('novDescripcion').textContent = nov.DESCRIPCION || '-';
+  document.getElementById('novEstado').value = nov.ESTADO || 'ABIERTA';
+  // Poblar dropdown de ingenieros
+  var ingenieros = DATA.soporteTecnico || [];
+  var selAsig = document.getElementById('novAsignado');
+  selAsig.innerHTML = '<option value="">Sin asignar</option>' + ingenieros.map(function(i) {
+    return '<option value="' + esc(i.NOMBRE) + '">' + esc(i.NOMBRE) + ' (' + esc(i.ESPECIALIDAD || 'General') + ')</option>';
+  }).join('');
+  selAsig.value = nov.ASIGNADO_A || '';
+  document.getElementById('novNotasResolucion').value = nov.NOTAS_RESOLUCION || '';
+  document.getElementById('novedadModal').classList.add('open');
+}
+
+function renderIngenieros() {
+  var ingenieros = DATA.soporteTecnico || [];
+  var tbody = document.getElementById('ingenierosTable');
+  if (!ingenieros.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="fas fa-user-cog"></i><p>No hay ingenieros. Agrega uno para activar la asignación automática de tickets.</p></td></tr>'; return; }
+  tbody.innerHTML = ingenieros.map(function(i, idx) {
+    var activo = String(i.ACTIVO).toLowerCase() === 'si';
+    return '<tr>'
+      + '<td><strong>' + esc(i.NOMBRE) + '</strong></td>'
+      + '<td>' + esc(String(i.CELULAR || '')) + '</td>'
+      + '<td>' + esc(i.EMAIL || '') + '</td>'
+      + '<td>' + esc(i.ESPECIALIDAD || 'General') + '</td>'
+      + '<td>' + (activo ? '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#166534;background:#dcfce7;">Activo</span>' : '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;color:#991b1b;background:#fef2f2;">Inactivo</span>') + '</td>'
+      + '<td style="text-align:center;">' + (i.TICKETS_ASIGNADOS || 0) + '</td>'
+      + '<td>'
+      + '<button class="btn btn-outline btn-sm" onclick="openIngenieroModal(' + idx + ')"><i class="fas fa-pen"></i></button> '
+      + '<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="removeIngeniero(' + idx + ')"><i class="fas fa-trash"></i></button>'
+      + '</td></tr>';
+  }).join('');
+}
+
+function openIngenieroModal(idx) {
+  document.getElementById('ingenieroIdx').value = idx;
+  if (idx >= 0 && DATA.soporteTecnico && DATA.soporteTecnico[idx]) {
+    var i = DATA.soporteTecnico[idx];
+    document.getElementById('ingenieroModalTitle').innerHTML = '<i class="fas fa-user-cog"></i> Editar ingeniero';
+    document.getElementById('ingNombre').value = i.NOMBRE || '';
+    document.getElementById('ingCelular').value = String(i.CELULAR || '');
+    document.getElementById('ingEmail').value = i.EMAIL || '';
+    document.getElementById('ingEspecialidad').value = i.ESPECIALIDAD || 'General';
+    document.getElementById('ingActivo').value = String(i.ACTIVO).toLowerCase() === 'si' ? 'si' : 'no';
+  } else {
+    document.getElementById('ingenieroModalTitle').innerHTML = '<i class="fas fa-user-cog"></i> Agregar ingeniero';
+    ['ingNombre','ingCelular','ingEmail'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('ingEspecialidad').value = 'General';
+    document.getElementById('ingActivo').value = 'si';
+  }
+  document.getElementById('ingenieroModal').classList.add('open');
+}
+
+function saveIngenieroModal() {
+  var nombre = document.getElementById('ingNombre').value.trim();
+  var celular = document.getElementById('ingCelular').value.trim();
+  if (!nombre || !celular) { toast('Nombre y celular son obligatorios', 'error'); return; }
+  var idx = Number(document.getElementById('ingenieroIdx').value);
+  if (!DATA.soporteTecnico) DATA.soporteTecnico = [];
+  var obj = {
+    NOMBRE: nombre,
+    CELULAR: celular,
+    EMAIL: document.getElementById('ingEmail').value.trim(),
+    ESPECIALIDAD: document.getElementById('ingEspecialidad').value,
+    ACTIVO: document.getElementById('ingActivo').value,
+    TICKETS_ASIGNADOS: idx >= 0 && DATA.soporteTecnico[idx] ? DATA.soporteTecnico[idx].TICKETS_ASIGNADOS || 0 : 0
+  };
+  if (idx >= 0) { DATA.soporteTecnico[idx] = obj; } else { DATA.soporteTecnico.push(obj); }
+  closeModal('ingenieroModal');
+  renderIngenieros();
+  DIRTY = true;
+  toast(idx >= 0 ? 'Ingeniero actualizado. Recuerda guardar.' : 'Ingeniero agregado. Recuerda guardar.', 'info');
+}
+
+function removeIngeniero(idx) {
+  if (!confirm('Eliminar al ingeniero ' + DATA.soporteTecnico[idx].NOMBRE + '?')) return;
+  DATA.soporteTecnico.splice(idx, 1);
+  renderIngenieros();
+  DIRTY = true;
+  toast('Ingeniero eliminado. Recuerda guardar.', 'info');
 }
 
 // ─── CAMPAÑAS ───
