@@ -637,13 +637,32 @@ function handleSaveNovedad(payload) {
   var prioridad = String(payload.prioridad || 'MEDIA').toUpperCase();
   if (['ALTA', 'MEDIA', 'BAJA'].indexOf(prioridad) === -1) prioridad = 'MEDIA';
 
+  // Round-robin asignación de ingeniero de soporte
+  var soporteData = [];
+  try { soporteData = leerTabla(ss, 'SOPORTE_TECNICO') || []; } catch(e) {}
+  var soporteActivos = soporteData.filter(function(s) { return String(s.ACTIVO).toLowerCase() === 'si' && s.CELULAR; });
+  var asignadoA = '';
+  var ingenieroNombre = '';
+  if (soporteActivos.length > 0) {
+    var totalNovedades = Math.max(0, sheet.getLastRow() - 1);
+    var idx = totalNovedades % soporteActivos.length;
+    asignadoA = soporteActivos[idx].NOMBRE || '';
+    ingenieroNombre = asignadoA;
+    var soporteRow = soporteActivos[idx]._rowNum;
+    var soporteSheet = ss.getSheetByName('SOPORTE_TECNICO');
+    if (soporteSheet) {
+      var currentCount = Number(soporteSheet.getRange(soporteRow, 6).getValue()) || 0;
+      soporteSheet.getRange(soporteRow, 6).setValue(currentCount + 1);
+    }
+  }
+
   sheet.appendRow([
     idNovedad, hoy,
     payload.idCliente || '', payload.nombreNegocio || '', payload.whatsapp || '',
     payload.tipoNovedad || 'Otro',
     payload.descripcion || '',
     prioridad,
-    'NUEVO', '', '', ''
+    'ABIERTA', asignadoA, '', ''
   ]);
 
   // Notificacion por email
@@ -659,7 +678,17 @@ function handleSaveNovedad(payload) {
     Logger.log('[novedades] Error enviando email: ' + mailErr.message);
   }
 
-  return { success: true, idNovedad: idNovedad };
+  // Notificar al ingeniero asignado por WhatsApp
+  if (asignadoA && soporteActivos.length > 0) {
+    var ingeniero = soporteActivos.find(function(s) { return s.NOMBRE === asignadoA; });
+    if (ingeniero && ingeniero.CELULAR) {
+      try {
+        enviarWhatsAppEvolution(config, ingeniero.CELULAR, '*🔧 Nuevo ticket de soporte asignado a ti*\n\nID: ' + idNovedad + '\nCliente: ' + (payload.nombreNegocio || '') + '\nTipo: ' + (payload.tipoNovedad || '') + '\nPrioridad: ' + prioridad + '\n\n' + (payload.descripcion || ''));
+      } catch(e) { Logger.log('[novedades] Error notificando ingeniero: ' + e.message); }
+    }
+  }
+
+  return { success: true, idNovedad: idNovedad, asignadoA: asignadoA };
 }
 
 // Actualiza estado y notas de resolucion de una novedad desde el panel
@@ -671,10 +700,22 @@ function updateNovedad(rowNum, estado, asignado, notasResolucion) {
   // Col 9=ESTADO, 10=ASIGNADO_A, 11=FECHA_RESOLUCION, 12=NOTAS_RESOLUCION
   sheet.getRange(rowNum, 9).setValue(estado);
   sheet.getRange(rowNum, 10).setValue(asignado);
-  if (estado === 'RESUELTO' || estado === 'CERRADO') {
+  if (estado === 'RESUELTO' || estado === 'CERRADO' || estado === 'RESUELTA' || estado === 'CERRADA') {
     sheet.getRange(rowNum, 11).setValue(new Date());
   }
   sheet.getRange(rowNum, 12).setValue(notasResolucion);
+
+  // Notificar al cliente por WhatsApp cuando el ticket se resuelve
+  if (estado === 'RESUELTO' || estado === 'RESUELTA') {
+    var clienteWhatsapp = sheet.getRange(rowNum, 5).getValue();
+    var clienteNombre = sheet.getRange(rowNum, 4).getValue();
+    if (clienteWhatsapp) {
+      var config = leerClaveValor(ss, 'CONFIGURACION');
+      try {
+        enviarWhatsAppEvolution(config, clienteWhatsapp, '*✅ Tu ticket de soporte fue resuelto*\n\nHola ' + (clienteNombre || '') + '! Te informamos que tu reporte técnico ya fue atendido.\n\n' + (notasResolucion ? '📝 Solución: ' + notasResolucion + '\n\n' : '') + 'Si tienes alguna otra consulta, escríbenos por aquí. Estamos para ayudarte.');
+      } catch(e) { Logger.log('[novedades] Error notificando cliente: ' + e.message); }
+    }
+  }
 
   return { success: true };
 }
@@ -744,6 +785,7 @@ function getPanelData() {
   try { data.asesores = leerTabla(ss, 'ASESORES') || []; } catch(e) { data.asesores = []; }
   try { data.campanas = leerTabla(ss, 'CAMPANAS') || []; } catch(e) { data.campanas = []; }
   try { data.anuncios = leerTabla(ss, 'ANUNCIOS') || []; } catch(e) { data.anuncios = []; }
+  try { data.soporteTecnico = leerTabla(ss, 'SOPORTE_TECNICO') || []; } catch(e) { data.soporteTecnico = []; }
 
   // Computar dias de mora/vencimiento en cada cliente
   var hoy = new Date();
@@ -796,6 +838,9 @@ function savePanelData(data) {
   }
   if (data.anuncios && data.anuncios.length > 0) {
     guardarTabla(ss, 'ANUNCIOS', ['FECHA', 'TITULO', 'TIPO', 'ESTADO', 'CANAL', 'DESCRIPCION', 'MENSAJE_SOFI'], data.anuncios);
+  }
+  if (data.soporteTecnico && data.soporteTecnico.length > 0) {
+    guardarTabla(ss, 'SOPORTE_TECNICO', ['NOMBRE', 'CELULAR', 'EMAIL', 'ESPECIALIDAD', 'ACTIVO', 'TICKETS_ASIGNADOS'], data.soporteTecnico);
   }
 
   SpreadsheetApp.flush();

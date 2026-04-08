@@ -333,6 +333,18 @@ function crearAsesores(ss) {
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 
+// ─── SOPORTE_TECNICO: Ingenieros de soporte ───
+function crearSoporteTecnico(ss) {
+  var sheet = getOrCreateSheet(ss, 'SOPORTE_TECNICO');
+  if (sheet.getLastRow() > 1) { Logger.log('SOPORTE_TECNICO ya tiene datos.'); return; }
+  var headers = ['NOMBRE', 'CELULAR', 'EMAIL', 'ESPECIALIDAD', 'ACTIVO', 'TICKETS_ASIGNADOS'];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#0891b2').setFontColor('white');
+  sheet.setFrozenRows(1);
+  var widths = [180, 140, 200, 160, 80, 130];
+  for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
+}
+
 // ─── PLANES: Planes de precio disponibles ───
 function crearPlanes(ss) {
   var sheet = getOrCreateSheet(ss, 'PLANES');

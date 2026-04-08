@@ -1073,18 +1073,27 @@ REGLAS IMPORTANTES:
 - Máximo 3 intentos por objeción. Si después de 3 respuestas sigue diciendo no → cerrar como PERDIDO.
 - "No me interesa" (directo sin razón): Preguntar motivo UNA vez → PERDIDO
 
+## SALUDO A CLIENTES EXISTENTES
+Cuando un cliente existente te escribe, salúdalo por nombre y ofrece ayuda:
+"Hola [nombre]! Qué gusto saludarte. ¿En qué te puedo ayudar hoy? Puedo ayudarte con:
+- Consultar el estado de tu facturación
+- Ver tus fechas de vencimiento
+- Reportar un problema técnico"
+Espera a que el cliente elija qué necesita y actúa según corresponda.
+
 ## FLUJO DE SOPORTE (clientes existentes — problemas técnicos)
-Si el usuario menciona un problema técnico (bot no responde, error, falla):
-1. Pregunta qué está pasando (qué error ve, desde cuándo, qué intentó)
-2. Clasifica el tipo de novedad
-3. Registra con reportar_novedad()
-4. Asegura que el equipo técnico lo revisará pronto
-5. Si es urgente (servicio caído), usa transferir_asesor() con urgente=true
+Si el cliente reporta un problema técnico:
+1. Pregunta qué está pasando exactamente: "¿Qué error ves? ¿Desde cuándo?"
+2. Pregunta si afecta toda la operación o solo una parte: "¿El bot no responde del todo o solo falla en algo específico?"
+3. Recopila toda la info antes de registrar
+4. Registra con reportar_novedad() incluyendo TODOS los detalles en la descripción
+5. Confirma: "Tu ticket fue creado y asignado a un ingeniero de soporte. Te notificaremos por aquí cuando se resuelva."
+6. Si es urgente (servicio completamente caído), TAMBIÉN usa transferir_asesor() con urgente=true
 
 ## FLUJO DE CARTERA (clientes existentes — facturación)
-Si el cliente pregunta sobre su facturación, pago, o si detectas que tiene mora:
+Si el cliente pregunta sobre facturación, pagos o fechas:
 1. Consulta su estado con consultar_estado_cuenta()
-2. Informa: plan activo, precio, próximo cobro, estado de pago, días de mora
+2. Informa de forma clara: plan activo, precio, próximo cobro, estado de pago
 3. Si tiene mora: explica que necesita pagar para mantener el servicio activo
 4. Si se compromete a pagar: registra con registrar_compromiso_pago()
 5. Si dice que ya pagó: pídele el comprobante (foto) y dile que lo envíe por aquí
@@ -2272,9 +2281,10 @@ PASO 5 — POST-CONFIRMACIÓN:
                         prioridad: functionArgs.prioridad || 'MEDIA'
                     });
                     if (resp && !resp.error) {
-                        const novedadId = resp.data?.id || resp.id || '';
-                        toolResultText = `✅ Novedad registrada${novedadId ? ' (ID: ' + novedadId + ')' : ''}. Tipo: ${functionArgs.tipoNovedad}. Prioridad: ${functionArgs.prioridad || 'MEDIA'}. El equipo técnico la revisará pronto.`;
-                        console.log(`[openai] 🔧 Novedad registrada: ${functionArgs.tipoNovedad} - ${functionArgs.prioridad || 'MEDIA'}`);
+                        const novedadId = resp.idNovedad || resp.data?.idNovedad || '';
+                        const asignadoA = resp.asignadoA || resp.data?.asignadoA || '';
+                        toolResultText = `✅ Ticket de soporte creado${novedadId ? ' (ID: ' + novedadId + ')' : ''}. Tipo: ${functionArgs.tipoNovedad}. Prioridad: ${functionArgs.prioridad || 'MEDIA'}.${asignadoA ? ' Asignado al ingeniero: ' + asignadoA + '.' : ''} El cliente será notificado por WhatsApp cuando se resuelva.`;
+                        console.log(`[openai] 🔧 Ticket soporte: ${novedadId} - ${functionArgs.tipoNovedad} - Asignado: ${asignadoA}`);
                     } else {
                         toolResultText = `⚠️ Error registrando novedad: ${resp?.error || 'Sin respuesta'}. Asegura al cliente que el equipo fue notificado.`;
                     }
