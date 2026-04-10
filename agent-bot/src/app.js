@@ -208,9 +208,34 @@ const main = async () => {
         console.log(`Health check: http://localhost:${PORT}/health`);
         console.log(`======================================\n`);
 
-        // Notificar al admin que el bot esta arriba (despues de 60s para que WhatsApp este listo)
-        setTimeout(() => {
-            healthcheck.sendAlert(`✅ *BeautyOS Bot iniciado*\n\nVersion: 2.0.0\nTenants activos: ${getActiveTenantIds().join(', ')}\nUptime: ${Math.floor(process.uptime())}s\n\nMonitoreo activo cada 5 minutos.`).catch(() => {});
+        // Notificar al admin que el bot esta arriba con resumen de salud (despues de 60s)
+        setTimeout(async () => {
+            try {
+                // Ejecutar healthcheck antes de enviar el resumen
+                await healthcheck.runHealthcheck();
+                const status = healthcheck.getStatus();
+                const tenantList = getActiveTenantIds();
+                const waStatus = tenantList.map(t => {
+                    const s = status.whatsapp[t];
+                    const ok = !s || s.healthy;
+                    return `  ${ok ? '🟢' : '🔴'} ${t}`;
+                }).join('\n');
+                const openaiOk = status.openai.healthy;
+                const crmStatus = tenantList.filter(t => status.crm[t]).map(t => {
+                    const ok = status.crm[t].healthy;
+                    return `  ${ok ? '🟢' : '🔴'} ${t}`;
+                }).join('\n');
+                const resumen = `✅ *BeautyOS Bot iniciado*\n\n`
+                    + `Version: 2.0.0\n`
+                    + `Uptime: ${Math.floor(process.uptime())}s\n\n`
+                    + `📱 *WhatsApp:*\n${waStatus}\n\n`
+                    + `🤖 *OpenAI:* ${openaiOk ? '🟢 Operativa' : '🔴 Con problemas'}\n\n`
+                    + (crmStatus ? `📊 *CRM Sheets:*\n${crmStatus}\n\n` : '')
+                    + `Monitoreo activo cada 5 minutos.`;
+                await healthcheck.sendAlert(resumen);
+            } catch (e) {
+                console.error('[startup] Error enviando resumen:', e.message);
+            }
         }, 60000);
     });
 
