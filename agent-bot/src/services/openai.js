@@ -1739,6 +1739,7 @@ PASO 5 — POST-CONFIRMACIÓN:
             messages: messages,
             tools: activeTools,
             tool_choice: "auto",
+            parallel_tool_calls: false,
             temperature: 0.5,
             max_tokens: 1000
         });
@@ -1758,6 +1759,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 messages: messages,
                 tools: activeTools,
                 tool_choice: "required",
+                parallel_tool_calls: false,
                 temperature: 0.3,
                 max_tokens: 1000
             });
