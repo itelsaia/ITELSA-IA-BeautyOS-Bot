@@ -2,8 +2,9 @@ require('dotenv').config({ path: '../.env' });
 const express = require('express');
 
 const EvolutionClient = require('./services/evolution');
-const { initAllTenants, getActiveTenantIds, shutdownAllTenants, setEvolutionClient: setTenantsEvolutionClient } = require('./services/tenants');
+const { initAllTenants, getActiveTenantIds, getTenant, shutdownAllTenants, setEvolutionClient: setTenantsEvolutionClient } = require('./services/tenants');
 const { router: webhookRouter, setEvolutionClient } = require('./routes/webhook');
+const healthcheck = require('./services/healthcheck');
 
 const PORT = process.env.PORT || 3000;
 
@@ -45,11 +46,28 @@ const main = async () => {
         }
     }
 
+    // 3.5. Inicializar healthcheck con alertas WhatsApp
+    // ── GUARDRAIL: Monitoreo automatico ──
+    // Que protege: Detecta caidas de WhatsApp/OpenAI/CRM y alerta al admin
+    // Como funciona: Cada 5 min verifica componentes criticos. Anti-spam: solo 1 alerta por incidente.
+    const adminPhone = process.env.ADMIN_ALERT_PHONE || '573017161000';
+    const adminInstance = process.env.ADMIN_ALERT_INSTANCE || activeTenants[0];
+    healthcheck.init({
+        evolution: evolutionClient,
+        tenantsGetter: () => getActiveTenantIds().map(id => {
+            const t = getTenant(id);
+            return t ? { id, instanceName: id, config: t.config, crmUrl: t.crmUrl } : null;
+        }).filter(Boolean),
+        alertPhone: adminPhone,
+        alertInstance: adminInstance
+    });
+    healthcheck.start(parseInt(process.env.HEALTHCHECK_INTERVAL_MS) || 300000);
+
     // 4. Configurar servidor Express
     const app = express();
     app.use(express.json({ limit: '5mb' }));
 
-    // Health check
+    // Health check basico
     app.get('/health', (req, res) => {
         res.json({
             status: 'ok',
@@ -57,6 +75,27 @@ const main = async () => {
             tenants: getActiveTenantIds(),
             uptime: Math.floor(process.uptime()) + 's'
         });
+    });
+
+    // Health check completo (estado de cada componente)
+    app.get('/health/full', (req, res) => {
+        res.json({
+            status: 'ok',
+            version: '2.0.0',
+            tenants: getActiveTenantIds(),
+            uptime: Math.floor(process.uptime()) + 's',
+            components: healthcheck.getStatus()
+        });
+    });
+
+    // Trigger manual del healthcheck (para testing)
+    app.post('/health/check', async (req, res) => {
+        try {
+            await healthcheck.runHealthcheck();
+            res.json({ status: 'ok', components: healthcheck.getStatus() });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
     });
 
     // Rutas de webhooks
@@ -157,10 +196,11 @@ const main = async () => {
         console.log(`Webhook URL: http://localhost:${PORT}/webhook/evolution`);
         console.log(`Health check: http://localhost:${PORT}/health`);
         console.log(`======================================\n`);
-        console.log(`Para desarrollo local con ngrok:`);
-        console.log(`  1. ngrok http ${PORT}`);
-        console.log(`  2. Actualizar WEBHOOK_GLOBAL_URL en evolution-api.env`);
-        console.log(`  3. docker compose restart evolution-api\n`);
+
+        // Notificar al admin que el bot esta arriba (despues de 60s para que WhatsApp este listo)
+        setTimeout(() => {
+            healthcheck.sendAlert(`✅ *BeautyOS Bot iniciado*\n\nVersion: 2.0.0\nTenants activos: ${getActiveTenantIds().join(', ')}\nUptime: ${Math.floor(process.uptime())}s\n\nMonitoreo activo cada 5 minutos.`).catch(() => {});
+        }, 60000);
     });
 
     // 6. Graceful shutdown
