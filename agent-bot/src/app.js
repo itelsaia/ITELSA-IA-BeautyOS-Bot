@@ -51,7 +51,18 @@ const main = async () => {
     // Que protege: Detecta caidas de WhatsApp/OpenAI/CRM y alerta al admin
     // Como funciona: Cada 5 min verifica componentes criticos. Anti-spam: solo 1 alerta por incidente.
     const adminPhone = process.env.ADMIN_ALERT_PHONE || '573017161000';
-    const adminInstance = process.env.ADMIN_ALERT_INSTANCE || activeTenants[0];
+    // Buscar primer tenant con WhatsApp conectado (open) para enviar alertas
+    let adminInstance = process.env.ADMIN_ALERT_INSTANCE;
+    if (!adminInstance) {
+        for (const tid of activeTenants) {
+            try {
+                const st = await evolutionClient.getConnectionState(tid);
+                if ((st?.state || st?.instance?.state) === 'open') { adminInstance = tid; break; }
+            } catch (e) {}
+        }
+        if (!adminInstance) adminInstance = activeTenants[0]; // fallback
+    }
+    console.log(`[healthcheck] Usara instancia ${adminInstance} para enviar alertas`);
     healthcheck.init({
         evolution: evolutionClient,
         tenantsGetter: () => getActiveTenantIds().map(id => {
