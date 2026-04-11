@@ -237,6 +237,9 @@ class ApiService {
     }
 
     // ─── Agente comercial: POST generico a un CRM externo ───
+    // ── GUARDRAIL: Cola de reintentos para acciones criticas ──
+    // Que protege: No perder leads/novedades cuando GAS esta lento o caido
+    // Como funciona: Si la accion es critica y falla, se encola para reintentar en background
     async postToCRM(url, payload) {
         try {
             const response = await axios.post(url, payload, {
@@ -246,13 +249,34 @@ class ApiService {
             const data = response.data;
             if (typeof data === 'string') {
                 console.error('[api] CRM retorno texto en vez de JSON:', data.substring(0, 200));
-                return { error: 'Respuesta inesperada del CRM' };
+                // Intentar encolar acciones criticas si la respuesta es invalida
+                this._tryEnqueue(url, payload);
+                return { error: 'Respuesta inesperada del CRM', queued: true };
             }
             return data;
         } catch (error) {
             console.error('[api] Error POST a CRM:', error.message);
+            // Si la accion es critica, encolar para reintentar
+            const queued = this._tryEnqueue(url, payload);
+            if (queued) {
+                return { success: true, queued: true, _retry: true };
+            }
             return { error: error.message };
         }
+    }
+
+    // Intenta encolar el payload para reintento posterior. Retorna true si se encolo.
+    _tryEnqueue(url, payload) {
+        try {
+            // Lazy load para evitar dependencia circular
+            const retryQueue = require('./retry-queue');
+            if (payload && payload.action && retryQueue.isRetryable(payload.action)) {
+                return retryQueue.add({ url, payload });
+            }
+        } catch (e) {
+            console.error('[api] No se pudo encolar:', e.message);
+        }
+        return false;
     }
 
     async cancelAgenda(agendaId) {

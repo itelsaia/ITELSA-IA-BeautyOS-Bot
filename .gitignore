@@ -34,3 +34,6 @@ deploy/
 
 # Clasp backup
 *.backup
+
+# Retry queue persistence (datos sensibles de leads pendientes)
+agent-bot/data/

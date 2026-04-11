@@ -5,6 +5,7 @@ const EvolutionClient = require('./services/evolution');
 const { initAllTenants, getActiveTenantIds, getTenant, shutdownAllTenants, setEvolutionClient: setTenantsEvolutionClient } = require('./services/tenants');
 const { router: webhookRouter, setEvolutionClient } = require('./routes/webhook');
 const healthcheck = require('./services/healthcheck');
+const retryQueue = require('./services/retry-queue');
 
 const PORT = process.env.PORT || 3000;
 
@@ -74,6 +75,14 @@ const main = async () => {
     });
     healthcheck.start(parseInt(process.env.HEALTHCHECK_INTERVAL_MS) || 300000);
 
+    // 3.6. Inicializar cola de reintentos para acciones criticas del CRM
+    // ── GUARDRAIL: Cero perdida de leads/novedades ──
+    // Que protege: Si GAS esta lento o caido, reintenta hasta 5 veces con backoff
+    // Como funciona: Worker en background cada 30s. Persiste a disco para sobrevivir restarts.
+    retryQueue.start((alertMessage) => {
+        healthcheck.sendAlert(alertMessage).catch(() => {});
+    });
+
     // 4. Configurar servidor Express
     const app = express();
     app.use(express.json({ limit: '5mb' }));
@@ -107,6 +116,32 @@ const main = async () => {
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
+    });
+
+    // Estado de la cola de reintentos
+    app.get('/health/queue', (req, res) => {
+        res.json({ status: 'ok', queue: retryQueue.getStats() });
+    });
+
+    // Items que fallaron despues de N intentos (revision manual)
+    app.get('/health/queue/failed', (req, res) => {
+        res.json({ status: 'ok', failed: retryQueue.getFailed() });
+    });
+
+    // Forzar reintento inmediato de toda la cola
+    app.post('/health/queue/retry', async (req, res) => {
+        try {
+            const stats = await retryQueue.forceRetry();
+            res.json({ status: 'ok', queue: stats });
+        } catch (e) {
+            res.status(500).json({ error: e.message });
+        }
+    });
+
+    // Limpiar items fallidos definitivamente (despues de revisarlos)
+    app.post('/health/queue/clear-failed', (req, res) => {
+        retryQueue.clearFailed();
+        res.json({ status: 'ok', message: 'Items fallidos eliminados' });
     });
 
     // Rutas de webhooks
@@ -242,6 +277,7 @@ const main = async () => {
     // 6. Graceful shutdown
     const shutdown = () => {
         console.log('\nApagando BeautyOS Agent Bot...');
+        retryQueue.stop(); // Persiste la cola a disco antes de salir
         shutdownAllTenants();
         process.exit(0);
     };
