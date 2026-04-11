@@ -110,7 +110,7 @@ Cada sync tiene su propio try/catch. Si falla `loadPlanes()`, sigue con `loadFAQ
 | Sub-fase | Archivo | Acción | Riesgo | Commit |
 |---|---|---|---|---|
 | **3.1** | `base-tenant.js` | Crear clase base | 🟢 Cero | ✅ Implementado |
-| **3.2** | `comercial-tenant.js` | Crear clase Sofi | 🟡 Medio | Por hacer |
+| **3.2** | `comercial-tenant.js` | Crear clase Sofi | 🟡 Medio | ✅ Implementado |
 | **3.3** | `salon-tenant.js` | Crear clase salones | 🟡 Medio | Por hacer |
 | **3.4** | `tenant-manager.js` | Crear orquestador | 🟢 Bajo | Por hacer |
 | **3.5** | `services/tenants.js` | Migrar a wrapper | 🔴 Alto | Por hacer |
@@ -269,8 +269,8 @@ cd agent-bot && pm2 restart beautyos-bot
 | Fecha | Sub-fase | Commit | Estado | Notas |
 |---|---|---|---|---|
 | 2026-04-11 | Documentación inicial | b6e8798 | ✅ | Tag stable-pre-fase3 creado |
-| 2026-04-11 | 3.1 BaseTenant | (este commit) | ✅ | Clase base creada, no afecta nada existente |
-| | 3.2 ComercialTenant | | ⏳ | |
+| 2026-04-11 | 3.1 BaseTenant | 9b4d7d5 | ✅ | Clase base creada, no afecta nada existente |
+| 2026-04-11 | 3.2 ComercialTenant | (este commit) | ✅ | Clase Sofi creada, NO se usa todavia (sigue tenants.js viejo) |
 | | 3.3 SalonTenant | | ⏳ | |
 | | 3.4 TenantManager | | ⏳ | |
 | | 3.5 Wrapper | | ⏳ | |
