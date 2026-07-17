@@ -34,6 +34,247 @@ function convertDriveUrl(url) {
     return url; // Ya es URL directa
 }
 
+// ─── Datos parciales del prospecto comercial ─────────────────
+// Solo se guardan datos que el usuario expresó de forma explícita. El nombre
+// visible de WhatsApp sirve para saludar, pero nunca se usa como contacto CRM.
+function normalizeCommercialText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+function normalizeCommercialValue(value) {
+    return String(value || '')
+        .replace(/\s+/g, ' ')
+        .replace(/^["'“”]+|["'“”]+$/g, '')
+        .trim()
+        .slice(0, 100);
+}
+
+function isGenericCommercialBusinessName(value) {
+    const text = normalizeCommercialText(value)
+        .replace(/^(?:mi|un|una|el|la)\s+/, '')
+        .trim();
+    return /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(text);
+}
+
+function isCommercialAcknowledgement(value) {
+    return /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalizeCommercialText(value).trim());
+}
+
+function hasCompleteCommercialDraft(draft) {
+    return Boolean(
+        draft
+        && normalizeCommercialValue(draft.nombreContacto)
+        && normalizeCommercialValue(draft.negocio)
+        && !isGenericCommercialBusinessName(draft.negocio)
+        && !isCommercialAcknowledgement(draft.negocio)
+        && normalizeCommercialValue(draft.ciudad)
+        && !isCommercialAcknowledgement(draft.ciudad)
+        && normalizeCommercialValue(draft.empleados)
+    );
+}
+
+function isLikelyCommercialContactName(value) {
+    const name = normalizeCommercialValue(value);
+    if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '\-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){0,3}$/.test(name)) return false;
+    return !/^(?:hola|si|no|claro|gracias|buenas|buenos|usuario|cliente)$/i.test(name);
+}
+
+function isPlausibleCommercialCity(value) {
+    const city = normalizeCommercialValue(value);
+    if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{1,59}$/.test(city)) return false;
+    if (isCommercialAcknowledgement(city)) return false;
+    return !/^(?:mi ciudad|el negocio|colombia|no se|ninguna)$/i.test(normalizeCommercialText(city));
+}
+
+function detectCommercialBusinessType(messageText, isExpectedTypeAnswer = false) {
+    const text = normalizeCommercialText(messageText);
+    const isOwnershipStatement = /\b(tengo|manejo|mi\s+(?:negocio|salon|barberia|spa|estudio)|soy\s+duen[oa]|trabajo\s+en)\b/.test(text);
+    if (!isExpectedTypeAnswer && !isOwnershipStatement) return '';
+    if (/\bbarber/i.test(text)) return 'Barbería';
+    if (/\bspa\b|masajes?|terapias?\b/.test(text)) return 'Spa / bienestar';
+    if (/\bunas\b|manicur|pedicur/.test(text)) return 'Uñas';
+    if (/\bcejas\b|pestanas\b|lash\b|brows?\b/.test(text)) return 'Cejas y pestañas';
+    if (/\bestetica\b|facial(?:es)?\b|depilaci/.test(text)) return 'Estética';
+    if (/\bsalon\b|peluquer|estilista|cabello\b/.test(text)) return 'Salón de belleza';
+    return '';
+}
+
+function detectCommercialTeamSize(messageText, allowBareAnswer = false) {
+    const text = normalizeCommercialText(messageText);
+    if (/\b(solo\s*yo|yo\s+sol[oa]|trabajo\s+sol[oa]|independiente|unico\s+empleado|yo\s+soy\s+el\s+unico)\b/.test(text)) return 'Solo yo';
+    if (/\b(tengo\s+(?:[2-5]|dos|tres|cuatro|cinco)|somos\s+(?:[2-5]|dos|tres|cuatro|cinco)|(?:[2-5]|dos|tres|cuatro|cinco)\s+(?:emplead|persona|trabajador|estilista|colaborador|chic[oa]s?))\b/.test(text)) return '2 a 5';
+    if (/\b(tengo\s+(?:[6-9]|10|seis|siete|ocho|nueve|diez)|somos\s+(?:[6-9]|10|seis|siete|ocho|nueve|diez)|(?:[6-9]|10|seis|siete|ocho|nueve|diez)\s+(?:emplead|persona|trabajador|estilista|colaborador))\b/.test(text)) return '6 a 10';
+    if (/\b(tengo\s+(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)|somos\s+(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)|(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)\s+(?:emplead|persona|trabajador|estilista|colaborador)|mas\s+de\s+(?:10|diez))\b/.test(text)) return '11 o mas';
+    if (allowBareAnswer) {
+        if (/^(?:1|uno|una|yo)$/.test(text)) return 'Solo yo';
+        if (/^(?:[2-5]|dos|tres|cuatro|cinco)$/.test(text)) return '2 a 5';
+        if (/^(?:[6-9]|10|seis|siete|ocho|nueve|diez)$/.test(text)) return '6 a 10';
+        if (/^(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince|mas de (?:10|diez))$/.test(text)) return '11 o mas';
+    }
+    return '';
+}
+
+function updateCommercialCaptureDraft(session, messageText) {
+    if (!session._datosCaptura) session._datosCaptura = {};
+    const draft = session._datosCaptura;
+    const changes = {};
+    const lastAssistantMessage = [...(session.history || [])]
+        .reverse()
+        .find(entry => entry.role === 'assistant')?.content || '';
+    const rawAnswer = normalizeCommercialValue(messageText);
+    const isQuestion = /[¿?]/.test(String(messageText || ''));
+    const isDirectAnswer = rawAnswer && !isQuestion && rawAnswer.length <= 100;
+    const expectedField = session._commercialExpectedField || inferCommercialExpectedField(lastAssistantMessage);
+    let expectedFieldHandled = false;
+    const clearExpectedField = () => {
+        expectedFieldHandled = true;
+    };
+    const stripBusinessPrefix = (value) => normalizeCommercialValue(value)
+        .replace(/^(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+(?:se\s+llama|es)\s+/i, '')
+        .trim();
+    const stripContactPrefix = (value) => normalizeCommercialValue(value)
+        .replace(/^(?:me\s+llamo|mi\s+nombre\s+es)\s+/i, '')
+        .trim();
+    const stripCityPrefix = (value) => normalizeCommercialValue(value)
+        .replace(/^(?:(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+)?(?:estoy|queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?)\s+en\s+/i, '')
+        .replace(/^en\s+/i, '')
+        .trim();
+
+    // La pregunta exacta anterior permite guardar respuestas breves como
+    // “Corte Fino”, “Bogotá” o “3”, sin adivinar datos en otros contextos.
+    if (isDirectAnswer) {
+        if (expectedField === 'tipoNegocio' && !draft.tipoNegocio) {
+            const tipoNegocio = detectCommercialBusinessType(messageText, true);
+            if (tipoNegocio) {
+                draft.tipoNegocio = tipoNegocio;
+                changes.tipoNegocio = tipoNegocio;
+                clearExpectedField();
+            }
+        } else if (expectedField === 'negocio' && !draft.negocio) {
+            const negocio = stripBusinessPrefix(rawAnswer);
+            if (negocio && !isGenericCommercialBusinessName(negocio) && !isCommercialAcknowledgement(negocio)) {
+                draft.negocio = negocio;
+                changes.negocio = negocio;
+                clearExpectedField();
+            }
+        } else if (expectedField === 'ciudad' && !draft.ciudad) {
+            const ciudad = stripCityPrefix(rawAnswer);
+            if (isPlausibleCommercialCity(ciudad)) {
+                draft.ciudad = ciudad;
+                changes.ciudad = ciudad;
+                clearExpectedField();
+            }
+        } else if (expectedField === 'empleados' && !draft.empleados) {
+            const empleados = detectCommercialTeamSize(messageText, true);
+            if (empleados) {
+                draft.empleados = empleados;
+                changes.empleados = empleados;
+                clearExpectedField();
+            }
+        } else if (expectedField === 'nombreContacto' && !draft.nombreContacto) {
+            const nombre = stripContactPrefix(rawAnswer);
+            if (isLikelyCommercialContactName(nombre)) {
+                draft.nombreContacto = nombre;
+                changes.nombreContacto = nombre;
+                clearExpectedField();
+            }
+        } else if (expectedField === 'necesidad' && !draft.notas) {
+            draft.notas = 'Necesidad/duda: ' + rawAnswer;
+            changes.notas = draft.notas;
+            clearExpectedField();
+        }
+    }
+
+    if (!draft.email) {
+        const emailMatch = String(messageText || '').match(/[\w.+-]+@[\w-]+\.[\w.]+/i);
+        if (emailMatch) {
+            draft.email = emailMatch[0].toLowerCase();
+            changes.email = draft.email;
+        }
+    }
+
+    if (!draft.tipoNegocio) {
+        const tipoNegocio = detectCommercialBusinessType(messageText, expectedField === 'tipoNegocio');
+        if (tipoNegocio) {
+            draft.tipoNegocio = tipoNegocio;
+            changes.tipoNegocio = tipoNegocio;
+        }
+    }
+
+    if (!draft.empleados) {
+        const empleados = detectCommercialTeamSize(messageText);
+        if (empleados) {
+            draft.empleados = empleados;
+            changes.empleados = empleados;
+        }
+    }
+
+    // Solo aceptar el nombre de contacto cuando se presenta explícitamente;
+    // “soy de una barbería” no se interpreta como nombre.
+    if (!draft.nombreContacto) {
+        const nombreMatch = String(messageText || '').match(/\b(?:me llamo|mi nombre es)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,80})/i);
+        if (nombreMatch) {
+            const nombre = normalizeCommercialValue(nombreMatch[1])
+                .replace(/\s+(?:y|pero)\s+(?=(?:tengo|manejo|trabajo|soy|mi\s+(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio))\b).*$/i, '')
+                .trim();
+            if (isLikelyCommercialContactName(nombre)) {
+                draft.nombreContacto = nombre;
+                changes.nombreContacto = nombre;
+            }
+        }
+    }
+
+    // Se guarda el nombre comercial solo cuando el prospecto lo indicó de
+    // forma inequívoca. La IA todavía puede extraerlo del historial al final.
+    if (!draft.negocio) {
+        const negocioMatch = String(messageText || '').match(/\b(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+(?:se\s+llama|es)\s+["'“”]?([^.,!?]+)/i);
+        if (negocioMatch) {
+            const negocio = normalizeCommercialValue(negocioMatch[1])
+                .replace(/\s+(?:y|pero)\s+(?=(?:tengo|manejo|trabajo|soy|mi\s+(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio))\b).*$/i, '')
+                .trim();
+            if (negocio && !isGenericCommercialBusinessName(negocio) && !isCommercialAcknowledgement(negocio)) {
+                draft.negocio = negocio;
+                changes.negocio = negocio;
+            }
+        }
+    }
+
+    // El extractor libre solo procesa afirmaciones; una pregunta como
+    // “¿BeautyOS está en Bogotá?” no puede convertirse en ciudad del lead.
+    if (!draft.ciudad && !isQuestion) {
+        const ciudadMatch = String(messageText || '').match(/\b(?:queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?)\s+en\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,60}?)(?=\s*(?:,|\.|!|\?|$|\by\b|\bpero\b))/i);
+        if (ciudadMatch) {
+            const ciudad = normalizeCommercialValue(ciudadMatch[1]);
+            if (isPlausibleCommercialCity(ciudad)) {
+                draft.ciudad = ciudad;
+                changes.ciudad = ciudad;
+            }
+        }
+    }
+
+    if (expectedFieldHandled) session._commercialExpectedField = '';
+    return changes;
+}
+
+function asksCommercialDataAuthorization(text) {
+    return /autorizas?(?:\s+a)?\s+(?:guardar|registrar).{0,120}datos/i.test(String(text || ''));
+}
+
+function inferCommercialExpectedField(text) {
+    const normalized = normalizeCommercialText(text);
+    if (asksCommercialDataAuthorization(text)) return 'autorizacion';
+    if (/que tipo de negocio(?: de belleza)? tienes/.test(normalized)) return 'tipoNegocio';
+    if (/como se llama tu (?:negocio|marca|salon|barberia|spa|estudio)/.test(normalized)) return 'negocio';
+    if (/en que ciudad (?:atiendes|esta|se encuentra|funciona)/.test(normalized)) return 'ciudad';
+    if (/(?:trabajas tu sol[oa]|cuantas personas (?:atienden|trabajan)|solo yo, 2 a 5)/.test(normalized)) return 'empleados';
+    if (/(?:como prefieres que te llamemos|como te llamas)/.test(normalized)) return 'nombreContacto';
+    if (/que te gustaria (?:resolver|conocer) primero/.test(normalized)) return 'necesidad';
+    return '';
+}
+
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
 let evolutionClient = null;
 
@@ -206,7 +447,9 @@ router.post('/evolution', async (req, res) => {
                             history: [],
                             estado: 'PROSPECTO',
                             _deCampana: !!esCampana,
-                            datos: { celular: phoneNumber, nombre: data.pushName || '' }
+                            // El nombre de perfil solo personaliza el saludo. No es
+                            // un nombre confirmado para guardar en el CRM.
+                            datos: { celular: phoneNumber, nombrePerfil: data.pushName || '' }
                         };
                     }
                 }
@@ -226,11 +469,28 @@ router.post('/evolution', async (req, res) => {
         // ── Comercial: saltar onboarding, ir directo a IA ──
         let userData;
         if (isComercial) {
+            const draftChanges = updateCommercialCaptureDraft(session, messageText);
+            const datosCaptura = session._datosCaptura || {};
+            const datosSesion = session.datos || {};
             userData = {
-                nombre: session.datos?.nombre || data.pushName || 'Usuario',
+                // nombre es exclusivamente el contacto confirmado; nombrePerfil
+                // nunca debe satisfacer el dato obligatorio del CRM.
+                nombre: datosCaptura.nombreContacto || datosSesion.nombre || '',
+                nombreContacto: datosCaptura.nombreContacto || datosSesion.nombre || '',
+                nombrePerfil: datosSesion.nombrePerfil || data.pushName || '',
                 celular: phoneNumber,
                 estado: session.estado,
-                idCliente: session.datos?.idCliente || ''
+                idCliente: datosSesion.idCliente || '',
+                negocio: datosSesion.negocio || datosCaptura.negocio || '',
+                ciudad: datosSesion.ciudad || datosCaptura.ciudad || '',
+                estadoLead: datosSesion.estadoLead || '',
+                _negocio: datosCaptura.negocio || '',
+                _ciudad: datosCaptura.ciudad || '',
+                _empleados: datosCaptura.empleados || '',
+                _email: datosCaptura.email || '',
+                _tipoNegocio: datosCaptura.tipoNegocio || '',
+                _notasLead: datosCaptura.notas || '',
+                _draftChanges: draftChanges
             };
         } else {
             // ── Máquina de Estados: Onboarding CRM (solo salones) ──
@@ -1480,6 +1740,16 @@ router.post('/evolution', async (req, res) => {
             tenant.promoUsage || {},
             tenant.festivosConfig || []
         );
+
+        // Recordar cuál fue la pregunta concreta de Sofi. Esto permite que
+        // una respuesta breve en el siguiente turno se guarde sin adivinar.
+        // La autorización solo se habilita con el perfil ya validado.
+        if (isComercial) {
+            const expectedField = inferCommercialExpectedField(aiReply);
+            session._commercialExpectedField = expectedField;
+            session._awaitingLeadAuthorization = expectedField === 'autorizacion'
+                && hasCompleteCommercialDraft(session._datosCaptura);
+        }
 
         // Actualizar historial de conversación
         session.history.push({ role: 'user', content: messageText });

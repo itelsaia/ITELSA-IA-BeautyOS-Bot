@@ -101,6 +101,33 @@ function handleSaveLead(payload) {
   if (!sheet) return { error: 'Hoja LEADS no encontrada. Ejecuta setupLanding().' };
 
   var config = leerClaveValor(ss, 'CONFIGURACION');
+  // Limpiar undefined/null que pueden venir del bot o de integraciones.
+  var clean = function(v) { return (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim(); };
+  var source = clean(payload.fuente) || 'landing';
+  var isWhatsappAgent = source === 'whatsapp-agente';
+  var normalize = function(v) {
+    return clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  };
+  var isGenericBusinessName = function(v) {
+    var normalized = normalize(v).replace(/^(?:mi|un|una|el|la)\s+/, '').trim();
+    return /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(normalized);
+  };
+  var isAcknowledgement = function(v) {
+    return /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalize(v));
+  };
+
+  // Defensa en profundidad: un POST del agente no puede crear un lead con
+  // datos deducidos, incompletos o sin consentimiento explícito.
+  if (isWhatsappAgent) {
+    var missing = [];
+    if (!clean(payload.nombreContacto)) missing.push('nombre de contacto');
+    if (!clean(payload.nombreNegocio) || isGenericBusinessName(payload.nombreNegocio) || isAcknowledgement(payload.nombreNegocio)) missing.push('nombre comercial del negocio');
+    if (!clean(payload.ciudad) || isAcknowledgement(payload.ciudad)) missing.push('ciudad');
+    if (!clean(payload.cantidadEmpleados)) missing.push('cantidad de empleados');
+    if (clean(payload.autorizaDatos).toUpperCase() !== 'SI') missing.push('autorización de datos');
+    if (missing.length > 0) return { error: 'Lead del agente incompleto: falta ' + missing.join(', ') };
+  }
+
   var cant = String(payload.cantidadEmpleados || '').trim();
   var categoria = 'Propia empresa';
   if (cant === '2 a 5') categoria = 'Mediano';
@@ -119,9 +146,6 @@ function handleSaveLead(payload) {
     asesorNombre = asesoresActivos[idx].NOMBRE || '';
     asesorRow = asesoresActivos[idx]._rowNum;
   }
-
-  // Limpiar undefined/null que pueden venir del bot
-  var clean = function(v) { return (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim(); };
 
   // ── GUARDRAIL: Validar duplicados por WhatsApp ──
   var waLimpio = String(payload.whatsapp || '').replace(/\D/g, '');
@@ -143,8 +167,9 @@ function handleSaveLead(payload) {
     clean(payload.ciudad),
     cant,
     categoria,
-    clean(payload.fuente) || 'landing',
-    'NUEVO', asesorAsignado, '', '',
+    source,
+    'NUEVO', asesorAsignado, '',
+    clean(payload.notas),
     clean(payload.autorizaDatos) || 'SI'
   ]);
 
@@ -969,6 +994,7 @@ function buildLeadEmailHtml(payload, nombreProducto, categoria) {
     + emailRow('Ciudad', payload.ciudad)
     + emailRow('Empleados', payload.cantidadEmpleados)
     + emailRow('Categoria', categoria)
+    + emailRow('Necesidad / contexto', payload.notas)
     + emailRow('Fuente', payload.fuente)
     + '</table></div>'
     + '<div style="background:#f8f6f3;padding:15px;text-align:center;border-radius:0 0 8px 8px;border:1px solid #e5e7eb;border-top:none;">'

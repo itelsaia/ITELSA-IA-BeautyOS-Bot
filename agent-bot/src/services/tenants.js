@@ -552,11 +552,11 @@ async function syncComercialData(tenant, tenantId) {
             const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado);
             const normalizedPhone = normalizePhone(phone);
             if (isSavedLeadSession && !leadPhones.has(normalizedPhone) && !clientPhones.has(normalizedPhone)) {
-                const nombre = session.datos && session.datos.nombre ? session.datos.nombre : '';
+                const nombrePerfil = session.datos && session.datos.nombrePerfil ? session.datos.nombrePerfil : '';
                 tenant.userSessions[phone] = {
                     history: [],
                     estado: 'PROSPECTO',
-                    datos: { celular: phone, nombre: nombre }
+                    datos: { celular: phone, nombrePerfil: nombrePerfil }
                 };
                 console.log(`[${tenantId}] ♻️ Sesión reiniciada para prueba: ${phone}`);
             }
