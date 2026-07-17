@@ -509,6 +509,7 @@ async function syncComercialData(tenant, tenantId) {
     if (!crmUrl) return;
 
     // 0. Cache de leads para reconocer prospectos que vuelven a escribir
+    let leadsSynced = false;
     try {
         const leadsResp = await api.postToCRM(crmUrl, { action: 'getLeads' });
         if (Array.isArray(leadsResp)) {
@@ -519,6 +520,7 @@ async function syncComercialData(tenant, tenantId) {
                 ciudad: l.CIUDAD || '',
                 estado: l.ESTADO || 'NUEVO'
             }));
+            leadsSynced = true;
         }
     } catch (err) {
         // No critico — si falla, leads no se reconocen pero el bot sigue funcionando
@@ -535,6 +537,30 @@ async function syncComercialData(tenant, tenantId) {
         }
     } catch (err) {
         console.error(`[${tenantId}] Error sync clientes CRM:`, err.message);
+    }
+
+    // Si un administrador elimina un lead para repetir una prueba, el CRM ya
+    // no lo devuelve. Limpiar esa sesión en memoria evita que _leadCapturado
+    // bloquee una nueva captura con el mismo WhatsApp.
+    if (leadsSynced && tenant.userSessions) {
+        const normalizePhone = value => String(value || '').replace(/\D/g, '');
+        const leadPhones = new Set((tenant._leadsCache || []).map(lead => normalizePhone(lead.whatsapp)).filter(Boolean));
+        const clientPhones = new Set(Object.keys(tenant.clientesCRM || {}).map(normalizePhone).filter(Boolean));
+
+        Object.keys(tenant.userSessions).forEach(phone => {
+            const session = tenant.userSessions[phone];
+            const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado);
+            const normalizedPhone = normalizePhone(phone);
+            if (isSavedLeadSession && !leadPhones.has(normalizedPhone) && !clientPhones.has(normalizedPhone)) {
+                const nombre = session.datos && session.datos.nombre ? session.datos.nombre : '';
+                tenant.userSessions[phone] = {
+                    history: [],
+                    estado: 'PROSPECTO',
+                    datos: { celular: phone, nombre: nombre }
+                };
+                console.log(`[${tenantId}] ♻️ Sesión reiniciada para prueba: ${phone}`);
+            }
+        });
     }
 
     // 2. Recordatorios de pago proactivos (1 vez al dia entre 8-10 AM)

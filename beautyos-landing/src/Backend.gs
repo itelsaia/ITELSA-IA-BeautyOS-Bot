@@ -111,16 +111,13 @@ function handleSaveLead(payload) {
   var asesoresActivos = asesoresData.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
   var asesorAsignado = '';
   var asesorNombre = '';
+  var asesorRow = 0;
   if (asesoresActivos.length > 0) {
     var totalLeads = Math.max(0, sheet.getLastRow() - 1);
     var idx = totalLeads % asesoresActivos.length;
     asesorAsignado = String(asesoresActivos[idx].WHATSAPP).trim();
     asesorNombre = asesoresActivos[idx].NOMBRE || '';
-    // Incrementar contador de leads del asesor
-    var asesorRow = asesoresActivos[idx]._rowNum;
-    var asesoresSheet = ss.getSheetByName('ASESORES');
-    var currentCount = Number(asesoresSheet.getRange(asesorRow, 6).getValue()) || 0;
-    asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
+    asesorRow = asesoresActivos[idx]._rowNum;
   }
 
   // Limpiar undefined/null que pueden venir del bot
@@ -150,6 +147,16 @@ function handleSaveLead(payload) {
     'NUEVO', asesorAsignado, '', '',
     clean(payload.autorizaDatos) || 'SI'
   ]);
+
+  // Contar la asignación solo si el lead sí fue creado. Así un WhatsApp
+  // duplicado no altera los conteos durante las pruebas.
+  if (asesorRow) {
+    var asesoresSheet = ss.getSheetByName('ASESORES');
+    if (asesoresSheet) {
+      var currentCount = Number(asesoresSheet.getRange(asesorRow, 6).getValue()) || 0;
+      asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
+    }
+  }
 
   // Notificacion por email
   var emailDest = config.EMAIL_LEADS || 'iaitelsa@gmail.com';
@@ -264,6 +271,103 @@ function updateLead(rowNum, estado, asignado, notas) {
   sheet.getRange(rowNum, 13).setValue(notas);
 
   return { success: true };
+}
+
+// Elimina un lead desde el panel administrativo. Se usa principalmente para
+// pruebas. La clave no se guarda en la hoja ni en el código: se valida desde
+// la propiedad de script BEAUTYOS_DELETE_LEAD_KEY.
+function deleteLead(rowNum, expectedWhatsapp, deleteKey) {
+  var configuredKey = PropertiesService.getScriptProperties().getProperty('BEAUTYOS_DELETE_LEAD_KEY');
+  if (!configuredKey) {
+    return { error: 'La clave de eliminación no está configurada en Apps Script' };
+  }
+  if (!deleteKey || String(deleteKey) !== configuredKey) {
+    return { error: 'Clave de eliminación incorrecta' };
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('LEADS');
+  if (!sheet) return { error: 'Hoja LEADS no encontrada' };
+
+  var row = Number(rowNum);
+  var expectedPhone = String(expectedWhatsapp || '').replace(/\D/g, '');
+  if (!isFinite(row) || Math.floor(row) !== row || row < 2) {
+    return { error: 'Fila de lead no válida' };
+  }
+  if (!expectedPhone) return { error: 'No se pudo verificar el WhatsApp del lead' };
+
+  var lock = LockService.getDocumentLock();
+  var locked = false;
+  try {
+    lock.waitLock(5000);
+    locked = true;
+
+    var lastRow = sheet.getLastRow();
+    if (row > lastRow) return { error: 'El lead ya no existe o fue modificado' };
+
+    var columnCount = sheet.getLastColumn();
+    var leadValues = sheet.getRange(row, 1, 1, columnCount).getValues()[0];
+    var leadPhone = String(leadValues[3] || '').replace(/\D/g, '');
+    if (leadPhone !== expectedPhone) {
+      return { error: 'El lead cambió de posición. Actualiza el panel e inténtalo de nuevo' };
+    }
+
+    var contacto = String(leadValues[1] || '').trim();
+    var negocio = String(leadValues[2] || '').trim();
+    var estado = String(leadValues[9] || '').trim().toUpperCase();
+    var asesorAsignado = String(leadValues[10] || '').trim();
+
+    // Un cliente ya creado se conserva para no romper el historial comercial.
+    if (estado === 'CLIENTE') {
+      return { error: 'Este lead ya fue convertido en cliente y no se puede eliminar desde pruebas' };
+    }
+
+    archiveDeletedLead_(ss, sheet, leadValues, 'Prueba desde el panel');
+
+    sheet.deleteRow(row);
+
+    // Si el lead tenía asesor, revertir su contador sin permitir negativos.
+    if (asesorAsignado) {
+      var asesoresSheet = ss.getSheetByName('ASESORES');
+      if (asesoresSheet && asesoresSheet.getLastRow() >= 2) {
+        var asesores = asesoresSheet.getRange(2, 1, asesoresSheet.getLastRow() - 1, 6).getValues();
+        for (var i = 0; i < asesores.length; i++) {
+          if (String(asesores[i][1] || '').trim() === asesorAsignado) {
+            var actual = Number(asesores[i][5]) || 0;
+            asesoresSheet.getRange(i + 2, 6).setValue(Math.max(0, actual - 1));
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      lead: negocio || contacto || 'Lead',
+      message: 'Lead eliminado correctamente'
+    };
+  } catch (err) {
+    Logger.log('[leads] Error eliminando lead: ' + err.message);
+    return { error: 'No se pudo eliminar el lead: ' + err.message };
+  } finally {
+    if (locked) lock.releaseLock();
+  }
+}
+
+// Mantiene un respaldo interno antes del borrado. No participa en la detección
+// de duplicados, por lo que permite repetir una prueba con el mismo WhatsApp.
+function archiveDeletedLead_(ss, sourceSheet, leadValues, reason) {
+  var archive = ss.getSheetByName('LEADS_ELIMINADOS');
+  var headers = sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0];
+  if (!archive) {
+    archive = ss.insertSheet('LEADS_ELIMINADOS');
+    archive.appendRow(headers.concat(['ELIMINADO_EN', 'MOTIVO_ELIMINACION']));
+    archive.getRange(1, 1, 1, headers.length + 2)
+      .setFontWeight('bold')
+      .setBackground('#7f1d1d')
+      .setFontColor('white');
+  }
+  archive.appendRow(leadValues.concat([new Date(), reason]));
 }
 
 // Migra la hoja LEADS para agregar NOMBRE_CONTACTO sin perder datos

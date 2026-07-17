@@ -760,6 +760,7 @@
     <div class="form-group"><label>Notas / Trazabilidad <span style="font-size:0.75rem;color:var(--gray-500);">(la IA agrega notas automaticamente)</span></label><textarea class="form-control" id="modalNotas" rows="4" style="font-size:0.85rem;"></textarea></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal('leadModal')">Cancelar</button>
+      <button class="btn btn-danger" id="btnDeleteLead" onclick="deleteLeadFromPanel()"><i class="fas fa-trash"></i> Eliminar lead</button>
       <button class="btn btn-accent" id="btnConvertLead" onclick="openConvertModal()" style="display:none;"><i class="fas fa-user-check"></i> Convertir a cliente</button>
       <button class="btn btn-primary" onclick="saveLeadModal()"><i class="fas fa-save"></i> Guardar</button>
     </div>
@@ -1128,12 +1129,15 @@ function renderAllLeads(leads) {
   tbody.innerHTML = filtered.map(function(l) {
     var row = l._rowNum || 2;
     var asesorNombre = getAsesorNombre(l.ASIGNADO_A);
+    var canDelete = String(l.ESTADO || '').toUpperCase() !== 'CLIENTE';
     return '<tr><td>' + formatDate(l.FECHA) + '</td><td>' + esc(l.NOMBRE_CONTACTO) + '</td><td><strong>' + esc(l.NOMBRE_NEGOCIO) + '</strong></td>'
       + '<td><a href="https://wa.me/' + String(l.WHATSAPP || '').replace(/\D/g, '') + '" target="_blank" style="color:var(--success);">' + esc(l.WHATSAPP) + '</a></td>'
       + '<td>' + esc(l.CIUDAD) + '</td><td>' + esc(l.CATEGORIA) + '</td>'
       + '<td>' + (asesorNombre ? '<span style="font-size:12px;color:var(--primary);">' + esc(asesorNombre) + '</span>' : '<span style="font-size:12px;color:#999;">Sin asignar</span>') + '</td>'
       + '<td>' + statusBadge(l.ESTADO) + '</td>'
-      + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')"><i class="fas fa-pen"></i></button></td></tr>';
+      + '<td><button class="btn btn-outline btn-sm" onclick="openLeadModal(' + row + ',\'' + esc(l.ESTADO || 'NUEVO') + '\')" title="Gestionar"><i class="fas fa-pen"></i></button> '
+      + (canDelete ? '<button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteLeadFromPanel(' + row + ')" title="Eliminar lead de prueba"><i class="fas fa-trash"></i></button>' : '')
+      + '</td></tr>';
   }).join('');
 }
 
@@ -1172,6 +1176,8 @@ function openLeadModal(rowNum, estado) {
   // Mostrar boton convertir si el lead esta en etapa avanzada
   var btn = document.getElementById('btnConvertLead');
   btn.style.display = (estado === 'GANADO' || estado === 'NEGOCIANDO' || estado === 'EN_DEMO') ? '' : 'none';
+  var btnDelete = document.getElementById('btnDeleteLead');
+  btnDelete.style.display = (lead && String(lead.ESTADO || '').toUpperCase() !== 'CLIENTE') ? '' : 'none';
   document.getElementById('leadModal').classList.add('open');
 }
 
@@ -1185,6 +1191,41 @@ function saveLeadModal() {
   google.script.run.withSuccessHandler(function() { toast('Lead actualizado', 'success'); refreshData(); })
     .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
     .updateLead(row, estado, asignado, notas);
+}
+
+// Borra solo leads de prueba. Pide una confirmación escrita y la clave privada
+// guardada en las propiedades del proyecto de Apps Script.
+function deleteLeadFromPanel(rowNum) {
+  var row = Number(rowNum || document.getElementById('modalLeadRow').value);
+  var lead = (DATA.leads || []).find(function(l) { return Number(l._rowNum) === row; });
+  if (!lead) { toast('No se encontró el lead. Actualiza el panel.', 'error'); return; }
+  if (String(lead.ESTADO || '').toUpperCase() === 'CLIENTE') {
+    toast('Un lead convertido en cliente no se elimina desde pruebas.', 'error');
+    return;
+  }
+
+  var label = lead.NOMBRE_NEGOCIO || lead.NOMBRE_CONTACTO || 'este lead';
+  var confirmation = window.prompt('Vas a eliminar "' + label + '" de LEADS. Se conservará una copia en LEADS_ELIMINADOS.\n\nEscribe ELIMINAR para continuar:');
+  if (confirmation !== 'ELIMINAR') {
+    if (confirmation !== null) toast('Eliminación cancelada: debes escribir ELIMINAR.', 'error');
+    return;
+  }
+
+  var deleteKey = window.prompt('Ingresa la clave privada de eliminación:');
+  if (!deleteKey) return;
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (!result || result.error) {
+        toast((result && result.error) || 'No se pudo eliminar el lead.', 'error');
+        return;
+      }
+      closeModal('leadModal');
+      toast('Lead eliminado: ' + (result.lead || label), 'success');
+      refreshData();
+    })
+    .withFailureHandler(function(err) { toast('Error: ' + err.message, 'error'); })
+    .deleteLead(row, String(lead.WHATSAPP || ''), deleteKey);
 }
 
 // ═══════════════════════════════════════════════
