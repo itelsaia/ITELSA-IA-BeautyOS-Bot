@@ -289,7 +289,7 @@ const COMMERCIAL_TOOLS = [
         type: "function",
         function: {
             name: "capturar_lead",
-            description: "Guarda los datos de un prospecto interesado en BeautyOS. Usar cuando el prospecto muestre interes real (pide precio, pide demo, pregunta como funciona).",
+            description: "Guarda un prospecto interesado en BeautyOS SOLO cuando ya tienes nombre, negocio, ciudad, cantidad de empleados y autorizacion expresa para tratar sus datos.",
             parameters: {
                 type: "object",
                 properties: {
@@ -302,7 +302,7 @@ const COMMERCIAL_TOOLS = [
                     notas: { type: "string", description: "Contexto: que busca, objeciones, interes especifico" },
                     autorizaDatos: { type: "string", enum: ["SI", "NO"], description: "Si el prospecto autorizo el tratamiento de sus datos personales" }
                 },
-                required: ["nombreContacto", "nombreNegocio", "whatsapp", "autorizaDatos"]
+                required: ["nombreContacto", "nombreNegocio", "whatsapp", "ciudad", "cantidadEmpleados", "autorizaDatos"]
             }
         }
     },
@@ -2189,37 +2189,75 @@ PASO 5 — POST-CONFIRMACIÓN:
                         const whatsappReal = session.datos?.celular || functionArgs.whatsapp;
                         // Limpiar valores undefined/null que la IA puede enviar como string
                         const cleanVal = (v) => (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim();
+                        const nombreContacto = cleanVal(functionArgs.nombreContacto) || cleanVal(session.datos?.nombre);
+                        const nombreNegocio = cleanVal(functionArgs.nombreNegocio);
+                        const ciudad = cleanVal(functionArgs.ciudad) || cleanVal(session._datosCaptura?.ciudad) || cleanVal(session.datos?.ciudad);
+                        const cantidadEmpleados = cleanVal(functionArgs.cantidadEmpleados) || cleanVal(session._datosCaptura?.empleados);
+                        const autorizaDatos = cleanVal(functionArgs.autorizaDatos);
+
+                        // No confirmar un registro incompleto. La IA recibe este resultado y debe pedir
+                        // el dato faltante de manera natural antes de volver a intentar capturar el lead.
+                        const faltantes = [];
+                        if (!nombreContacto) faltantes.push('nombre de contacto');
+                        if (!nombreNegocio) faltantes.push('nombre del negocio');
+                        if (!ciudad) faltantes.push('ciudad');
+                        if (!cantidadEmpleados) faltantes.push('cantidad de empleados');
+                        if (autorizaDatos !== 'SI') faltantes.push('autorizacion de datos');
+
+                        if (faltantes.length > 0) {
+                            toolResultText = `⚠️ No guardes todavia el lead. Falta: ${faltantes.join(', ')}. Pide solo el siguiente dato faltante de forma natural.`;
+                            console.warn(`[openai] Lead incompleto bloqueado: faltan ${faltantes.join(', ')}`);
+                        } else {
+
                         const resp = await api.postToCRM(crmUrl, {
                             action: 'saveLead',
-                            nombreContacto: cleanVal(functionArgs.nombreContacto) || cleanVal(session.datos?.nombre),
-                            nombreNegocio: cleanVal(functionArgs.nombreNegocio),
+                            nombreContacto,
+                            nombreNegocio,
                             whatsapp: whatsappReal,
                             email: cleanVal(functionArgs.email),
-                            ciudad: cleanVal(functionArgs.ciudad),
-                            cantidadEmpleados: cleanVal(functionArgs.cantidadEmpleados),
+                            ciudad,
+                            cantidadEmpleados,
                             notas: cleanVal(functionArgs.notas),
                             fuente: 'whatsapp-agente',
-                            autorizaDatos: cleanVal(functionArgs.autorizaDatos) || 'SI'
+                            autorizaDatos
                         });
                         if (resp && !resp.error) {
-                            session._leadCapturado = functionArgs.nombreNegocio;
-                            toolResultText = `✅ Lead guardado exitosamente: ${functionArgs.nombreNegocio} (${whatsappReal}). El equipo comercial dará seguimiento.`;
-                            console.log(`[openai] 📋 Lead capturado: ${functionArgs.nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+                            session._leadCapturado = nombreNegocio;
+                            if (session.datos) {
+                                session.datos.nombre = nombreContacto;
+                                session.datos.negocio = nombreNegocio;
+                                session.datos.ciudad = ciudad;
+                            }
+                            session._datosCaptura = {
+                                ...(session._datosCaptura || {}),
+                                ciudad,
+                                empleados: cantidadEmpleados,
+                                email: cleanVal(functionArgs.email) || session._datosCaptura?.email || ''
+                            };
+
+                            if (resp.queued) {
+                                toolResultText = `⏳ Lead recibido y en cola de sincronizacion: ${nombreNegocio}. No afirmes que ya quedo guardado; indica que el equipo comercial dara seguimiento.`;
+                                console.warn(`[openai] Lead en cola de reintento: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+                            } else {
+                                toolResultText = `✅ Lead guardado exitosamente: ${nombreNegocio} (${whatsappReal}). El equipo comercial dará seguimiento.`;
+                                console.log(`[openai] 📋 Lead capturado: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+                            }
 
                             // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
                             const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
                             const asesorAsignado = resp.asesorAsignado || '';
                             if (asesores.length > 0 && asesorAsignado) {
-                                const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${functionArgs.nombreContacto || 'Sin nombre'}\n💼 Negocio: ${functionArgs.nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${functionArgs.ciudad || 'No indicada'}\n👥 Empleados: ${functionArgs.cantidadEmpleados || 'No indicado'}\n\n${functionArgs.notas ? '📝 Notas: ' + functionArgs.notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
+                                const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n\n${functionArgs.notas ? '📝 Notas: ' + functionArgs.notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
                                 if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
                                 session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
                                 if (asesores.length > 1 && asesores[0] !== asesorAsignado) {
-                                    session._pendingTransferMessages.push({ to: asesores[0], text: `*Lead asignado a ${asesorAsignado}*\n${functionArgs.nombreContacto || ''} - ${functionArgs.nombreNegocio} (${functionArgs.ciudad || ''})` });
+                                    session._pendingTransferMessages.push({ to: asesores[0], text: `*Lead asignado a ${asesorAsignado}*\n${nombreContacto} - ${nombreNegocio} (${ciudad})` });
                                 }
                                 console.log(`[openai] Lead asignado a ${asesorAsignado} (round-robin)`);
                             }
                         } else {
                             toolResultText = `⚠️ Error guardando lead: ${resp?.error || 'Sin respuesta del CRM'}. Informa al cliente que tomarás nota manualmente.`;
+                        }
                         }
                     }
                 }
