@@ -802,7 +802,9 @@ function filterActivePromotions(promotionsCatalog, nowColombia, todayDayName, cl
 // ============================================================
 // Prompt del agente comercial Sofi (BeautyOS)
 // ============================================================
-function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName) {
+// Se conserva temporalmente como referencia del guion original. El bot usa
+// buildCommercialPrompt(), más corto y adaptado al mensaje actual.
+function buildCommercialPromptLegacy(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName) {
     const agentName = config.nombreAgente || 'Sofi';
     const businessName = config.businessName || 'BeautyOS';
 
@@ -1135,6 +1137,129 @@ ${config.paymentInstructionsComercial || config.paymentInstructions ? '\nDatos d
 5. Mensajes de máximo 3 líneas. Si necesitas explicar algo largo, hazlo en varios mensajes cortos.
 ---
 `;
+}
+
+// ============================================================
+// Prompt comercial compacto: reduce tokens de entrada y mantiene
+// los datos, consentimiento y estados necesarios para el CRM.
+// ============================================================
+function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName, incomingMessage = '') {
+    const agentName = config.nombreAgente || 'Sofi';
+    const businessName = config.businessName || 'BeautyOS';
+    const cleanText = (value, maxLength = 280) => String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, maxLength);
+    const normalize = (value) => String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+
+    // Incluir solo FAQs relacionadas con el último mensaje. Si no hay una
+    // coincidencia clara, se usan pocas entradas generales para no enviar el
+    // catálogo completo en cada turno.
+    const stopWords = new Set([
+        'para', 'como', 'que', 'con', 'por', 'una', 'uno', 'las', 'los', 'del',
+        'esta', 'este', 'quiero', 'tengo', 'hola', 'buenas', 'sobre', 'desde',
+        'pero', 'porque', 'tambien', 'solo', 'muy', 'mas', 'menos', 'donde'
+    ]);
+    const messageTerms = new Set(
+        (normalize(incomingMessage).match(/[a-z0-9]+/g) || [])
+            .filter(word => word.length > 2 && !stopWords.has(word))
+    );
+    const rankedKnowledge = (knowledgeCatalog || []).map((item, index) => {
+        const haystack = normalize(`${item.intent || ''} ${item.response || ''}`);
+        const score = [...messageTerms].reduce((total, word) => total + (haystack.includes(word) ? 1 : 0), 0);
+        return { item, index, score };
+    }).sort((a, b) => b.score - a.score || a.index - b.index);
+    const selectedKnowledge = (rankedKnowledge.some(entry => entry.score > 0)
+        ? rankedKnowledge.filter(entry => entry.score > 0).slice(0, 4)
+        : rankedKnowledge.slice(0, 3))
+        .map(({ item }) => `- ${cleanText(item.intent, 90)}: ${cleanText(item.response, 260)}`)
+        .join('\n');
+
+    const plansText = (servicesCatalog || []).slice(0, 4).map(plan => {
+        const numericPrice = Number(plan.price);
+        const price = Number.isFinite(numericPrice) && numericPrice > 0
+            ? ` $${numericPrice.toLocaleString('es-CO')}`
+            : '';
+        const detail = cleanText(plan.response, 200);
+        return `- ${cleanText(plan.name, 70)}${price}${detail ? `: ${detail}` : ''}`;
+    }).join('\n') || '- Consulta el plan disponible con el equipo.';
+
+    const isClient = userData.estado === 'CLIENTE_EXISTENTE' || Boolean(userData.idCliente);
+    const isExistingLead = !isClient && (userData.estado === 'LEAD_EXISTENTE' || Boolean(userData.negocio));
+    const displayName = userData.nombre && !['Usuario', 'Cliente'].includes(userData.nombre)
+        ? userData.nombre
+        : '';
+    const knownBusiness = userData.negocio || userData._negocio || '';
+    const knownCity = userData.ciudad || userData._ciudad || '';
+    const knownEmployees = userData._empleados || '';
+    const missingData = [];
+    if (!displayName) missingData.push('nombre');
+    if (!knownBusiness) missingData.push('negocio');
+    if (!knownCity) missingData.push('ciudad');
+    if (!knownEmployees) missingData.push('cantidad de empleados');
+
+    let userContext;
+    if (isClient) {
+        userContext = `CLIENTE EXISTENTE${displayName ? `: ${displayName}` : ''}. Atiende soporte o cartera; no reinicies un flujo de ventas.`;
+    } else if (isExistingLead) {
+        userContext = `LEAD YA REGISTRADO. Datos: nombre=${displayName || 'sin registro'}; negocio=${knownBusiness || 'sin registro'}; ciudad=${knownCity || 'sin registro'}; estado=${userData.estadoLead || 'NUEVO'}. No repitas datos ni el saludo inicial.`;
+    } else {
+        userContext = `PROSPECTO NUEVO. Datos conocidos: nombre=${displayName || 'pendiente'}; negocio=${knownBusiness || 'pendiente'}; ciudad=${knownCity || 'pendiente'}; equipo=${knownEmployees || 'pendiente'}. Faltan: ${missingData.join(', ') || 'ninguno'}.`;
+    }
+
+    const campaign = config.campanaActiva || {};
+    const slots = config.cuposDisponibles;
+    const implementationIsFree = String(campaign.IMPLEMENTACION || 0) === '0' || String(campaign.IMPLEMENTACION || '') === '';
+    const implementation = implementationIsFree
+        ? 'gratis en la campaña vigente'
+        : (config.implementacionPrecio || 'según campaña');
+    const campaignParts = [
+        campaign.NOMBRE && `Campaña: ${cleanText(campaign.NOMBRE, 90)}.`,
+        campaign.MENSAJE_AGENTE && cleanText(String(campaign.MENSAJE_AGENTE).replace('CUPOS_DISPONIBLES', slots ?? '?'), 220),
+        `Implementación: ${implementation}.`,
+        String(campaign.PRIMER_MES_GRATIS || '').toUpperCase() === 'SI' && 'Primer mes: gratis.',
+        campaign.CONDICIONES_ESPECIALES && cleanText(campaign.CONDICIONES_ESPECIALES, 180),
+        Number(campaign.META_CLIENTES || 0) > 0 && `Cupos disponibles: ${slots ?? '?'} de ${campaign.META_CLIENTES}.`
+    ].filter(Boolean).join(' ');
+    const paymentInfo = config.paymentInstructionsComercial || config.paymentInstructions || '';
+
+    return `Eres ${agentName}, asesora comercial y de soporte de ${businessName}. Fecha: ${todayStr} (${todayDayName}).
+
+ESTILO
+- Español colombiano, cálido y natural. Responde en 1 o 2 frases cortas y haz una sola pregunta por turno.
+- Usa máximo un emoji de belleza pertinente por mensaje: ✨, 💇‍♀️, 💅, 🌸 o 📅. No uses emoji para consentimiento, pagos o incidentes.
+- No uses listas ni inventes precios, testimonios, resultados, cupos o funciones.
+
+CONTEXTO
+${userContext}
+
+PRODUCTO Y OFERTA
+BeautyOS reúne CRM con marca, agente IA para WhatsApp y landing profesional. Usa únicamente estos datos:
+Planes:
+${plansText}
+${campaignParts ? `Campaña: ${campaignParts}` : 'No hay campaña especial configurada.'}
+FAQs útiles para este mensaje:
+${selectedKnowledge || '- Si no conoces la respuesta, di que la confirmarás con el equipo.'}
+
+CAPTURA DE PROSPECTO
+- Antes de capturar exige nombre, negocio, ciudad, cantidad de empleados y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
+- Usa datos del historial y no repitas una pregunta ya respondida. Si falta algo, pregunta solo el siguiente dato faltante.
+- Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
+- Cuando estén los cuatro datos, pregunta exactamente: "Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos sí o no."
+- Si responde sí, llama capturar_lead con autorizaDatos="SI" y todos los datos. Confirma el registro solo si la herramienta responde éxito. Si responde no, no captures.
+
+VENTAS Y PIPELINE
+- Para prospecto nuevo, da una propuesta de valor breve y recoge el siguiente dato faltante. Menciona precio u oferta exacta solo cuando ya estén los datos obligatorios o si pregunta directamente.
+- Atiende primero la duda concreta y relaciónala con un beneficio real. Ante una objeción: valida, ofrece un beneficio o la condición vigente y realiza máximo un intento de retención.
+- Solo para un lead ya guardado: interés → CONTACTADO; demo → EN_DEMO; precio/comparación → NEGOCIANDO; "lo pienso" → SEGUIMIENTO; compra → GANADO y transferir_asesor. Ante un segundo rechazo, actualizar_estado_lead(PERDIDO, motivo) y despídete.
+- Si pide demo, está listo para comprar, tiene una consulta compleja o está molesto, usa transferir_asesor. Si no sabes algo, di que lo confirmarás con el equipo.
+
+CLIENTES EXISTENTES
+- Soporte: pregunta qué ocurre, desde cuándo y el impacto; luego usa reportar_novedad. Si el servicio está caído, también transfiere urgente.
+- Cartera: consulta estado con consultar_estado_cuenta; si promete pagar usa registrar_compromiso_pago. Nunca cambies ni inventes estados de pago.${paymentInfo ? ` Datos de pago autorizados: ${cleanText(paymentInfo, 350)}` : ''}`;
 }
 
 // ============================================================
@@ -1719,7 +1844,7 @@ PASO 5 — POST-CONFIRMACIÓN:
         // ─── Prompt comercial vs salon ───
         let systemFinalPrompt;
         if (config.tenantType === 'comercial') {
-            systemFinalPrompt = buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName);
+            systemFinalPrompt = buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatalog, todayStr, todayDayName, incomingMessage);
         } else {
             systemFinalPrompt = `${config.systemPrompt || "Eres un asistente virtual amable y conciso."}\n\nEstás hablando con: ${userName}${birthdayContext}\n\n${businessRules}`;
         }
@@ -1734,6 +1859,9 @@ PASO 5 — POST-CONFIRMACIÓN:
 
         // 5. Primera llamada a OpenAI
         const activeTools = config.tenantType === 'comercial' ? COMMERCIAL_TOOLS : TOOLS;
+        // Las conversaciones comerciales son deliberadamente breves. 350 tokens
+        // alcanzan para una respuesta de WhatsApp y para argumentos de herramientas.
+        const responseMaxTokens = config.tenantType === 'comercial' ? 350 : 1000;
         let completion = await openai.chat.completions.create({
             model: config.aiModel || "gpt-4o-mini",
             messages: messages,
@@ -1741,7 +1869,7 @@ PASO 5 — POST-CONFIRMACIÓN:
             tool_choice: "auto",
             parallel_tool_calls: false,
             temperature: 0.5,
-            max_tokens: 1000
+            max_tokens: responseMaxTokens
         });
 
         let responseMessage = completion.choices[0].message;
@@ -1761,7 +1889,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 tool_choice: "required",
                 parallel_tool_calls: false,
                 temperature: 0.3,
-                max_tokens: 1000
+                max_tokens: responseMaxTokens
             });
             responseMessage = completion.choices[0].message;
         }
@@ -2411,7 +2539,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 model: config.aiModel || "gpt-4o-mini",
                 messages: finalMessages,
                 temperature: 0.5,
-                max_tokens: 800
+                max_tokens: config.tenantType === 'comercial' ? 350 : 800
             });
 
             return finalCompletion.choices[0].message.content;
@@ -2430,7 +2558,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                 model: "gpt-4o-mini",
                 messages: [{ role: "system", content: "Eres Sofi, asesora comercial de BeautyOS. Responde breve y amable en español colombiano." }, ...messageHistory.slice(-4), { role: "user", content: incomingMessage }],
                 temperature: 0.5,
-                max_tokens: 500
+                max_tokens: config.tenantType === 'comercial' ? 350 : 500
             });
             return retryCompletion.choices[0].message.content;
         } catch (retryErr) {
