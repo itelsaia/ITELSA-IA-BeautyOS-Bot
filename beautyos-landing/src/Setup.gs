@@ -333,8 +333,16 @@ function crearAsesores(ss) {
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 
+// Ejecutar desde el menu de GAS para crear hoja SOPORTE_TECNICO
+function crearHojaSoporteTecnico() {
+  crearSoporteTecnico(SpreadsheetApp.getActiveSpreadsheet());
+  SpreadsheetApp.flush();
+  Logger.log('Hoja SOPORTE_TECNICO creada.');
+}
+
 // ─── SOPORTE_TECNICO: Ingenieros de soporte ───
 function crearSoporteTecnico(ss) {
+  if (!ss) ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = getOrCreateSheet(ss, 'SOPORTE_TECNICO');
   if (sheet.getLastRow() > 1) { Logger.log('SOPORTE_TECNICO ya tiene datos.'); return; }
   var headers = ['NOMBRE', 'CELULAR', 'EMAIL', 'ESPECIALIDAD', 'ACTIVO', 'TICKETS_ASIGNADOS'];

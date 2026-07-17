@@ -266,7 +266,7 @@
     </div>
     <div class="carousel-wrap">
       <div class="carousel-track" id="carouselTrack">
-        <img src="https://lh3.googleusercontent.com/d/10LW-xiEEd_88ezpgm4bRY4cxi_YJS5Hz=s1200" alt="Dashboard">
+        <img src="https://lh3.googleusercontent.com/d/10LW-xiEEd_88ezpgm4bRY4cxi_YJS5Hz=s1200" alt="Dashboard BeautyOS">
       </div>
       <button class="carousel-btn prev" id="carouselPrev"><i class="fas fa-chevron-left"></i></button>
       <button class="carousel-btn next" id="carouselNext"><i class="fas fa-chevron-right"></i></button>
@@ -328,7 +328,7 @@
   </div>
 </footer>
 
-<a class="wa-float" id="whatsappFloat" href="#" target="_blank"><i class="fab fa-whatsapp"></i></a>
+<a class="wa-float" id="whatsappFloat" href="https://wa.me/573108828904" target="_blank"><i class="fab fa-whatsapp"></i></a>
 
 <script>
 var LANDING = {};
@@ -350,6 +350,7 @@ function convertDriveUrl(url) {
   if (m) id = m[1];
   if (!id) { m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/); if (m) id = m[1]; }
   if (!id) { m = url.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/); if (m) id = m[1]; }
+  if (!id) { m = url.match(/thumbnail\?id=([a-zA-Z0-9_-]+)/); if (m) id = m[1]; }
   if (id) return 'https://lh3.googleusercontent.com/d/' + id + '=s800';
   return url;
 }
@@ -359,9 +360,11 @@ function renderLanding() {
   if (c.LOGO_URL) document.getElementById('navLogo').src = convertDriveUrl(c.LOGO_URL);
   if (c.MOCKUP_URL) document.getElementById('heroMockup').src = convertDriveUrl(c.MOCKUP_URL);
   if (c.NOMBRE_PRODUCTO) { document.getElementById('navBrand').textContent = c.NOMBRE_PRODUCTO; document.getElementById('footerBrand').textContent = c.NOMBRE_PRODUCTO; }
-  if (c.COLOR_PRIMARIO) document.documentElement.style.setProperty('--teal', c.COLOR_PRIMARIO);
-  if (c.COLOR_SECUNDARIO) document.documentElement.style.setProperty('--copper', c.COLOR_SECUNDARIO);
-  if (c.WHATSAPP_VENTAS) { var wa = 'https://wa.me/57' + c.WHATSAPP_VENTAS.replace(/\D/g, ''); document.getElementById('whatsappFloat').href = wa; }
+  // Solo aplicar colores si no son negro (#000000) — negro rompe el diseño del hero y secciones
+  if (c.COLOR_PRIMARIO && c.COLOR_PRIMARIO !== '#000000') document.documentElement.style.setProperty('--teal', c.COLOR_PRIMARIO);
+  if (c.COLOR_SECUNDARIO && c.COLOR_SECUNDARIO !== '#000000') document.documentElement.style.setProperty('--copper', c.COLOR_SECUNDARIO);
+  var waNum = c.WHATSAPP_VENTAS || c.BEAUTYOS_WHATSAPP || '';
+  if (waNum) { document.getElementById('whatsappFloat').href = 'https://wa.me/' + String(waNum).replace(/\D/g, ''); }
   renderDolores(LANDING.dolores || []);
 }
 
