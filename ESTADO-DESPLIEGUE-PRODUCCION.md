@@ -124,7 +124,7 @@ Ya dentro de la VM:
 
 La señal de éxito es `beautyos-bot` en estado `online`. Luego hacer una prueba nueva por WhatsApp con el orden: tipo → marca → ciudad → equipo → nombre → autorización.
 
-## Reparación de leads comerciales incompletos — pendiente de publicar
+## Reparación de leads comerciales incompletos — Apps Script v84 publicado
 
 Una ficha que tenga como nombre de negocio `pendiente`, `N/A`, `salón`, `barbería`, una respuesta como `sí` o cualquier nombre genérico se considera incompleta. Ese texto nunca vuelve a aceptarse como nombre comercial.
 
@@ -187,14 +187,14 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 - 8031813 — sincroniza los archivos reales de landing y Setup de Apps Script al repositorio.
 - f0bfb6e — refina la conversación comercial, captura respuestas cortas de forma segura y endurece la validación de leads.
 
-La siguiente publicación incorporará la reparación segura de leads incompletos y se registrará aquí con su commit y versión de Apps Script.
+- 4b431c5 — repara de forma segura los leads incompletos, bloquea valores como `pendiente` y conserva la fila, asesor y estado al completarla. Publicado en Apps Script como versión `84`.
 
-Los cambios fueron enviados a la rama main y el bot de producción fue actualizado y guardado con PM2.
+Los cambios están enviados a la rama main y el CRM ya está en la versión 84. Falta aplicar el commit `4b431c5` al proceso `beautyos-bot` de la VM con el reinicio controlado de PM2.
 
 ## Próximo punto de trabajo
 
-1. Configurar de forma privada `BEAUTYOS_CRM_INTEGRATION_KEY` en Apps Script antes de publicar la reparación descrita arriba.
-2. Publicar el cambio en Apps Script y aplicarlo en la VM con el reinicio controlado de PM2 indicado arriba.
+1. Configurar de forma privada `BEAUTYOS_CRM_INTEGRATION_KEY` en Apps Script antes de activar la reparación en el bot.
+2. Aplicar el commit `4b431c5` en la VM con el reinicio controlado de PM2 indicado arriba.
 3. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación o reparación del lead.
 4. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
 5. Preparar la campaña de lanzamiento y usar el número comercial en redes.
