@@ -155,6 +155,23 @@ Se detectó que, tras reiniciar el bot, la lista de leads comerciales se cargaba
 
 El siguiente ajuste del bot carga la caché de `LEADS` antes de abrir la atención de WhatsApp. También reconcilia una sesión que ya hubiera empezado como prospecto: si el CRM identifica una ficha con negocio inválido, la convierte en `LEAD_INCOMPLETO` para que la siguiente respuesta solicite la marca real. No cambia clientes ni leads con nombre comercial válido.
 
+### Blindaje post-registro comercial — pendiente de aplicar junto con la siguiente actualización
+
+Se detectó una situación crítica en una prueba real: después de guardar correctamente un lead, Sofi respondía preguntas sobre el producto, pero un `sí` posterior podía reabrir el flujo de captura y volver a pedir negocio, equipo o autorización.
+
+La corrección añade tres defensas complementarias:
+
+1. Cuando el CRM confirma o recibe un lead, la sesión queda marcada como registro finalizado. Para ese contacto, el prompt prohíbe pedir nuevamente nombre, marca, ciudad, equipo o autorización; un `sí` continúa la explicación anterior.
+2. La herramienta técnica `capturar_lead` se retira por completo de la conversación de un lead ya registrado. Así, aunque el modelo interpretara mal una respuesta corta, no puede crear ni intentar completar otra ficha.
+3. Si un ciclo de sincronización consulta el CRM antes de que aparezca la fila recién guardada, conserva la sesión durante una ventana de confirmación. Solo un lead que ya haya sido visto en CRM puede volver a ser prospecto inmediatamente tras borrarlo de forma intencional.
+
+También se agregaron pruebas automáticas para estos escenarios. Antes del reinicio de producción se ejecutará:
+
+    cd /home/iaitelsa/beautyos/agent-bot
+    npm test
+
+No requiere cambios adicionales en Apps Script ni nuevas claves.
+
 ## CRM comercial y pruebas
 
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
@@ -195,12 +212,14 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 
 - 4b431c5 — repara de forma segura los leads incompletos, bloquea valores como `pendiente` y conserva la fila, asesor y estado al completarla. Publicado en Apps Script como versión `84` y aplicado al bot de la VM.
 
+- Pendiente de publicar — blinda la conversación posterior al registro, bloquea recapturas y protege la sesión ante sincronización atrasada del CRM. Incluye pruebas automáticas con `npm test`.
+
 El CRM está en la versión 84 y el bot fue reiniciado correctamente con PM2. La siguiente publicación corregirá la carga inicial de la caché de leads comerciales.
 
 ## Próximo punto de trabajo
 
-1. Aplicar la siguiente corrección de carga inicial en la VM con el reinicio controlado de PM2.
-2. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación o reparación del lead.
+1. Publicar el blindaje post-registro en la VM con un reinicio controlado de PM2 y validar `npm test`.
+2. Hacer una prueba real de punta a punta: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento, duda sobre una función y confirmación `sí`; el bot debe explicar la función sin pedir datos otra vez.
 3. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
 4. Preparar la campaña de lanzamiento y usar el número comercial en redes.
 5. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.

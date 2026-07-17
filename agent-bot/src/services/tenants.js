@@ -6,6 +6,11 @@ const api = require('./api');
 const { isValidLicense } = require('../utils/license');
 
 const DEFAULT_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+// Un guardado exitoso puede llegar al CRM justo después de que un sync tomó
+// su snapshot. Antes de considerar que el lead fue borrado, protegemos esa
+// ventana y exigimos dos lecturas posteriores sin la fila.
+const COMMERCIAL_LEAD_CACHE_CONFIRMATION_GRACE_MS = 15 * 60 * 1000;
+const COMMERCIAL_LEAD_MISSING_SYNC_THRESHOLD = 2;
 
 // Almacén en memoria de todos los tenants activos
 const tenantStore = {};
@@ -110,6 +115,46 @@ function markSessionAsIncompleteCommercialLead(session, phone, lead) {
         estadoLead: lead.estado || previousData.estadoLead || 'NUEVO'
     };
     session._datosCaptura = draft;
+}
+
+function markSessionAsExistingCommercialLead(session, phone, lead) {
+    const previousData = session.datos || {};
+    const draft = { ...(session._datosCaptura || {}) };
+    if (!draft.nombreContacto && lead.nombre) draft.nombreContacto = String(lead.nombre).trim();
+    if (!draft.negocio && lead.negocio) draft.negocio = String(lead.negocio).trim();
+    if (!draft.ciudad && lead.ciudad) draft.ciudad = String(lead.ciudad).trim();
+    if (!draft.empleados && lead.empleados) draft.empleados = String(lead.empleados).trim();
+
+    session.estado = 'LEAD_EXISTENTE';
+    session._leadCapturado = lead.negocio || previousData.negocio || draft.negocio || '';
+    session._commercialRegistrationComplete = true;
+    session._leadAwaitingCacheConfirmation = false;
+    delete session._leadSavedAt;
+    delete session._leadMissingAfterGrace;
+    delete session._leadNeedsCompletion;
+    session._commercialExpectedField = '';
+    session._awaitingLeadAuthorization = false;
+    session.datos = {
+        ...previousData,
+        celular: phone,
+        nombre: lead.nombre || previousData.nombre || '',
+        negocio: lead.negocio || previousData.negocio || draft.negocio || '',
+        ciudad: lead.ciudad || previousData.ciudad || draft.ciudad || '',
+        estadoLead: lead.estado || previousData.estadoLead || 'NUEVO'
+    };
+    session._datosCaptura = draft;
+}
+
+function shouldPreservePendingCommercialRegistration(session, now = Date.now()) {
+    if (!session?._leadAwaitingCacheConfirmation) return false;
+
+    const savedAt = Number(session._leadSavedAt || 0);
+    if (savedAt > 0 && now - savedAt < COMMERCIAL_LEAD_CACHE_CONFIRMATION_GRACE_MS) {
+        return true;
+    }
+
+    session._leadMissingAfterGrace = Number(session._leadMissingAfterGrace || 0) + 1;
+    return session._leadMissingAfterGrace < COMMERCIAL_LEAD_MISSING_SYNC_THRESHOLD;
 }
 
 /**
@@ -632,25 +677,64 @@ async function syncComercialData(tenant, tenantId) {
             const lead = leadsByPhone.get(normalizedPhone);
             const isClient = clientPhones.has(normalizedPhone) || session.estado === 'CLIENTE_EXISTENTE';
 
-            // Si el CRM confirma una fila con nombre comercial incompleto,
-            // convertir incluso una sesión que ya había comenzado como
-            // PROSPECTO. Así la siguiente respuesta pide la marca real y
-            // actualiza esa fila, en lugar de crear un duplicado.
-            if (lead && !isClient && session.estado === 'PROSPECTO' && isIncompleteCommercialLeadBusiness(lead.negocio)) {
-                markSessionAsIncompleteCommercialLead(session, phone, lead);
-                console.log(`[${tenantId}] 🛠️ Sesión convertida a lead incompleto: ${normalizedPhone}`);
+            // Si la fila recién guardada ya aparece en el CRM, el caché queda
+            // confirmado y desde este punto un borrado real sí podrá reiniciar
+            // la conversación de prueba.
+            if (lead && session._leadAwaitingCacheConfirmation) {
+                session._leadAwaitingCacheConfirmation = false;
+                delete session._leadSavedAt;
+                delete session._leadMissingAfterGrace;
+                console.log(`[${tenantId}] ✅ Registro comercial confirmado en caché: ${normalizedPhone}`);
+            }
+
+            // Si el CRM confirma una fila existente, reconciliar incluso una
+            // sesión que inició como PROSPECTO antes de que terminara de cargar
+            // el caché. Eso evita duplicar un lead válido tras un reinicio.
+            if (lead && !isClient && session.estado === 'PROSPECTO') {
+                if (isIncompleteCommercialLeadBusiness(lead.negocio)) {
+                    markSessionAsIncompleteCommercialLead(session, phone, lead);
+                    console.log(`[${tenantId}] 🛠️ Sesión convertida a lead incompleto: ${normalizedPhone}`);
+                } else {
+                    markSessionAsExistingCommercialLead(session, phone, lead);
+                    console.log(`[${tenantId}] ✅ Sesión reconciliada como lead existente: ${normalizedPhone}`);
+                }
+                return;
+            }
+
+            // Una ficha que era incompleta puede haber sido corregida desde el
+            // CRM. En ese caso no se vuelve a pedir el formulario completo.
+            if (lead && !isClient && session.estado === 'LEAD_INCOMPLETO' && !isIncompleteCommercialLeadBusiness(lead.negocio)) {
+                markSessionAsExistingCommercialLead(session, phone, lead);
+                console.log(`[${tenantId}] ✅ Lead incompleto reconciliado como existente: ${normalizedPhone}`);
                 return;
             }
 
             const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session.estado === 'LEAD_INCOMPLETO' || session._leadCapturado);
             if (isSavedLeadSession && !lead && !isClient) {
+                // No confundimos una lectura atrasada con un borrado. Después
+                // de saveLead/completeLead esperamos a que el CRM devuelva la
+                // fila al menos una vez; durante esa ventana la sesión y sus
+                // datos siguen intactos para que Sofi continúe la conversación.
+                if (session._leadAwaitingCacheConfirmation) {
+                    const savedAt = Number(session._leadSavedAt || 0);
+                    const withinGrace = savedAt > 0
+                        && Date.now() - savedAt < COMMERCIAL_LEAD_CACHE_CONFIRMATION_GRACE_MS;
+                    if (shouldPreservePendingCommercialRegistration(session)) {
+                        const reason = withinGrace
+                            ? 'Caché aún no confirma lead recién guardado; se conserva sesión'
+                            : 'Esperando segunda ausencia de caché antes de reiniciar';
+                        console.warn(`[${tenantId}] ⏳ ${reason}: ${normalizedPhone}`);
+                        return;
+                    }
+                }
+
                 const nombrePerfil = session.datos && session.datos.nombrePerfil ? session.datos.nombrePerfil : '';
                 tenant.userSessions[phone] = {
                     history: [],
                     estado: 'PROSPECTO',
                     datos: { celular: phone, nombrePerfil: nombrePerfil }
                 };
-                console.log(`[${tenantId}] ♻️ Sesión reiniciada para prueba: ${phone}`);
+                console.log(`[${tenantId}] ♻️ Sesión reiniciada porque el lead fue eliminado del CRM: ${phone}`);
             }
         });
     }
@@ -1120,4 +1204,12 @@ function shutdownAllTenants() {
     }
 }
 
-module.exports = { initAllTenants, getTenant, getActiveTenantIds, syncTenantData, shutdownAllTenants, setEvolutionClient };
+module.exports = {
+    initAllTenants,
+    getTenant,
+    getActiveTenantIds,
+    syncTenantData,
+    shutdownAllTenants,
+    setEvolutionClient,
+    shouldPreservePendingCommercialRegistration
+};

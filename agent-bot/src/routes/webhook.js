@@ -512,6 +512,11 @@ router.post('/evolution', async (req, res) => {
                 celular: phoneNumber,
                 estado: session.estado,
                 idCliente: datosSesion.idCliente || '',
+                // Dos señales redundantes protegen la conversación si un sync
+                // del CRM llega tarde: una sesión que ya confirmó el guardado
+                // nunca debe volver a entrar al flujo de captura.
+                registroCompleto: Boolean(session._commercialRegistrationComplete || session._leadCapturado || session.estado === 'LEAD_EXISTENTE'),
+                leadCapturado: Boolean(session._leadCapturado),
                 negocio: datosSesion.negocio || datosCaptura.negocio || '',
                 ciudad: datosSesion.ciudad || datosCaptura.ciudad || '',
                 estadoLead: datosSesion.estadoLead || '',
@@ -1776,10 +1781,23 @@ router.post('/evolution', async (req, res) => {
         // una respuesta breve en el siguiente turno se guarde sin adivinar.
         // La autorización solo se habilita con el perfil ya validado.
         if (isComercial) {
-            const expectedField = inferCommercialExpectedField(aiReply);
-            session._commercialExpectedField = expectedField;
-            session._awaitingLeadAuthorization = expectedField === 'autorizacion'
-                && hasCompleteCommercialDraft(session._datosCaptura);
+            const registroCompleto = Boolean(
+                session._commercialRegistrationComplete
+                || session._leadCapturado
+                || session.estado === 'LEAD_EXISTENTE'
+            );
+            if (registroCompleto) {
+                // Una pregunta de producto nunca puede dejar armada una
+                // autorización pendiente ni un campo de formulario. Así un
+                // "sí" posterior conserva el contexto de la explicación.
+                session._commercialExpectedField = '';
+                session._awaitingLeadAuthorization = false;
+            } else {
+                const expectedField = inferCommercialExpectedField(aiReply);
+                session._commercialExpectedField = expectedField;
+                session._awaitingLeadAuthorization = expectedField === 'autorizacion'
+                    && hasCompleteCommercialDraft(session._datosCaptura);
+            }
         }
 
         // Actualizar historial de conversación

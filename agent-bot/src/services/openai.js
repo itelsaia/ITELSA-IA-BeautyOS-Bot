@@ -386,6 +386,23 @@ const COMMERCIAL_TOOLS = [
     }
 ];
 
+function isCommercialLeadRegistrationComplete(userData = {}, session = null) {
+    return Boolean(
+        userData.registroCompleto
+        || userData.leadCapturado
+        || userData.estado === 'LEAD_EXISTENTE'
+        || session?._commercialRegistrationComplete
+        || session?._leadCapturado
+    );
+}
+
+function getCommercialToolsForConversation(userData = {}, session = null) {
+    if (!isCommercialLeadRegistrationComplete(userData, session)) {
+        return COMMERCIAL_TOOLS;
+    }
+    return COMMERCIAL_TOOLS.filter(tool => tool.function.name !== 'capturar_lead');
+}
+
 // ============================================================
 // Helpers de cálculo de disponibilidad (Backend Inteligente)
 // ============================================================
@@ -1189,10 +1206,11 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     }).join('\n') || '- Consulta el plan disponible con el equipo.';
 
     const isClient = userData.estado === 'CLIENTE_EXISTENTE' || Boolean(userData.idCliente);
-    // Un negocio en el borrador no convierte al prospecto en lead todavía.
-    // El estado solo cambia a LEAD_EXISTENTE después de que el CRM confirma
-    // el guardado, para que el flujo continúe pidiendo los datos faltantes.
-    const isExistingLead = !isClient && userData.estado === 'LEAD_EXISTENTE';
+    // La confirmación local se conserva mientras el CRM termina de reflejar
+    // una fila recién guardada. Así una sincronización atrasada no devuelve
+    // al prospecto al formulario de captura.
+    const registrationComplete = !isClient && isCommercialLeadRegistrationComplete(userData);
+    const isExistingLead = registrationComplete;
     const isIncompleteLead = !isClient && userData.estado === 'LEAD_INCOMPLETO';
     const displayName = userData.nombre && !['Usuario', 'Cliente'].includes(userData.nombre)
         ? userData.nombre
@@ -1258,6 +1276,34 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
         Number(campaign.META_CLIENTES || 0) > 0 && `Cupos disponibles: ${slots ?? '?'} de ${campaign.META_CLIENTES}.`
     ].filter(Boolean).join(' ');
     const paymentInfo = config.paymentInstructionsComercial || config.paymentInstructions || '';
+    const conversationRules = isExistingLead
+        ? `CONVERSACIÓN POST-REGISTRO — PRIORIDAD MÁXIMA
+- Este contacto YA autorizó y su ficha ya fue guardada. La captura terminó.
+- PROHIBIDO pedir, validar, confirmar o volver a solicitar nombre, negocio o marca, ciudad, equipo o autorización de datos.
+- PROHIBIDO usar capturar_lead. Un "sí", "listo" u "ok" responde solo a tu pregunta de contenido inmediatamente anterior; nunca es una autorización nueva.
+- Responde su duda primero. Si acabas de preguntarle si desea saber cómo usar o configurar algo y responde sí, explica ese proceso de forma breve y clara; no inicies un registro.
+- Si pide corregir un dato específico, reconoce el cambio y solicita únicamente ese dato, sin reiniciar el flujo.`
+        : `CONVERSACIÓN CON PROSPECTOS
+- La conversación debe sentirse como una asesoría, no como un formulario. Haz máximo una pregunta concreta por mensaje.
+- Nunca preguntes "¿a qué negocio te dedicas?" ni "¿cuál es tu negocio?". Primero identifica el TIPO de negocio y después pide su NOMBRE COMERCIAL o marca.
+- "Barbería", "spa", "uñas", "cejas" o "salón" son tipos de negocio; nunca los uses como nombre del negocio. Si solo te dan el tipo, agradece y pregunta cómo se llama su marca.
+- Si responde algo genérico como "belleza" o "negocio de belleza", aclara con opciones concretas de tipo; no avances ni supongas el nombre de la marca.
+- Sigue la guía de abajo solo para los datos que aún falten. Si el usuario da varios datos claros en un mismo mensaje, aprovéchalos y no los vuelvas a pedir.
+- Si el prospecto hace una pregunta concreta sobre precio, funciones, implementación o uso, respóndela primero en una frase con datos reales. Después retoma únicamente la pregunta objetivo de la guía.
+- La necesidad o duda es opcional: si la expresa, respóndela y guárdala como contexto; no la exijas antes de solicitar la autorización.
+- No presiones para registrarse. Después de resolver sus dudas, invítalo naturalmente a dejar sus datos para que el equipo pueda orientarlo o darle seguimiento.
+- Cuando conozcas tipo de negocio o necesidad, inclúyelos en notas al llamar capturar_lead: "Tipo de negocio: ... | Necesidad/duda: ...". No inventes esos datos.`;
+    const captureRules = isExistingLead
+        ? `CAPTURA DE PROSPECTO
+- CERRADA PARA ESTE CONTACTO: no pidas datos de registro ni llames capturar_lead.`
+        : `CAPTURA DE PROSPECTO
+- Antes de capturar exige nombre de contacto confirmado, nombre comercial del negocio, ciudad, cantidad de empleados y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
+- Usa datos del historial y del contexto. No vuelvas a pedir un dato ya respondido.
+- Si el contexto indica LEAD CON REGISTRO INCOMPLETO, completa los datos faltantes y, tras la autorización, llama capturar_lead: el sistema actualizará la misma ficha sin crear un duplicado.
+- Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
+- Cuando estén los cuatro datos obligatorios, pregunta exactamente: "Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos sí o no."
+- Un "sí" solo cuenta como autorización si la pregunta anterior fue esa autorización. Si responde no, respeta su decisión y no captures.
+- Solo llama capturar_lead cuando todos los datos estén completos. Confirma el registro únicamente si la herramienta responde éxito.`;
 
     return `Eres ${agentName}, asesora comercial y de soporte de ${businessName}. Fecha: ${todayStr} (${todayDayName}).
 
@@ -1280,28 +1326,12 @@ ${campaignParts ? `Campaña: ${campaignParts}` : 'No hay campaña especial confi
 FAQs útiles para este mensaje:
 ${selectedKnowledge || '- Si no conoces la respuesta, di que la confirmarás con el equipo.'}
 
-CONVERSACIÓN CON PROSPECTOS
-- La conversación debe sentirse como una asesoría, no como un formulario. Haz máximo una pregunta concreta por mensaje.
-- Nunca preguntes "¿a qué negocio te dedicas?" ni "¿cuál es tu negocio?". Primero identifica el TIPO de negocio y después pide su NOMBRE COMERCIAL o marca.
-- "Barbería", "spa", "uñas", "cejas" o "salón" son tipos de negocio; nunca los uses como nombre del negocio. Si solo te dan el tipo, agradece y pregunta cómo se llama su marca.
-- Si responde algo genérico como "belleza" o "negocio de belleza", aclara con opciones concretas de tipo; no avances ni supongas el nombre de la marca.
-- Sigue la guía de abajo solo para los datos que aún falten. Si el usuario da varios datos claros en un mismo mensaje, aprovéchalos y no los vuelvas a pedir.
-- Si el prospecto hace una pregunta concreta sobre precio, funciones, implementación o uso, respóndela primero en una frase con datos reales. Después retoma únicamente la pregunta objetivo de la guía.
-- La necesidad o duda es opcional: si la expresa, respóndela y guárdala como contexto; no la exijas antes de solicitar la autorización.
-- No presiones para registrarse. Después de resolver sus dudas, invítalo naturalmente a dejar sus datos para que el equipo pueda orientarlo o darle seguimiento.
-- Cuando conozcas tipo de negocio o necesidad, inclúyelos en notas al llamar capturar_lead: "Tipo de negocio: ... | Necesidad/duda: ...". No inventes esos datos.
+${conversationRules}
 
 GUÍA DEL SIGUIENTE PASO
 ${prospectGuide || 'No aplica: atiende la necesidad actual sin reiniciar la captura.'}
 
-CAPTURA DE PROSPECTO
-- Antes de capturar exige nombre de contacto confirmado, nombre comercial del negocio, ciudad, cantidad de empleados y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
-- Usa datos del historial y del contexto. No vuelvas a pedir un dato ya respondido.
-- Si el contexto indica LEAD CON REGISTRO INCOMPLETO, completa los datos faltantes y, tras la autorización, llama capturar_lead: el sistema actualizará la misma ficha sin crear un duplicado.
-- Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
-- Cuando estén los cuatro datos obligatorios, pregunta exactamente: "Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos sí o no."
-- Un "sí" solo cuenta como autorización si la pregunta anterior fue esa autorización. Si responde no, respeta su decisión y no captures.
-- Solo llama capturar_lead cuando todos los datos estén completos. Confirma el registro únicamente si la herramienta responde éxito.
+${captureRules}
 
 VENTAS Y PIPELINE
 - Para prospecto nuevo, ofrece una propuesta de valor breve y recoge el siguiente dato faltante. Menciona precio u oferta exacta solo cuando ya estén los datos obligatorios o si pregunta directamente.
@@ -1910,7 +1940,18 @@ PASO 5 — POST-CONFIRMACIÓN:
         console.log(`[openai] 📋 Prompt: equipo=${dedupUnique.length} pros, agenda=${allPendingAppointments.length} citas, historial=${messageHistory.length} msgs`);
 
         // 5. Primera llamada a OpenAI
-        const activeTools = config.tenantType === 'comercial' ? COMMERCIAL_TOOLS : TOOLS;
+        // Un lead ya registrado no puede volver a ejecutar la captura. Esta
+        // barrera es deliberadamente técnica (no solo de prompt): incluso si
+        // el modelo interpreta un "sí" de forma errónea, no tiene disponible
+        // la herramienta que crea o completa un lead.
+        const commercialRegistrationComplete = config.tenantType === 'comercial'
+            && isCommercialLeadRegistrationComplete(userData, session);
+        const activeTools = config.tenantType === 'comercial'
+            ? getCommercialToolsForConversation(userData, session)
+            : TOOLS;
+        if (commercialRegistrationComplete) {
+            console.log('[openai] 🛡️ Lead comercial registrado: captura bloqueada para esta conversación.');
+        }
         // Las conversaciones comerciales son deliberadamente breves. 350 tokens
         // alcanzan para una respuesta de WhatsApp y para argumentos de herramientas.
         const responseMaxTokens = config.tenantType === 'comercial' ? 350 : 1000;
@@ -2449,6 +2490,16 @@ PASO 5 — POST-CONFIRMACIÓN:
                         if (resp && !resp.error) {
                             session._leadCapturado = nombreNegocio;
                             session.estado = 'LEAD_EXISTENTE';
+                            // El CRM puede tardar unos segundos en devolver el
+                            // lead recién creado durante un sync concurrente.
+                            // Esta marca evita que ese vacío transitorio borre
+                            // la sesión y vuelva a iniciar el formulario.
+                            session._commercialRegistrationComplete = true;
+                            session._leadAwaitingCacheConfirmation = true;
+                            session._leadSavedAt = Date.now();
+                            session._leadMissingAfterGrace = 0;
+                            session._commercialExpectedField = '';
+                            session._awaitingLeadAuthorization = false;
                             delete session._leadNeedsCompletion;
                             if (session.datos) {
                                 session.datos.nombre = nombreContacto;
@@ -2754,4 +2805,10 @@ Responde SOLO con un JSON valido, sin markdown ni texto adicional:
     }
 }
 
-module.exports = { generateAIResponse, analyzePaymentReceipt };
+module.exports = {
+    generateAIResponse,
+    analyzePaymentReceipt,
+    buildCommercialPrompt,
+    getCommercialToolsForConversation,
+    isCommercialLeadRegistrationComplete
+};
