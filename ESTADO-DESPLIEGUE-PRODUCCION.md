@@ -1,6 +1,6 @@
 # BeautyOS — estado operativo de producción
 
-> Documento de continuidad. Actualizado al cierre de la sesión de despliegue de julio de 2026.
+> Documento de continuidad. Actualizado el 17 de julio de 2026.
 > Este archivo es la referencia para retomar el proyecto sin depender de una sesión de Cloud Shell o de una conversación anterior.
 
 ## Estado actual
@@ -89,15 +89,50 @@ Después de push, se debe crear una nueva versión sobre el mismo despliegue web
 
 Importante: clasp push actualiza el código remoto, pero no publica por sí solo la nueva versión de la web app. El paso deploy mantiene la URL pública existente y aplica el cambio en producción.
 
+## Ajuste de conversación comercial — 17 de julio de 2026
+
+Se afinó el agente comercial Sofi para que la captura de un prospecto sea clara, respetuosa y verificable. El cambio está en el commit `f0bfb6e` y el CRM de Apps Script se publicó como versión `83` en el despliegue web existente.
+
+El flujo de conversación ahora es:
+
+1. Identificar el tipo de negocio con opciones claras: salón, barbería, spa, uñas, estética o cejas.
+2. Preguntar el nombre comercial o marca: por ejemplo, `Corte Fino`; no usar “barbería” o “salón” como si fueran el nombre del negocio.
+3. Preguntar ciudad, tamaño del equipo y nombre de contacto, de una pregunta concreta por mensaje.
+4. Responder primero cualquier duda real sobre BeautyOS, precio, funciones o implementación; la duda es opcional y no bloquea el registro.
+5. Pedir autorización explícita solo cuando los cuatro datos obligatorios ya fueron confirmados.
+
+El bot conserva cuál fue la última pregunta de captura. Así entiende respuestas cortas como `Corte Fino`, `Bogotá`, `3` o `Ana` en el campo correcto, sin usar el nombre de perfil de WhatsApp como nombre del contacto.
+
+También se rechazan nombres genéricos, asentimientos como `sí` o `listo` usados por error como ciudad/marca, y cualquier intento de guardar un lead incompleto. Estas reglas se validan en el bot y nuevamente en Apps Script antes de escribir la hoja `LEADS`.
+
+### Aplicar el ajuste del bot en la VM
+
+El código ya está enviado a GitHub. Para que el agente que está en producción use esta lógica, desde Cloud Shell se debe ejecutar una vez:
+
+    gcloud config set project itelsa-beautyos
+    gcloud compute ssh beautyos-server --zone=us-central1-a
+
+Ya dentro de la VM:
+
+    cd /home/iaitelsa/beautyos
+    git pull --ff-only origin main
+    cd agent-bot
+    pm2 restart beautyos-bot --update-env
+    pm2 save
+    pm2 status
+
+La señal de éxito es `beautyos-bot` en estado `online`. Luego hacer una prueba nueva por WhatsApp con el orden: tipo → marca → ciudad → equipo → nombre → autorización.
+
 ## CRM comercial y pruebas
 
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
 
 - Responde de forma breve, cálida y con máximo un emoji de belleza por mensaje.
 - Usa solo la información comercial, campaña, planes y FAQs relevantes al mensaje.
-- Para guardar un lead exige: nombre, negocio, ciudad, número de empleados y autorización expresa.
+- Distingue tipo de negocio de nombre comercial; no pregunta de forma ambigua “¿a qué negocio te dedicas?”.
+- Para guardar un lead exige: nombre confirmado, nombre comercial, ciudad, número de empleados y autorización expresa.
 - El correo es opcional.
-- La ciudad y los demás datos obligatorios se validan también en el servidor; no solo en el prompt.
+- La ciudad y los demás datos obligatorios se validan también en el servidor y en Apps Script; no solo en el prompt.
 
 El nombre con el que el bot saluda puede venir del nombre de perfil que WhatsApp entrega a Evolution API. No lee la agenda del teléfono. Por eso puede saludar por nombre incluso si el lead fue eliminado del CRM.
 
@@ -124,15 +159,17 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 - 713a3c9 — compacta el prompt comercial y reduce consumo de tokens.
 - ece58ee — agrega borrado protegido y archivado de leads de prueba.
 - 8031813 — sincroniza los archivos reales de landing y Setup de Apps Script al repositorio.
+- f0bfb6e — refina la conversación comercial, captura respuestas cortas de forma segura y endurece la validación de leads.
 
 Los cambios fueron enviados a la rama main y el bot de producción fue actualizado y guardado con PM2.
 
 ## Próximo punto de trabajo
 
-1. Hacer pruebas reales de punta a punta con el agente comercial: conversación corta, ciudad, tamaño del equipo, consentimiento y creación del lead.
-2. Verificar que cada registro nuevo se vea con ciudad en CRM y que los indicadores se actualicen.
-3. Preparar la campaña de lanzamiento y usar el número comercial en redes.
-4. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
+1. Aplicar el commit f0bfb6e en la VM con el reinicio controlado de PM2 indicado arriba.
+2. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación del lead.
+3. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
+4. Preparar la campaña de lanzamiento y usar el número comercial en redes.
+5. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
 
 ## Forma de trabajo y conceptos para aprender
 
