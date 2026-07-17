@@ -441,7 +441,8 @@ router.post('/evolution', async (req, res) => {
                 } else {
                     // Buscar si ya es un lead capturado previamente
                     const leadsCache = tenant._leadsCache || [];
-                    const leadMatch = leadsCache.find(l => String(l.whatsapp).trim() === phoneNumber);
+                    const normalizedPhoneNumber = String(phoneNumber || '').replace(/\D/g, '');
+                    const leadMatch = leadsCache.find(l => String(l.whatsapp || '').replace(/\D/g, '') === normalizedPhoneNumber);
                     if (leadMatch) {
                         const isIncompleteLead = isInvalidCommercialBusinessName(leadMatch.negocio);
                         if (isIncompleteLead) {

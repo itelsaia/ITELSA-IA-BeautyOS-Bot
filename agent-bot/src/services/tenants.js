@@ -29,6 +29,89 @@ function setEvolutionClient(client) {
     evolutionClient = client;
 }
 
+// ─── Cache y recuperación de leads comerciales ────────────────────────────
+// El CRM es la fuente de verdad. Estas utilidades evitan que un reinicio del
+// bot trate durante algunos minutos a un lead existente como prospecto nuevo.
+function normalizeCommercialPhone(value) {
+    return String(value || '').replace(/\D/g, '');
+}
+
+function normalizeCommercialLeadText(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+}
+
+function isIncompleteCommercialLeadBusiness(value) {
+    const normalized = normalizeCommercialLeadText(value)
+        .replace(/^(?:mi|un|una|el|la)\s+/, '')
+        .trim();
+    const isGeneric = /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(normalized);
+    const isAcknowledgement = /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalized);
+    const isPlaceholder = /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalized);
+    return !normalized || isGeneric || isAcknowledgement || isPlaceholder;
+}
+
+function isPlausibleCommercialLeadCity(value) {
+    const city = String(value || '').trim();
+    const normalized = normalizeCommercialLeadText(city);
+    return /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{1,59}$/.test(city)
+        && !/^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale|pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-|mi ciudad|el negocio|colombia|no se|ninguna)$/.test(normalized);
+}
+
+function buildCommercialLeadsCache(leads) {
+    return (Array.isArray(leads) ? leads : []).map(lead => ({
+        whatsapp: String(lead.WHATSAPP || '').trim(),
+        nombre: lead.NOMBRE_CONTACTO || '',
+        negocio: lead.NOMBRE_NEGOCIO || '',
+        ciudad: lead.CIUDAD || '',
+        empleados: lead.CANTIDAD_EMPLEADOS || lead.CANTIDAD_EMPLEAD || '',
+        estado: lead.ESTADO || 'NUEVO'
+    }));
+}
+
+async function refreshCommercialLeadsCache(tenant, tenantId) {
+    const crmUrl = tenant.crmUrl || tenant.config.crmBeautyosUrl;
+    if (!crmUrl) return false;
+    try {
+        const leadsResp = await api.postToCRM(crmUrl, { action: 'getLeads' });
+        if (!Array.isArray(leadsResp)) {
+            console.warn(`[${tenantId}] Cache de leads CRM no disponible; se reintentará en el siguiente sync.`);
+            return false;
+        }
+        tenant._leadsCache = buildCommercialLeadsCache(leadsResp);
+        console.log(`[${tenantId}] 📋 Leads CRM cargados: ${tenant._leadsCache.length}`);
+        return true;
+    } catch (error) {
+        console.warn(`[${tenantId}] No se pudo cargar cache de leads CRM: ${error.message}`);
+        return false;
+    }
+}
+
+function markSessionAsIncompleteCommercialLead(session, phone, lead) {
+    const draft = { ...(session._datosCaptura || {}) };
+    if (!draft.ciudad && isPlausibleCommercialLeadCity(lead.ciudad)) {
+        draft.ciudad = String(lead.ciudad).trim();
+    }
+    if (!draft.empleados && ['Solo yo', '2 a 5', '6 a 10', '11 o mas'].includes(String(lead.empleados || '').trim())) {
+        draft.empleados = String(lead.empleados).trim();
+    }
+
+    const previousData = session.datos || {};
+    session.estado = 'LEAD_INCOMPLETO';
+    session._leadNeedsCompletion = true;
+    delete session._leadCapturado;
+    session.datos = {
+        celular: phone,
+        nombrePerfil: previousData.nombrePerfil || '',
+        ciudad: draft.ciudad || '',
+        estadoLead: lead.estado || previousData.estadoLead || 'NUEVO'
+    };
+    session._datosCaptura = draft;
+}
+
 /**
  * Lee las definiciones estáticas de tenants desde tenants.json
  */
@@ -164,6 +247,7 @@ async function initTenant(tenantId, tenantDef) {
         syncInterval: null,
         lastSync: new Date().toISOString(),
         clientesCRM: {},
+        _leadsCache: [],
         _paymentRemindersSent: {}
     };
 
@@ -183,6 +267,11 @@ async function initTenant(tenantId, tenantDef) {
                 console.error(`[${tenantId}] Error cargando clientes CRM:`, crmErr.message);
             }
         }
+
+        // Cargar leads antes de abrir el bot al tráfico. Sin esta carga, un
+        // WhatsApp que escriba justo después de un reinicio se clasifica como
+        // prospecto nuevo hasta el siguiente ciclo de cinco minutos.
+        await refreshCommercialLeadsCache(tenant, tenantId);
     }
 
     // Iniciar sincronización periódica con Google Sheets
@@ -508,24 +597,9 @@ async function syncComercialData(tenant, tenantId) {
     const crmUrl = tenant.crmUrl || tenant.config.crmBeautyosUrl;
     if (!crmUrl) return;
 
-    // 0. Cache de leads para reconocer prospectos que vuelven a escribir
-    let leadsSynced = false;
-    try {
-        const leadsResp = await api.postToCRM(crmUrl, { action: 'getLeads' });
-        if (Array.isArray(leadsResp)) {
-            tenant._leadsCache = leadsResp.map(l => ({
-                whatsapp: String(l.WHATSAPP || '').trim(),
-                nombre: l.NOMBRE_CONTACTO || '',
-                negocio: l.NOMBRE_NEGOCIO || '',
-                ciudad: l.CIUDAD || '',
-                empleados: l.CANTIDAD_EMPLEADOS || l.CANTIDAD_EMPLEAD || '',
-                estado: l.ESTADO || 'NUEVO'
-            }));
-            leadsSynced = true;
-        }
-    } catch (err) {
-        // No critico — si falla, leads no se reconocen pero el bot sigue funcionando
-    }
+    // 0. Cache de leads para reconocer prospectos que vuelven a escribir.
+    // La misma rutina se usa durante el arranque y durante el sync periódico.
+    const leadsSynced = await refreshCommercialLeadsCache(tenant, tenantId);
 
     // 1. Sincronizar clientes CRM
     try {
@@ -540,19 +614,36 @@ async function syncComercialData(tenant, tenantId) {
         console.error(`[${tenantId}] Error sync clientes CRM:`, err.message);
     }
 
-    // Si un administrador elimina un lead para repetir una prueba, el CRM ya
-    // no lo devuelve. Limpiar esa sesión en memoria evita que _leadCapturado
-    // bloquee una nueva captura con el mismo WhatsApp.
+    // Reconciliar las sesiones con el CRM. Esto cubre dos casos: un lead que
+    // fue eliminado para repetir una prueba y una ficha histórica incompleta
+    // que fue detectada después de que el usuario ya escribió al bot.
     if (leadsSynced && tenant.userSessions) {
-        const normalizePhone = value => String(value || '').replace(/\D/g, '');
-        const leadPhones = new Set((tenant._leadsCache || []).map(lead => normalizePhone(lead.whatsapp)).filter(Boolean));
-        const clientPhones = new Set(Object.keys(tenant.clientesCRM || {}).map(normalizePhone).filter(Boolean));
+        const leadsByPhone = new Map(
+            (tenant._leadsCache || [])
+                .map(lead => [normalizeCommercialPhone(lead.whatsapp), lead])
+                .filter(([phone]) => Boolean(phone))
+        );
+        const clientPhones = new Set(Object.keys(tenant.clientesCRM || {}).map(normalizeCommercialPhone).filter(Boolean));
 
         Object.keys(tenant.userSessions).forEach(phone => {
             const session = tenant.userSessions[phone];
+            if (!session) return;
+            const normalizedPhone = normalizeCommercialPhone(phone);
+            const lead = leadsByPhone.get(normalizedPhone);
+            const isClient = clientPhones.has(normalizedPhone) || session.estado === 'CLIENTE_EXISTENTE';
+
+            // Si el CRM confirma una fila con nombre comercial incompleto,
+            // convertir incluso una sesión que ya había comenzado como
+            // PROSPECTO. Así la siguiente respuesta pide la marca real y
+            // actualiza esa fila, en lugar de crear un duplicado.
+            if (lead && !isClient && session.estado === 'PROSPECTO' && isIncompleteCommercialLeadBusiness(lead.negocio)) {
+                markSessionAsIncompleteCommercialLead(session, phone, lead);
+                console.log(`[${tenantId}] 🛠️ Sesión convertida a lead incompleto: ${normalizedPhone}`);
+                return;
+            }
+
             const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session.estado === 'LEAD_INCOMPLETO' || session._leadCapturado);
-            const normalizedPhone = normalizePhone(phone);
-            if (isSavedLeadSession && !leadPhones.has(normalizedPhone) && !clientPhones.has(normalizedPhone)) {
+            if (isSavedLeadSession && !lead && !isClient) {
                 const nombrePerfil = session.datos && session.datos.nombrePerfil ? session.datos.nombrePerfil : '';
                 tenant.userSessions[phone] = {
                     history: [],

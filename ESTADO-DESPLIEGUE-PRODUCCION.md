@@ -149,6 +149,12 @@ Esta protección evita que alguien que conozca la URL pública del CRM pueda sim
 3. Completar solo los datos faltantes y aceptar el uso de datos.
 4. Comprobar en CRM que cambia el nombre del negocio en la misma fila, sin duplicado, y que se mantienen el asesor y el estado previo.
 
+### Corrección de carga inicial — pendiente de aplicar en la VM
+
+Se detectó que, tras reiniciar el bot, la lista de leads comerciales se cargaba solo en el siguiente ciclo de sincronización (cada cinco minutos). Durante esa ventana, un lead existente podía recibir el saludo genérico de prospecto nuevo.
+
+El siguiente ajuste del bot carga la caché de `LEADS` antes de abrir la atención de WhatsApp. También reconcilia una sesión que ya hubiera empezado como prospecto: si el CRM identifica una ficha con negocio inválido, la convierte en `LEAD_INCOMPLETO` para que la siguiente respuesta solicite la marca real. No cambia clientes ni leads con nombre comercial válido.
+
 ## CRM comercial y pruebas
 
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
@@ -187,18 +193,17 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 - 8031813 — sincroniza los archivos reales de landing y Setup de Apps Script al repositorio.
 - f0bfb6e — refina la conversación comercial, captura respuestas cortas de forma segura y endurece la validación de leads.
 
-- 4b431c5 — repara de forma segura los leads incompletos, bloquea valores como `pendiente` y conserva la fila, asesor y estado al completarla. Publicado en Apps Script como versión `84`.
+- 4b431c5 — repara de forma segura los leads incompletos, bloquea valores como `pendiente` y conserva la fila, asesor y estado al completarla. Publicado en Apps Script como versión `84` y aplicado al bot de la VM.
 
-Los cambios están enviados a la rama main y el CRM ya está en la versión 84. Falta aplicar el commit `4b431c5` al proceso `beautyos-bot` de la VM con el reinicio controlado de PM2.
+El CRM está en la versión 84 y el bot fue reiniciado correctamente con PM2. La siguiente publicación corregirá la carga inicial de la caché de leads comerciales.
 
 ## Próximo punto de trabajo
 
-1. Configurar de forma privada `BEAUTYOS_CRM_INTEGRATION_KEY` en Apps Script antes de activar la reparación en el bot.
-2. Aplicar el commit `4b431c5` en la VM con el reinicio controlado de PM2 indicado arriba.
-3. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación o reparación del lead.
-4. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
-5. Preparar la campaña de lanzamiento y usar el número comercial en redes.
-6. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
+1. Aplicar la siguiente corrección de carga inicial en la VM con el reinicio controlado de PM2.
+2. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación o reparación del lead.
+3. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
+4. Preparar la campaña de lanzamiento y usar el número comercial en redes.
+5. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
 
 ## Forma de trabajo y conceptos para aprender
 
