@@ -29,9 +29,15 @@ function doGet(e) {
   }
   return HtmlService.createTemplateFromFile('index')
     .evaluate()
-    .setTitle('BeautyOS - Tecnologia para tu Negocio de Belleza')
+    .setTitle('BeautyOS by ITELSA IA | Gestion para negocios de belleza')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+// Permite mantener recursos de marca en archivos separados sin depender de
+// enlaces publicos de Drive. Se usa al renderizar las plantillas HTML.
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
 // doPost para integraciones externas: leads, novedades, y consultas del agente IA comercial
@@ -229,7 +235,9 @@ function handleSaveLead(payload) {
 
   // Notificacion por email
   var emailDest = config.EMAIL_LEADS || 'iaitelsa@gmail.com';
-  var nombreProducto = config.NOMBRE_PRODUCTO || 'BeautyOS';
+  var nombreProducto = source === 'landing-web'
+    ? 'BeautyOS by ITELSA IA'
+    : (config.NOMBRE_PRODUCTO || 'BeautyOS');
   try {
     MailApp.sendEmail({
       to: emailDest,
@@ -1086,17 +1094,21 @@ function savePanelData(data) {
 // ═══════════════════════════════════════════════
 
 function buildLeadEmailHtml(payload, nombreProducto, categoria) {
+  var fechaCaptura = Utilities.formatDate(new Date(), 'America/Bogota', 'dd/MM/yyyy HH:mm:ss');
   return '<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">'
-    + '<div style="background:#1B6B6A;color:white;padding:20px;border-radius:8px 8px 0 0;">'
+    + '<div style="background:#0B1F2A;color:white;padding:20px;border-radius:8px 8px 0 0;border-bottom:3px solid #00BFD6;">'
     + '<h2 style="margin:0;">Nuevo Lead ' + nombreProducto + '</h2>'
-    + '<p style="margin:5px 0 0;opacity:0.9;">' + new Date().toLocaleString('es-CO') + '</p></div>'
+    + '<p style="margin:5px 0 0;opacity:0.9;">' + fechaCaptura + ' · Hora Colombia</p></div>'
     + '<div style="padding:20px;border:1px solid #e5e7eb;border-top:none;">'
-    + '<h3 style="color:#1B6B6A;border-bottom:2px solid #1B6B6A;padding-bottom:5px;">Datos del Lead</h3>'
+    + '<h3 style="color:#0A3D62;border-bottom:2px solid #00BFD6;padding-bottom:5px;">Datos del Lead</h3>'
     + '<table style="width:100%;border-collapse:collapse;">'
+    + emailRow('Contacto', payload.nombreContacto)
     + emailRow('Negocio / Marca', payload.nombreNegocio)
     + emailRow('WhatsApp', payload.whatsapp)
     + emailRow('Email', payload.email)
     + emailRow('Ciudad', payload.ciudad)
+    + emailRow('Tipo de negocio', payload.tipoNegocio)
+    + emailRow('Desea mejorar', payload.necesidadPrincipal)
     + emailRow('Empleados', payload.cantidadEmpleados)
     + emailRow('Categoria', categoria)
     + emailRow('Necesidad / contexto', payload.notas)

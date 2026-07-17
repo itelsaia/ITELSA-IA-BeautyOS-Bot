@@ -155,15 +155,15 @@ function crearConfiguracion(ss) {
   var data = [
     ['CLAVE', 'VALOR'],
     // Branding
-    ['NOMBRE_PRODUCTO', 'BeautyOS'],
-    ['COLOR_PRIMARIO', '#1B6B6A'],
-    ['COLOR_SECUNDARIO', '#C8845A'],
+    ['NOMBRE_PRODUCTO', 'BeautyOS by ITELSA IA'],
+    ['COLOR_PRIMARIO', '#0B1F2A'],
+    ['COLOR_SECUNDARIO', '#00BFD6'],
     ['LOGO_URL', 'https://drive.google.com/file/d/1I0XzbOfCf0BFAbua1S-otVRu-d_iM7F3/view'],
     ['MOCKUP_URL', 'https://drive.google.com/file/d/10LW-xiEEd_88ezpgm4bRY4cxi_YJS5Hz/view'],
     // Landing — Hero
-    ['HERO_BADGE', 'Tecnologia para tu negocio de belleza'],
-    ['HERO_TITULO', 'Mientras lees esto, tu competencia ya esta <span>automatizando su negocio</span>'],
-    ['HERO_SUBTITULO', 'Peluquerias, spas, centros esteticos y barbershops que usan IA ya no pierden citas ni clientes.'],
+    ['HERO_BADGE', 'Tecnologia creada para la belleza'],
+    ['HERO_TITULO', 'Sistema integral de gestion para negocios de belleza'],
+    ['HERO_SUBTITULO', 'BeautyOS by ITELSA IA automatiza citas, recordatorios, clientes, ventas, inventario y marketing para que tu negocio trabaje con mas organizacion, mas eficiencia y mejor seguimiento.'],
     // Landing — Secciones
     ['DOLOR_TITULO', 'Esto te suena familiar?'],
     ['DOLOR_SUBTITULO', 'Tu negocio enfrenta estos problemas todos los dias. La tecnologia puede resolverlos.'],
@@ -184,7 +184,7 @@ function crearConfiguracion(ss) {
     ['DEMO_NOVEDADES_URL', 'https://drive.google.com/file/d/11QDqP6ZJLKMCWJBFSbBhoHz7KY-5zO9N/view'],
     ['DEMO_SOLICITUDES_URL', 'https://drive.google.com/file/d/196XzIMAAR9guJmND-U6f22n60ypAVRIQ/view'],
     // Contacto
-    ['WHATSAPP_VENTAS', ''],
+    ['WHATSAPP_VENTAS', '573108828904'],
     ['EMAIL_VENTAS', 'iaitelsa@gmail.com'],
     ['EMAIL_LEADS', 'iaitelsa@gmail.com'],
     // CRM — Agente IA
