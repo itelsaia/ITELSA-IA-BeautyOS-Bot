@@ -39,6 +39,7 @@ Estos valores ya están configurados y funcionando, pero nunca deben escribirse 
 - Claves de Evolution API y del bot.
 - Claves o contraseñas de base de datos.
 - BEAUTYOS_DELETE_LEAD_KEY, guardada como Propiedad de secuencia de comandos de Apps Script.
+- BEAUTYOS_CRM_INTEGRATION_KEY, guardada como Propiedad de secuencia de comandos de Apps Script para validar las actualizaciones del bot al CRM.
 
 Los archivos .env y credenciales-google.json están excluidos de Git. Antes de cualquier cambio, verificar que sigan con permisos privados.
 
@@ -123,6 +124,31 @@ Ya dentro de la VM:
 
 La señal de éxito es `beautyos-bot` en estado `online`. Luego hacer una prueba nueva por WhatsApp con el orden: tipo → marca → ciudad → equipo → nombre → autorización.
 
+## Reparación de leads comerciales incompletos — pendiente de publicar
+
+Una ficha que tenga como nombre de negocio `pendiente`, `N/A`, `salón`, `barbería`, una respuesta como `sí` o cualquier nombre genérico se considera incompleta. Ese texto nunca vuelve a aceptarse como nombre comercial.
+
+Cuando el mismo WhatsApp escriba al agente, Sofi le pedirá de forma directa: `Para actualizar tu registro, ¿cómo se llama tu negocio o marca?` Después solicitará únicamente los datos que aún falten. Al recibir autorización, actualiza la misma fila de `LEADS`; no crea un duplicado y conserva el estado, el asesor asignado y la fecha original.
+
+### Protección obligatoria antes de activar esta reparación
+
+La actualización de una ficha existente requiere una clave privada entre el bot y Apps Script. Antes de probarla en producción, configurar en el proyecto `CRM_BEAUTY_OS` una Propiedad de secuencia de comandos:
+
+| Propiedad | Valor privado |
+|---|---|
+| `BEAUTYOS_CRM_INTEGRATION_KEY` | La misma clave interna que ya usa el bot: `BOT_API_KEY` de su `.env` en la VM. |
+
+No pegar ni enviar esa clave por chat, Git o capturas. Copiarla de forma privada desde el archivo `.env` del servidor al campo de valor de Apps Script. Más adelante se puede crear una `CRM_GAS_API_KEY` independiente; mientras tanto el bot usa de forma segura la clave interna existente.
+
+Esta protección evita que alguien que conozca la URL pública del CRM pueda simular una actualización de lead. Si la propiedad no existe o no coincide, Apps Script rechaza la reparación sin modificar datos.
+
+### Prueba de aceptación
+
+1. Usar el mismo WhatsApp de un lead cuyo negocio figura como `pendiente`.
+2. Confirmar que Sofi pregunta primero el nombre o marca real, por ejemplo `Corte Fino`.
+3. Completar solo los datos faltantes y aceptar el uso de datos.
+4. Comprobar en CRM que cambia el nombre del negocio en la misma fila, sin duplicado, y que se mantienen el asesor y el estado previo.
+
 ## CRM comercial y pruebas
 
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
@@ -161,15 +187,18 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 - 8031813 — sincroniza los archivos reales de landing y Setup de Apps Script al repositorio.
 - f0bfb6e — refina la conversación comercial, captura respuestas cortas de forma segura y endurece la validación de leads.
 
+La siguiente publicación incorporará la reparación segura de leads incompletos y se registrará aquí con su commit y versión de Apps Script.
+
 Los cambios fueron enviados a la rama main y el bot de producción fue actualizado y guardado con PM2.
 
 ## Próximo punto de trabajo
 
-1. Aplicar el commit f0bfb6e en la VM con el reinicio controlado de PM2 indicado arriba.
-2. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación del lead.
-3. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
-4. Preparar la campaña de lanzamiento y usar el número comercial en redes.
-5. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
+1. Configurar de forma privada `BEAUTYOS_CRM_INTEGRATION_KEY` en Apps Script antes de publicar la reparación descrita arriba.
+2. Publicar el cambio en Apps Script y aplicarlo en la VM con el reinicio controlado de PM2 indicado arriba.
+3. Hacer una prueba real de punta a punta con el agente comercial: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento y creación o reparación del lead.
+4. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
+5. Preparar la campaña de lanzamiento y usar el número comercial en redes.
+6. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
 
 ## Forma de trabajo y conceptos para aprender
 

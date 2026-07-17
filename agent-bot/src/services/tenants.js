@@ -518,6 +518,7 @@ async function syncComercialData(tenant, tenantId) {
                 nombre: l.NOMBRE_CONTACTO || '',
                 negocio: l.NOMBRE_NEGOCIO || '',
                 ciudad: l.CIUDAD || '',
+                empleados: l.CANTIDAD_EMPLEADOS || l.CANTIDAD_EMPLEAD || '',
                 estado: l.ESTADO || 'NUEVO'
             }));
             leadsSynced = true;
@@ -549,7 +550,7 @@ async function syncComercialData(tenant, tenantId) {
 
         Object.keys(tenant.userSessions).forEach(phone => {
             const session = tenant.userSessions[phone];
-            const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session._leadCapturado);
+            const isSavedLeadSession = session && (session.estado === 'LEAD_EXISTENTE' || session.estado === 'LEAD_INCOMPLETO' || session._leadCapturado);
             const normalizedPhone = normalizePhone(phone);
             if (isSavedLeadSession && !leadPhones.has(normalizedPhone) && !clientPhones.has(normalizedPhone)) {
                 const nombrePerfil = session.datos && session.datos.nombrePerfil ? session.datos.nombrePerfil : '';

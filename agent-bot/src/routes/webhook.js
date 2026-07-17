@@ -63,15 +63,24 @@ function isCommercialAcknowledgement(value) {
     return /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalizeCommercialText(value).trim());
 }
 
+function isCommercialPlaceholderValue(value) {
+    return /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalizeCommercialText(value).trim());
+}
+
+function isInvalidCommercialBusinessName(value) {
+    return !normalizeCommercialValue(value)
+        || isGenericCommercialBusinessName(value)
+        || isCommercialAcknowledgement(value)
+        || isCommercialPlaceholderValue(value);
+}
+
 function hasCompleteCommercialDraft(draft) {
     return Boolean(
         draft
         && normalizeCommercialValue(draft.nombreContacto)
         && normalizeCommercialValue(draft.negocio)
-        && !isGenericCommercialBusinessName(draft.negocio)
-        && !isCommercialAcknowledgement(draft.negocio)
-        && normalizeCommercialValue(draft.ciudad)
-        && !isCommercialAcknowledgement(draft.ciudad)
+        && !isInvalidCommercialBusinessName(draft.negocio)
+        && isPlausibleCommercialCity(draft.ciudad)
         && normalizeCommercialValue(draft.empleados)
     );
 }
@@ -86,6 +95,7 @@ function isPlausibleCommercialCity(value) {
     const city = normalizeCommercialValue(value);
     if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{1,59}$/.test(city)) return false;
     if (isCommercialAcknowledgement(city)) return false;
+    if (isCommercialPlaceholderValue(city)) return false;
     return !/^(?:mi ciudad|el negocio|colombia|no se|ninguna)$/i.test(normalizeCommercialText(city));
 }
 
@@ -155,7 +165,7 @@ function updateCommercialCaptureDraft(session, messageText) {
             }
         } else if (expectedField === 'negocio' && !draft.negocio) {
             const negocio = stripBusinessPrefix(rawAnswer);
-            if (negocio && !isGenericCommercialBusinessName(negocio) && !isCommercialAcknowledgement(negocio)) {
+            if (!isInvalidCommercialBusinessName(negocio)) {
                 draft.negocio = negocio;
                 changes.negocio = negocio;
                 clearExpectedField();
@@ -235,7 +245,7 @@ function updateCommercialCaptureDraft(session, messageText) {
             const negocio = normalizeCommercialValue(negocioMatch[1])
                 .replace(/\s+(?:y|pero)\s+(?=(?:tengo|manejo|trabajo|soy|mi\s+(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio))\b).*$/i, '')
                 .trim();
-            if (negocio && !isGenericCommercialBusinessName(negocio) && !isCommercialAcknowledgement(negocio)) {
+            if (!isInvalidCommercialBusinessName(negocio)) {
                 draft.negocio = negocio;
                 changes.negocio = negocio;
             }
@@ -433,13 +443,33 @@ router.post('/evolution', async (req, res) => {
                     const leadsCache = tenant._leadsCache || [];
                     const leadMatch = leadsCache.find(l => String(l.whatsapp).trim() === phoneNumber);
                     if (leadMatch) {
-                        tenant.userSessions[phoneNumber] = {
-                            history: [],
-                            estado: 'LEAD_EXISTENTE',
-                            datos: { celular: phoneNumber, nombre: leadMatch.nombre || data.pushName || '', negocio: leadMatch.negocio || '', ciudad: leadMatch.ciudad || '', estadoLead: leadMatch.estado || 'NUEVO' },
-                            _leadCapturado: leadMatch.negocio
-                        };
-                        console.log(`[${instanceName}] Lead existente reconocido: ${leadMatch.nombre} - ${leadMatch.negocio}`);
+                        const isIncompleteLead = isInvalidCommercialBusinessName(leadMatch.negocio);
+                        if (isIncompleteLead) {
+                            const draft = {};
+                            if (isPlausibleCommercialCity(leadMatch.ciudad)) draft.ciudad = normalizeCommercialValue(leadMatch.ciudad);
+                            if (['Solo yo', '2 a 5', '6 a 10', '11 o mas'].includes(normalizeCommercialValue(leadMatch.empleados))) {
+                                draft.empleados = normalizeCommercialValue(leadMatch.empleados);
+                            }
+                            tenant.userSessions[phoneNumber] = {
+                                history: [],
+                                estado: 'LEAD_INCOMPLETO',
+                                _leadNeedsCompletion: true,
+                                // La ficha antigua puede contener datos heredados.
+                                // Solo conservamos ciudad/equipo válidos y pedimos de
+                                // nuevo el contacto y la marca de forma explícita.
+                                datos: { celular: phoneNumber, nombrePerfil: data.pushName || '', ciudad: draft.ciudad || '', estadoLead: leadMatch.estado || 'NUEVO' },
+                                _datosCaptura: draft
+                            };
+                            console.log(`[${instanceName}] Lead incompleto detectado: ${phoneNumber}; se solicitará marca real antes de actualizar CRM.`);
+                        } else {
+                            tenant.userSessions[phoneNumber] = {
+                                history: [],
+                                estado: 'LEAD_EXISTENTE',
+                                datos: { celular: phoneNumber, nombre: leadMatch.nombre || data.pushName || '', negocio: leadMatch.negocio || '', ciudad: leadMatch.ciudad || '', estadoLead: leadMatch.estado || 'NUEVO' },
+                                _leadCapturado: leadMatch.negocio
+                            };
+                            console.log(`[${instanceName}] Lead existente reconocido: ${leadMatch.nombre} - ${leadMatch.negocio}`);
+                        }
                     } else {
                         // Detectar si viene de un link de campaña (mensaje pre-llenado)
                         const esCampana = messageText.match(/beautyos|beauty.?os|sofi|eliminar.*caos|quiero.*automatizar/i);

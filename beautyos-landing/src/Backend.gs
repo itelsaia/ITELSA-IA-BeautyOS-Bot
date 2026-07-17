@@ -38,6 +38,9 @@ function doGet(e) {
 function doPost(e) {
   try {
     var payload = JSON.parse(e.postData.contents);
+    if (payload.action === 'completeLeadByWhatsapp' && !isAuthorizedCRMIntegration_(payload)) {
+      return jsonResponse({ error: 'Integración CRM no autorizada' });
+    }
     if (payload.action === 'saveLead') return jsonResponse(handleSaveLead(payload));
     if (payload.action === 'saveNovedad') return jsonResponse(handleSaveNovedad(payload));
     if (payload.action === 'getInfoComercial') return jsonResponse(handleGetInfoComercial());
@@ -45,6 +48,7 @@ function doPost(e) {
     if (payload.action === 'getLeads') return jsonResponse(leerTabla(SpreadsheetApp.getActiveSpreadsheet(), 'LEADS') || []);
     if (payload.action === 'updateLeadByWhatsapp') return jsonResponse(handleUpdateLeadByWhatsapp(payload));
     if (payload.action === 'updateLeadEmpleados') return jsonResponse(handleUpdateLeadEmpleados(payload));
+    if (payload.action === 'completeLeadByWhatsapp') return jsonResponse(handleCompleteLeadByWhatsapp(payload));
     if (payload.action === 'migrateLeads') return jsonResponse(migrateLeadsSheet());
     return jsonResponse({ error: 'Accion no reconocida' });
   } catch (err) {
@@ -55,6 +59,48 @@ function doPost(e) {
 function jsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function isAuthorizedCRMIntegration_(payload) {
+  var expectedKey = PropertiesService.getScriptProperties().getProperty('BEAUTYOS_CRM_INTEGRATION_KEY');
+  var receivedKey = String((payload && payload.integrationKey) || '');
+  return Boolean(expectedKey && receivedKey && expectedKey === receivedKey);
+}
+
+function cleanCommercialLeadValue_(value) {
+  return (!value || value === 'undefined' || value === 'null') ? '' : String(value).trim();
+}
+
+function normalizeCommercialLeadValue_(value) {
+  return cleanCommercialLeadValue_(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function isInvalidCommercialBusinessName_(value) {
+  var normalized = normalizeCommercialLeadValue_(value).replace(/^(?:mi|un|una|el|la)\s+/, '').trim();
+  var isGeneric = /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(normalized);
+  var isAcknowledgement = /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalized);
+  var isPlaceholder = /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalized);
+  return !normalized || isGeneric || isAcknowledgement || isPlaceholder;
+}
+
+function isInvalidCommercialCity_(value) {
+  var normalized = normalizeCommercialLeadValue_(value);
+  var isAcknowledgement = /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalized);
+  var isPlaceholder = /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalized);
+  return !normalized || isAcknowledgement || isPlaceholder || /^(?:mi ciudad|el negocio|colombia|no se|ninguna)$/.test(normalized);
+}
+
+function getCommercialLeadMissingFields_(payload) {
+  var missing = [];
+  if (!cleanCommercialLeadValue_(payload.nombreContacto)) missing.push('nombre de contacto');
+  if (isInvalidCommercialBusinessName_(payload.nombreNegocio)) missing.push('nombre comercial del negocio');
+  if (isInvalidCommercialCity_(payload.ciudad)) missing.push('ciudad');
+  if (!cleanCommercialLeadValue_(payload.cantidadEmpleados)) missing.push('cantidad de empleados');
+  if (cleanCommercialLeadValue_(payload.autorizaDatos).toUpperCase() !== 'SI') missing.push('autorización de datos');
+  return missing;
 }
 
 // Convierte imágenes de Google Drive a base64 para compatibilidad móvil
@@ -102,29 +148,14 @@ function handleSaveLead(payload) {
 
   var config = leerClaveValor(ss, 'CONFIGURACION');
   // Limpiar undefined/null que pueden venir del bot o de integraciones.
-  var clean = function(v) { return (!v || v === 'undefined' || v === 'null') ? '' : String(v).trim(); };
+  var clean = cleanCommercialLeadValue_;
   var source = clean(payload.fuente) || 'landing';
   var isWhatsappAgent = source === 'whatsapp-agente';
-  var normalize = function(v) {
-    return clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  };
-  var isGenericBusinessName = function(v) {
-    var normalized = normalize(v).replace(/^(?:mi|un|una|el|la)\s+/, '').trim();
-    return /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(normalized);
-  };
-  var isAcknowledgement = function(v) {
-    return /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalize(v));
-  };
 
   // Defensa en profundidad: un POST del agente no puede crear un lead con
   // datos deducidos, incompletos o sin consentimiento explícito.
   if (isWhatsappAgent) {
-    var missing = [];
-    if (!clean(payload.nombreContacto)) missing.push('nombre de contacto');
-    if (!clean(payload.nombreNegocio) || isGenericBusinessName(payload.nombreNegocio) || isAcknowledgement(payload.nombreNegocio)) missing.push('nombre comercial del negocio');
-    if (!clean(payload.ciudad) || isAcknowledgement(payload.ciudad)) missing.push('ciudad');
-    if (!clean(payload.cantidadEmpleados)) missing.push('cantidad de empleados');
-    if (clean(payload.autorizaDatos).toUpperCase() !== 'SI') missing.push('autorización de datos');
+    var missing = getCommercialLeadMissingFields_(payload);
     if (missing.length > 0) return { error: 'Lead del agente incompleto: falta ' + missing.join(', ') };
   }
 
@@ -281,6 +312,64 @@ function handleUpdateLeadEmpleados(payload) {
     }
   }
   return { error: 'Lead no encontrado' };
+}
+
+// Completa una ficha de lead creada por una versión anterior con datos
+// temporales (por ejemplo, NOMBRE_NEGOCIO = "pendiente"). No crea una fila
+// nueva ni altera la asignación o el estado comercial existente.
+function handleCompleteLeadByWhatsapp(payload) {
+  if (!isAuthorizedCRMIntegration_(payload)) {
+    return { error: 'Integración CRM no autorizada' };
+  }
+  if (cleanCommercialLeadValue_(payload.fuente) !== 'whatsapp-agente') {
+    return { error: 'Fuente no autorizada para completar lead' };
+  }
+
+  var missing = getCommercialLeadMissingFields_(payload);
+  if (missing.length > 0) return { error: 'Lead incompleto: falta ' + missing.join(', ') };
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('LEADS');
+  if (!sheet) return { error: 'Hoja LEADS no encontrada' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { error: 'No hay leads para completar' };
+
+  var phone = String(payload.whatsapp || '').replace(/\D/g, '');
+  if (!phone) return { error: 'WhatsApp inválido' };
+  var rows = sheet.getRange(2, 1, lastRow - 1, 14).getValues();
+  var foundRow = -1;
+  var existing = null;
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (String(rows[i][3] || '').replace(/\D/g, '') === phone) {
+      foundRow = i + 2;
+      existing = rows[i];
+      break;
+    }
+  }
+  if (foundRow < 0) return { error: 'Lead no encontrado para WhatsApp' };
+  if (!isInvalidCommercialBusinessName_(existing[2])) {
+    return { error: 'El lead ya tiene un nombre comercial válido' };
+  }
+
+  var cant = cleanCommercialLeadValue_(payload.cantidadEmpleados);
+  var categoria = 'Propia empresa';
+  if (cant === '2 a 5') categoria = 'Mediano';
+  else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
+
+  sheet.getRange(foundRow, 2).setValue(cleanCommercialLeadValue_(payload.nombreContacto));
+  sheet.getRange(foundRow, 3).setValue(cleanCommercialLeadValue_(payload.nombreNegocio));
+  if (cleanCommercialLeadValue_(payload.email)) sheet.getRange(foundRow, 5).setValue(cleanCommercialLeadValue_(payload.email));
+  sheet.getRange(foundRow, 6).setValue(cleanCommercialLeadValue_(payload.ciudad));
+  sheet.getRange(foundRow, 7).setValue(cant);
+  sheet.getRange(foundRow, 8).setValue(categoria);
+
+  var notasActuales = String(existing[12] || '').trim();
+  var notasNuevas = cleanCommercialLeadValue_(payload.notas);
+  var auditoria = '[Registro completado por agente ' + Utilities.formatDate(new Date(), 'America/Bogota', 'dd/MM/yyyy HH:mm') + ']';
+  sheet.getRange(foundRow, 13).setValue([notasActuales, notasNuevas, auditoria].filter(function(v) { return v; }).join(' | '));
+  sheet.getRange(foundRow, 14).setValue('SI');
+
+  return { success: true, actualizado: true, row: foundRow };
 }
 
 // Actualiza estado, asignado y notas de un lead desde el panel

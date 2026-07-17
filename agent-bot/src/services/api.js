@@ -6,6 +6,10 @@ const axios = require('axios');
 class ApiService {
     constructor() {
         this.webhookUrl = process.env.WEBHOOK_GAS_URL;
+        // Clave privada para operaciones sensibles Bot → CRM. Mientras se
+        // configura una exclusiva, reutiliza la clave interna ya existente
+        // del bot; nunca se registra en logs ni se versiona.
+        this.crmIntegrationKey = process.env.CRM_GAS_API_KEY || process.env.BOT_API_KEY || '';
         this.lastErrorMessage = '';
     }
 
@@ -241,8 +245,14 @@ class ApiService {
     // Que protege: No perder leads/novedades cuando GAS esta lento o caido
     // Como funciona: Si la accion es critica y falla, se encola para reintentar en background
     async postToCRM(url, payload) {
+        // La clave solo acompaña la reparación protegida de una ficha. No se
+        // adjunta a lecturas ni a otros endpoints del CRM para minimizar la
+        // exposición de secretos entre integraciones.
+        const requestPayload = payload?.action === 'completeLeadByWhatsapp' && this.crmIntegrationKey
+            ? { ...payload, integrationKey: this.crmIntegrationKey }
+            : { ...payload };
         try {
-            const response = await axios.post(url, payload, {
+            const response = await axios.post(url, requestPayload, {
                 timeout: 25000,
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -250,14 +260,14 @@ class ApiService {
             if (typeof data === 'string') {
                 console.error('[api] CRM retorno texto en vez de JSON:', data.substring(0, 200));
                 // Intentar encolar acciones criticas si la respuesta es invalida
-                this._tryEnqueue(url, payload);
+                this._tryEnqueue(url, requestPayload);
                 return { error: 'Respuesta inesperada del CRM', queued: true };
             }
             return data;
         } catch (error) {
             console.error('[api] Error POST a CRM:', error.message);
             // Si la accion es critica, encolar para reintentar
-            const queued = this._tryEnqueue(url, payload);
+            const queued = this._tryEnqueue(url, requestPayload);
             if (queued) {
                 return { success: true, queued: true, _retry: true };
             }

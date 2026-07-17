@@ -1193,6 +1193,7 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     // El estado solo cambia a LEAD_EXISTENTE después de que el CRM confirma
     // el guardado, para que el flujo continúe pidiendo los datos faltantes.
     const isExistingLead = !isClient && userData.estado === 'LEAD_EXISTENTE';
+    const isIncompleteLead = !isClient && userData.estado === 'LEAD_INCOMPLETO';
     const displayName = userData.nombre && !['Usuario', 'Cliente'].includes(userData.nombre)
         ? userData.nombre
         : '';
@@ -1210,7 +1211,10 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     const knownNeed = cleanText(userData.necesidad || userData._notasLead || '', 180);
     const prospectGuide = (() => {
         if (isClient || isExistingLead) return '';
-        if (!knownBusinessType && !(displayName && knownBusiness && knownCity && knownEmployees)) {
+        if (isIncompleteLead && !knownBusiness) {
+            return 'Pregunta objetivo: "Para actualizar tu registro, ¿cómo se llama tu negocio o marca?"';
+        }
+        if (!isIncompleteLead && !knownBusinessType && !(displayName && knownBusiness && knownCity && knownEmployees)) {
             return 'Pregunta objetivo: "¿Qué tipo de negocio de belleza tienes? Por ejemplo, salón, barbería, spa, uñas, estética o cejas."';
         }
         if (!knownBusiness) {
@@ -1233,8 +1237,10 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
         userContext = `CLIENTE EXISTENTE${displayName ? `: ${displayName}` : ''}. Atiende soporte o cartera; no reinicies un flujo de ventas.`;
     } else if (isExistingLead) {
         userContext = `LEAD YA REGISTRADO. Datos: nombre=${displayName || 'sin registro'}; negocio=${knownBusiness || 'sin registro'}; ciudad=${knownCity || 'sin registro'}; estado=${userData.estadoLead || 'NUEVO'}. No repitas datos ni el saludo inicial.`;
+    } else if (isIncompleteLead) {
+        userContext = `LEAD CON REGISTRO INCOMPLETO. Ya existe una ficha, pero el nombre comercial no es válido. Datos aprovechables: ciudad=${knownCity || 'sin dato'}; equipo=${knownEmployees || 'sin dato'}. Pide solo los datos que falten, actualiza la misma ficha y no crees un lead duplicado.`;
     } else {
-        userContext = `PROSPECTO NUEVO. Datos conocidos: nombre=${displayName || 'pendiente'}; negocio=${knownBusiness || 'pendiente'}; ciudad=${knownCity || 'pendiente'}; equipo=${knownEmployees || 'pendiente'}. Faltan: ${missingData.join(', ') || 'ninguno'}.`;
+        userContext = `PROSPECTO NUEVO. Datos conocidos: nombre=${displayName || 'sin dato'}; negocio=${knownBusiness || 'sin dato'}; ciudad=${knownCity || 'sin dato'}; equipo=${knownEmployees || 'sin dato'}. Faltan: ${missingData.join(', ') || 'ninguno'}.`;
     }
 
     const campaign = config.campanaActiva || {};
@@ -1291,6 +1297,7 @@ ${prospectGuide || 'No aplica: atiende la necesidad actual sin reiniciar la capt
 CAPTURA DE PROSPECTO
 - Antes de capturar exige nombre de contacto confirmado, nombre comercial del negocio, ciudad, cantidad de empleados y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
 - Usa datos del historial y del contexto. No vuelvas a pedir un dato ya respondido.
+- Si el contexto indica LEAD CON REGISTRO INCOMPLETO, completa los datos faltantes y, tras la autorización, llama capturar_lead: el sistema actualizará la misma ficha sin crear un duplicado.
 - Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
 - Cuando estén los cuatro datos obligatorios, pregunta exactamente: "Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos sí o no."
 - Un "sí" solo cuenta como autorización si la pregunta anterior fue esa autorización. Si responde no, respeta su decisión y no captures.
@@ -2373,6 +2380,15 @@ PASO 5 — POST-CONFIRMACIÓN:
                             return /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(normalized);
                         };
                         const isAcknowledgement = (value) => /^(?:si|no|claro|dale|ok(?:ay)?|listo|perfecto|gracias|ningun[oa]?|de acuerdo|esta bien|vale)$/.test(normalizeVal(value));
+                        const isBusinessPlaceholder = (value) => /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalizeVal(value));
+                        const isInvalidBusinessName = (value) => !cleanVal(value)
+                            || isGenericBusinessName(value)
+                            || isAcknowledgement(value)
+                            || isBusinessPlaceholder(value);
+                        const isInvalidCity = (value) => !cleanVal(value)
+                            || isAcknowledgement(value)
+                            || isBusinessPlaceholder(value)
+                            || /^(?:mi ciudad|el negocio|colombia|no se|ninguna)$/.test(normalizeVal(value));
                         const draft = session._datosCaptura || (session._datosCaptura = {});
 
                         // Solo se aceptan datos que el servidor conservó al
@@ -2380,10 +2396,10 @@ PASO 5 — POST-CONFIRMACIÓN:
                         // de la IA son una solicitud, no una fuente de datos.
                         // Nunca se usa el nombre visible del perfil como respaldo.
                         const nombreContacto = cleanVal(draft.nombreContacto);
-                        const nombreNegocio = isGenericBusinessName(draft.negocio) || isAcknowledgement(draft.negocio)
+                        const nombreNegocio = isInvalidBusinessName(draft.negocio)
                             ? ''
                             : cleanVal(draft.negocio);
-                        const ciudad = cleanVal(draft.ciudad);
+                        const ciudad = isInvalidCity(draft.ciudad) ? '' : cleanVal(draft.ciudad);
                         const cantidadEmpleados = cleanVal(draft.empleados);
                         const tipoNegocio = cleanVal(draft.tipoNegocio);
                         const notas = [
@@ -2417,8 +2433,9 @@ PASO 5 — POST-CONFIRMACIÓN:
                             console.warn(`[openai] Lead incompleto bloqueado: faltan ${faltantes.join(', ')}`);
                         } else {
 
+                        const isCompletingExistingLead = session._leadNeedsCompletion || session.estado === 'LEAD_INCOMPLETO';
                         const resp = await api.postToCRM(crmUrl, {
-                            action: 'saveLead',
+                            action: isCompletingExistingLead ? 'completeLeadByWhatsapp' : 'saveLead',
                             nombreContacto,
                             nombreNegocio,
                             whatsapp: whatsappReal,
@@ -2432,11 +2449,17 @@ PASO 5 — POST-CONFIRMACIÓN:
                         if (resp && !resp.error) {
                             session._leadCapturado = nombreNegocio;
                             session.estado = 'LEAD_EXISTENTE';
+                            delete session._leadNeedsCompletion;
                             if (session.datos) {
                                 session.datos.nombre = nombreContacto;
                                 session.datos.negocio = nombreNegocio;
                                 session.datos.ciudad = ciudad;
-                                session.datos.estadoLead = 'NUEVO';
+                                // Al reparar una ficha histórica conservamos el
+                                // estado comercial que ya tenía (por ejemplo,
+                                // CONTACTADO). Un lead nuevo sí inicia en NUEVO.
+                                session.datos.estadoLead = isCompletingExistingLead
+                                    ? (session.datos.estadoLead || 'NUEVO')
+                                    : 'NUEVO';
                             }
                             session._datosCaptura = {
                                 ...(session._datosCaptura || {}),
@@ -2449,7 +2472,10 @@ PASO 5 — POST-CONFIRMACIÓN:
                                 email: cleanVal(session._datosCaptura?.email)
                             };
 
-                            if (resp.queued) {
+                            if (resp.actualizado) {
+                                toolResultText = `✅ Registro comercial actualizado: ${nombreNegocio}. El equipo comercial dará seguimiento.`;
+                                console.log(`[openai] 🛠️ Lead incompleto actualizado: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+                            } else if (resp.queued) {
                                 toolResultText = `⏳ Lead recibido y en cola de sincronizacion: ${nombreNegocio}. No afirmes que ya quedo guardado; indica que el equipo comercial dara seguimiento.`;
                                 console.warn(`[openai] Lead en cola de reintento: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
                             } else {
@@ -2460,7 +2486,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
                             const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
                             const asesorAsignado = resp.asesorAsignado || '';
-                            if (asesores.length > 0 && asesorAsignado) {
+                            if (!resp.actualizado && asesores.length > 0 && asesorAsignado) {
                                 const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
                                 if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
                                 session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
