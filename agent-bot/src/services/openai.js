@@ -1227,8 +1227,11 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     const profileName = cleanText(userData.nombrePerfil || '', 80);
     const knownBusinessType = cleanText(userData.tipoNegocio || userData._tipoNegocio || '', 80);
     const knownNeed = cleanText(userData.necesidad || userData._notasLead || '', 180);
+    const consentGiven = String(userData._autorizaDatos || '').toUpperCase() === 'SI';
+    const consentDeclined = Boolean(userData._leadConsentDeclined);
     const prospectGuide = (() => {
         if (isClient || isExistingLead) return '';
+        if (consentDeclined) return 'No vuelvas a pedir autorización. Atiende la duda actual y recuerda con naturalidad que puede autorizar más adelante si cambia de opinión.';
         if (isIncompleteLead && !knownBusiness) {
             return 'Pregunta objetivo: "Para actualizar tu registro, ¿cómo se llama tu negocio o marca?"';
         }
@@ -1246,6 +1249,9 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
         }
         if (!displayName) {
             return 'Pregunta objetivo: "Para dejar tu solicitud a nombre de la persona correcta, ¿cómo prefieres que te llamemos?"';
+        }
+        if (consentGiven) {
+            return 'La autorización expresa ya fue recibida en este mensaje. Llama capturar_lead ahora con los datos del contexto; no pidas nada más.';
         }
         return 'Perfil mínimo completo. Responde la duda actual y, si aún no lo hiciste, pide la autorización de datos.';
     })();
@@ -1302,7 +1308,7 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
 - Si el contexto indica LEAD CON REGISTRO INCOMPLETO, completa los datos faltantes y, tras la autorización, llama capturar_lead: el sistema actualizará la misma ficha sin crear un duplicado.
 - Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
 - Cuando estén los cuatro datos obligatorios, pregunta exactamente: "Para brindarte un mejor servicio, ¿me autorizas guardar tus datos? Los usaremos solo para contactarte sobre BeautyOS. Puedes decirnos sí o no."
-- Un "sí" solo cuenta como autorización si la pregunta anterior fue esa autorización. Si responde no, respeta su decisión y no captures.
+- "Sí", "sí claro", "de acuerdo", "puedes guardar mis datos", "acepto" o "autorizo" cuentan como autorización solo si la pregunta anterior fue esa autorización. Si responde no, respeta su decisión y no captures.
 - Solo llama capturar_lead cuando todos los datos estén completos. Confirma el registro únicamente si la herramienta responde éxito.`;
 
     return `Eres ${agentName}, asesora comercial y de soporte de ${businessName}. Fecha: ${todayStr} (${todayDayName}).
@@ -1317,6 +1323,8 @@ ${userContext}
 ${profileName && !isClient && !isExistingLead ? `Nombre de perfil visible: "${profileName}". Úsalo solo para saludar; no lo trates como nombre confirmado ni lo guardes como contacto.` : ''}
 ${knownBusinessType ? `Tipo de negocio informado: ${knownBusinessType}.` : ''}
 ${knownNeed ? `Necesidad o duda ya expresada: ${knownNeed}.` : ''}
+${consentGiven && !isExistingLead ? 'El prospecto autorizó explícitamente el uso de sus datos en este mensaje.' : ''}
+${consentDeclined ? 'El prospecto rechazó por ahora la autorización; respeta esa decisión y no insistas.' : ''}
 
 PRODUCTO Y OFERTA
 BeautyOS reúne CRM con marca, agente IA para WhatsApp y landing profesional. Usa únicamente estos datos:
@@ -2450,10 +2458,13 @@ PASO 5 — POST-CONFIRMACIÓN:
 
                         // Un "sí" vale como autorización únicamente cuando la
                         // pregunta anterior fue la autorización de datos.
-                        const respuestaNormalizada = normalizeVal(incomingMessage).replace(/[.!]+$/g, '').trim();
-                        const respuestaEsConsentimiento = /^(?:si|acepto|autorizo|si[\s,]+(?:autorizo|acepto))$/.test(respuestaNormalizada);
+                        const respuestaNormalizada = normalizeVal(incomingMessage)
+                            .replace(/[.!?,;:]+$/g, '')
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        const respuestaEsConsentimiento = /^(?:si|claro|dale|ok(?:ay)?|listo|perfecto|de acuerdo|esta bien|puedes(?: guardar(?: mis)? datos)?|autorizo(?: el tratamiento(?: de mis datos)?)?|acepto(?: el tratamiento(?: de mis datos)?)?|si (?:claro|por favor|puedes|autorizo|acepto|de acuerdo)|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?)$/.test(respuestaNormalizada);
                         const autorizaDatos = session._awaitingLeadAuthorization
-                            && respuestaEsConsentimiento
+                            && (respuestaEsConsentimiento || String(draft.autorizaDatos || '').toUpperCase() === 'SI')
                             && cleanVal(functionArgs.autorizaDatos).toUpperCase() === 'SI'
                             ? 'SI'
                             : '';
@@ -2526,6 +2537,9 @@ PASO 5 — POST-CONFIRMACIÓN:
                             if (resp.actualizado) {
                                 toolResultText = `✅ Registro comercial actualizado: ${nombreNegocio}. El equipo comercial dará seguimiento.`;
                                 console.log(`[openai] 🛠️ Lead incompleto actualizado: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
+                            } else if (resp.duplicado) {
+                                toolResultText = `✅ Este WhatsApp ya tenía un registro comercial. Continuamos la atención sin crear un duplicado.`;
+                                console.log(`[openai] ↩️ Lead duplicado reconocido: ${whatsappReal}`);
                             } else if (resp.queued) {
                                 toolResultText = `⏳ Lead recibido y en cola de sincronizacion: ${nombreNegocio}. No afirmes que ya quedo guardado; indica que el equipo comercial dara seguimiento.`;
                                 console.warn(`[openai] Lead en cola de reintento: ${nombreNegocio} - WhatsApp real: ${whatsappReal}`);
@@ -2537,7 +2551,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             // Alerta WhatsApp al asesor asignado (round-robin) + resumen al admin
                             const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
                             const asesorAsignado = resp.asesorAsignado || '';
-                            if (!resp.actualizado && asesores.length > 0 && asesorAsignado) {
+                            if (!resp.actualizado && !resp.duplicado && asesores.length > 0 && asesorAsignado) {
                                 const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
                                 if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
                                 session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });

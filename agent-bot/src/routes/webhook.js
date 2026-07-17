@@ -5,7 +5,7 @@ const { getTenant } = require('../services/tenants');
 const { generateAIResponse, analyzePaymentReceipt } = require('../services/openai');
 const { handleOnboarding } = require('../services/session');
 const { loadPendingAppointments } = require('../services/sheets');
-const { transcribeAudio } = require('../services/whisper');
+const { transcribeAudio, MAX_AUDIO_TRANSCRIPTION_BYTES } = require('../services/whisper');
 const api = require('../services/api'); // singleton — override webhookUrl por tenant
 
 // Helper: Parsea campo CUMPLE en formato "dd/mm" o "15 de marzo"
@@ -85,6 +85,37 @@ function hasCompleteCommercialDraft(draft) {
     );
 }
 
+function isPositiveCommercialAuthorization(value) {
+    const text = normalizeCommercialText(value)
+        .replace(/[.!?,;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return /^(?:si|claro|dale|ok(?:ay)?|listo|perfecto|de acuerdo|esta bien|puedes(?: guardar(?: mis)? datos)?|autorizo(?: el tratamiento(?: de mis datos)?)?|acepto(?: el tratamiento(?: de mis datos)?)?|si (?:claro|por favor|puedes|autorizo|acepto|de acuerdo)|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?)$/.test(text);
+}
+
+function isNegativeCommercialAuthorization(value) {
+    const text = normalizeCommercialText(value)
+        .replace(/[.!?,;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return /^(?:no|no autorizo|no acepto|prefiero no|mejor no|ahora no|no quiero(?: compartir| dar| guardar)?(?: mis)? datos?)$/.test(text);
+}
+
+function getCommercialNextExpectedField(session) {
+    if (!session || session._commercialRegistrationComplete || session._leadCapturado || session.estado === 'LEAD_EXISTENTE') {
+        return '';
+    }
+    const draft = session._datosCaptura || {};
+    if (session.estado === 'LEAD_INCOMPLETO' && isInvalidCommercialBusinessName(draft.negocio)) return 'negocio';
+    if (!normalizeCommercialValue(draft.tipoNegocio)) return 'tipoNegocio';
+    if (isInvalidCommercialBusinessName(draft.negocio)) return 'negocio';
+    if (!isPlausibleCommercialCity(draft.ciudad)) return 'ciudad';
+    if (!normalizeCommercialValue(draft.empleados)) return 'empleados';
+    if (!isLikelyCommercialContactName(draft.nombreContacto)) return 'nombreContacto';
+    if (session._leadConsentDeclined) return '';
+    return 'autorizacion';
+}
+
 function isLikelyCommercialContactName(value) {
     const name = normalizeCommercialValue(value);
     if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '\-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){0,3}$/.test(name)) return false;
@@ -137,7 +168,15 @@ function updateCommercialCaptureDraft(session, messageText) {
     const rawAnswer = normalizeCommercialValue(messageText);
     const isQuestion = /[¿?]/.test(String(messageText || ''));
     const isDirectAnswer = rawAnswer && !isQuestion && rawAnswer.length <= 100;
-    const expectedField = session._commercialExpectedField || inferCommercialExpectedField(lastAssistantMessage);
+    const flowClosed = Boolean(
+        session._commercialRegistrationComplete
+        || session._leadCapturado
+        || session.estado === 'LEAD_EXISTENTE'
+        || session._leadConsentDeclined
+    );
+    const expectedField = session._commercialExpectedField
+        || getCommercialNextExpectedField(session)
+        || (flowClosed ? '' : inferCommercialExpectedField(lastAssistantMessage));
     let expectedFieldHandled = false;
     const clearExpectedField = () => {
         expectedFieldHandled = true;
@@ -196,6 +235,33 @@ function updateCommercialCaptureDraft(session, messageText) {
             changes.notas = draft.notas;
             clearExpectedField();
         }
+    }
+
+    // La autorización se interpreta solo cuando el servidor ya tenía ese
+    // paso pendiente. Las variantes naturales se aceptan sin convertir un
+    // "sí" relativo a una duda de producto en consentimiento.
+    if (expectedField === 'autorizacion' && isDirectAnswer) {
+        if (isPositiveCommercialAuthorization(messageText)) {
+            draft.autorizaDatos = 'SI';
+            session._leadConsentDeclined = false;
+            session._awaitingLeadAuthorization = true;
+            changes.autorizaDatos = 'SI';
+            clearExpectedField();
+        } else if (isNegativeCommercialAuthorization(messageText)) {
+            draft.autorizaDatos = 'NO';
+            session._leadConsentDeclined = true;
+            session._awaitingLeadAuthorization = false;
+            changes.autorizaDatos = 'NO';
+            clearExpectedField();
+        }
+    } else if (session._leadConsentDeclined && isPositiveCommercialAuthorization(messageText)
+        && hasCompleteCommercialDraft(draft)) {
+        // Permitir que un prospecto cambie de opinión más tarde sin obligarlo
+        // a repetir el formulario.
+        draft.autorizaDatos = 'SI';
+        session._leadConsentDeclined = false;
+        session._awaitingLeadAuthorization = true;
+        changes.autorizaDatos = 'SI';
     }
 
     if (!draft.email) {
@@ -288,6 +354,52 @@ function inferCommercialExpectedField(text) {
 // Referencia al cliente de Evolution API (se inyecta desde app.js)
 let evolutionClient = null;
 
+// Evolution puede reenviar un evento y un audio puede tardar más que un texto
+// en descargarse/transcribirse. Estas dos protecciones hacen que una misma
+// conversación se procese en orden y que un mismo message-id no vuelva a
+// ejecutar una captura o una alerta.
+const RECENT_MESSAGE_TTL_MS = 15 * 60 * 1000;
+const MAX_RECENT_MESSAGE_IDS = 10000;
+const recentMessageIds = new Map();
+const conversationQueues = new Map();
+
+function acceptIncomingMessage(instance, messageId, now = Date.now()) {
+    if (!messageId) return true;
+    const key = `${instance || 'unknown'}:${messageId}`;
+    const previous = recentMessageIds.get(key);
+    if (previous && now - previous < RECENT_MESSAGE_TTL_MS) return false;
+
+    recentMessageIds.set(key, now);
+    if (recentMessageIds.size > MAX_RECENT_MESSAGE_IDS) {
+        for (const [storedKey, seenAt] of recentMessageIds) {
+            if (now - seenAt >= RECENT_MESSAGE_TTL_MS || recentMessageIds.size > MAX_RECENT_MESSAGE_IDS) {
+                recentMessageIds.delete(storedKey);
+            }
+            if (recentMessageIds.size <= MAX_RECENT_MESSAGE_IDS) break;
+        }
+    }
+    return true;
+}
+
+function enqueueConversationTask(conversationKey, task) {
+    const previous = conversationQueues.get(conversationKey) || Promise.resolve();
+    const current = previous
+        .catch(error => console.error(`[WEBHOOK] Error previo en cola ${conversationKey}:`, error.message))
+        .then(task);
+    const tracked = current.finally(() => {
+        if (conversationQueues.get(conversationKey) === tracked) {
+            conversationQueues.delete(conversationKey);
+        }
+    });
+    conversationQueues.set(conversationKey, tracked);
+    return tracked;
+}
+
+function resetWebhookGuardsForTests() {
+    recentMessageIds.clear();
+    conversationQueues.clear();
+}
+
 /**
  * Calcula el anticipo total sumando los anticipos individuales de cada servicio.
  * @param {string} serviciosStr Nombres de servicios separados por coma
@@ -319,18 +431,8 @@ function setEvolutionClient(client) {
     evolutionClient = client;
 }
 
-/**
- * POST /webhook/evolution
- * Punto de entrada principal para TODOS los eventos de Evolution API.
- * El webhook global enruta todos los eventos de todas las instancias aquí.
- */
-router.post('/evolution', async (req, res) => {
-    // Responder inmediatamente — Evolution API espera un 200 rápido
-    res.status(200).json({ received: true });
-
+async function processEvolutionWebhookEvent(event, instance, data) {
     try {
-        const { event, instance, data } = req.body;
-
         // ── Manejar eventos de conexión (log informativo) ──
         if (event === 'connection.update' || event === 'CONNECTION_UPDATE') {
             const state = data?.state || data?.connection || 'unknown';
@@ -361,7 +463,8 @@ router.post('/evolution', async (req, res) => {
 
         // ── Soporte de audios: transcribir con Whisper ──
         // Detecta audioMessage (archivos de audio) y pttMessage (notas de voz/PTT)
-        const isAudio = !!(data.message?.audioMessage || data.message?.pttMessage);
+        const audioMessage = data.message?.audioMessage || data.message?.pttMessage || null;
+        const isAudio = !!audioMessage;
         if (isAudio && !messageText) {
             console.log(`[${instance}] 🎤 Audio detectado: audioMessage=${!!data.message?.audioMessage}, pttMessage=${!!data.message?.pttMessage}, ptt=${data.message?.audioMessage?.ptt}`);
 
@@ -375,10 +478,19 @@ router.post('/evolution', async (req, res) => {
             try {
                 const audioBuffer = await evolutionClient.getMediaBase64(instance, data.key);
                 if (audioBuffer) {
-                    const transcription = await transcribeAudio(audioBuffer, tenantForAudio.config.openApiKey);
+                    if (audioBuffer.length > MAX_AUDIO_TRANSCRIPTION_BYTES) {
+                        const phoneForAudio = (data.key.remoteJid || '').split('@')[0];
+                        await evolutionClient.sendText(instance, phoneForAudio, '🎤 El audio es muy largo para procesarlo. Envíame una nota de voz más corta o escríbeme el mensaje, por favor.');
+                        return;
+                    }
+                    const transcription = await transcribeAudio(
+                        audioBuffer,
+                        tenantForAudio.config.openApiKey,
+                        audioMessage.mimetype || 'audio/ogg'
+                    );
                     if (transcription) {
                         messageText = transcription;
-                        console.log(`[${instance}] 🎤 Audio transcrito: "${messageText.substring(0, 100)}${messageText.length > 100 ? '...' : ''}"`);
+                        console.log(`[${instance}] 🎤 Audio transcrito correctamente (${messageText.length} caracteres).`);
                     } else {
                         // Transcripcion vacia — pedir que escriba
                         const phoneForAudio = (data.key.remoteJid || '').split('@')[0];
@@ -526,6 +638,8 @@ router.post('/evolution', async (req, res) => {
                 _email: datosCaptura.email || '',
                 _tipoNegocio: datosCaptura.tipoNegocio || '',
                 _notasLead: datosCaptura.notas || '',
+                _autorizaDatos: datosCaptura.autorizaDatos || '',
+                _leadConsentDeclined: Boolean(session._leadConsentDeclined),
                 _draftChanges: draftChanges
             };
         } else {
@@ -1793,10 +1907,14 @@ router.post('/evolution', async (req, res) => {
                 session._commercialExpectedField = '';
                 session._awaitingLeadAuthorization = false;
             } else {
-                const expectedField = inferCommercialExpectedField(aiReply);
+                // La máquina de estados es propiedad del servidor, no de la
+                // redacción del modelo. Aunque Sofi parafrasee una pregunta,
+                // la siguiente respuesta corta se guardará en el campo real.
+                const expectedField = getCommercialNextExpectedField(session);
                 session._commercialExpectedField = expectedField;
                 session._awaitingLeadAuthorization = expectedField === 'autorizacion'
-                    && hasCompleteCommercialDraft(session._datosCaptura);
+                    && hasCompleteCommercialDraft(session._datosCaptura)
+                    && asksCommercialDataAuthorization(aiReply);
             }
         }
 
@@ -2103,6 +2221,48 @@ router.post('/evolution', async (req, res) => {
     } catch (error) {
         console.error('[WEBHOOK] Error procesando mensaje:', error.message);
     }
+}
+
+/**
+ * POST /webhook/evolution
+ * Punto de entrada principal para TODOS los eventos de Evolution API.
+ * Evolution recibe 200 de inmediato y las conversaciones se encolan por
+ * instancia + WhatsApp para que un audio no adelante ni desordene un texto.
+ */
+router.post('/evolution', (req, res) => {
+    res.status(200).json({ received: true });
+
+    const { event, instance, data } = req.body || {};
+    if (event === 'connection.update' || event === 'CONNECTION_UPDATE'
+        || event === 'qrcode.updated' || event === 'QRCODE_UPDATED') {
+        void processEvolutionWebhookEvent(event, instance, data);
+        return;
+    }
+
+    if (event !== 'messages.upsert' && event !== 'MESSAGES_UPSERT') return;
+    if (!data?.key || data.key.fromMe) return;
+
+    const remoteJid = data.key.remoteJid || '';
+    if (!remoteJid || remoteJid === 'status@broadcast' || remoteJid.includes('@g.us')) return;
+
+    const messageId = String(data.key.id || '');
+    if (!acceptIncomingMessage(instance, messageId)) {
+        console.log(`[${instance}] ↩️ Evento duplicado ignorado: ${messageId || 'sin-id'}`);
+        return;
+    }
+
+    const conversationKey = `${instance || 'unknown'}:${remoteJid}`;
+    void enqueueConversationTask(conversationKey, () => processEvolutionWebhookEvent(event, instance, data))
+        .catch(error => console.error(`[WEBHOOK] Error no controlado en cola ${conversationKey}:`, error.message));
 });
 
-module.exports = { router, setEvolutionClient };
+module.exports = {
+    router,
+    setEvolutionClient,
+    acceptIncomingMessage,
+    enqueueConversationTask,
+    resetWebhookGuardsForTests,
+    getCommercialNextExpectedField,
+    isPositiveCommercialAuthorization,
+    isNegativeCommercialAuthorization
+};

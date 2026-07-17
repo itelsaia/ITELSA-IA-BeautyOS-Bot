@@ -172,6 +172,19 @@ También se agregaron pruebas automáticas para estos escenarios. Antes del rein
 
 No requiere cambios adicionales en Apps Script ni nuevas claves.
 
+### Endurecimiento del flujo crítico y audios — pendiente de aplicar junto con la siguiente actualización
+
+Antes de promocionar el agente se revisó el recorrido completo de captación. Se añadió una segunda capa de protección, independiente del texto que genere la IA:
+
+1. El servidor conserva el paso real pendiente del flujo: `tipo → marca → ciudad → equipo → contacto → autorización`. Si Sofi cambia la redacción de una pregunta, una respuesta corta sigue llegando al campo correcto.
+2. Cada mensaje de WhatsApp se deduplica por su identificador y los mensajes del mismo número se procesan en orden. Esto evita respuestas cruzadas o dos registros cuando llegan un audio y un texto seguidos.
+3. Apps Script usa un bloqueo transaccional al revisar duplicados, crear la fila y asignar asesor. También queda una única alerta de WhatsApp para los leads creados por el agente; la landing conserva su propia alerta.
+4. Los audios y notas de voz se descargan desde Evolution, se transcriben con Whisper en español y luego recorren exactamente el mismo flujo que un texto. Se respeta el tipo de archivo OGG, MP3, M4A, WAV o WebM, se limita el tamaño y los logs ya no muestran el contenido transcrito.
+
+El soporte de audio está implementado, pero debe validarse con un número de prueba antes de usarlo en campaña. La prueba controlada consiste en enviar, esperando respuesta entre cada una, notas de voz cortas con: tipo de negocio, marca, ciudad, equipo, nombre, autorización y una duda sobre una función. Después de estar registrado, responder `sí` por audio a una explicación: Sofi debe continuar la explicación, nunca volver a pedir el formulario.
+
+Las pruebas automáticas del bot cubren guardrails post-registro, caché, deduplicación, orden de mensajes, estado explícito, consentimiento y tipos de audio. Se ejecutan con `npm test`.
+
 ## CRM comercial y pruebas
 
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
@@ -212,17 +225,20 @@ Esto limpia la sesión de conversación que el bot tenía en memoria. Con la sig
 
 - 4b431c5 — repara de forma segura los leads incompletos, bloquea valores como `pendiente` y conserva la fila, asesor y estado al completarla. Publicado en Apps Script como versión `84` y aplicado al bot de la VM.
 
-- Pendiente de publicar — blinda la conversación posterior al registro, bloquea recapturas y protege la sesión ante sincronización atrasada del CRM. Incluye pruebas automáticas con `npm test`.
+- 782751a — blinda la conversación posterior al registro, bloquea recapturas y protege la sesión ante sincronización atrasada del CRM. Incluye pruebas automáticas con `npm test`.
+
+- Pendiente de publicar — convierte el flujo de captura en estado explícito del servidor, serializa mensajes por conversación, deduplica webhooks, protege el CRM contra carreras y endurece transcripción de audios.
 
 El CRM está en la versión 84 y el bot fue reiniciado correctamente con PM2. La siguiente publicación corregirá la carga inicial de la caché de leads comerciales.
 
 ## Próximo punto de trabajo
 
-1. Publicar el blindaje post-registro en la VM con un reinicio controlado de PM2 y validar `npm test`.
+1. Publicar el endurecimiento de flujo y audios en Apps Script y la VM, validando `npm test` antes del reinicio controlado de PM2.
 2. Hacer una prueba real de punta a punta: tipo, marca, ciudad, tamaño de equipo, nombre, consentimiento, duda sobre una función y confirmación `sí`; el bot debe explicar la función sin pedir datos otra vez.
-3. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
-4. Preparar la campaña de lanzamiento y usar el número comercial en redes.
-5. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
+3. Repetir la prueba con notas de voz cortas y revisar que exista una sola fila de CRM y una sola alerta de asesor.
+4. Verificar que el nuevo registro muestre ciudad, equipo y notas correctas en CRM y que los indicadores se actualicen.
+5. Preparar la campaña de lanzamiento y usar el número comercial en redes.
+6. Antes de ampliar el acceso al CRM, proteger el panel administrativo con autenticación o una capa de autorización. Hoy la clave de borrado protege la acción destructiva, pero el acceso general al panel requiere un endurecimiento adicional.
 
 ## Forma de trabajo y conceptos para aprender
 

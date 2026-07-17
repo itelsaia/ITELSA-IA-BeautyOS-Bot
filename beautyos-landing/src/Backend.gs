@@ -164,54 +164,67 @@ function handleSaveLead(payload) {
   if (cant === '2 a 5') categoria = 'Mediano';
   else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
 
+  // La validación de duplicado, el append y el contador deben ser una única
+  // operación. Dos webhooks recibidos casi al mismo tiempo no pueden crear
+  // dos filas ni alterar la asignación round-robin.
+  var leadLock = LockService.getScriptLock();
+  if (!leadLock.tryLock(10000)) {
+    return { error: 'No fue posible reservar el registro del lead. Inténtalo nuevamente en unos segundos.' };
+  }
+
   // Asignacion round-robin entre asesores activos
   var asesoresData = leerTabla(ss, 'ASESORES');
   var asesoresActivos = asesoresData.filter(function(a) { return String(a.ACTIVO).toLowerCase() === 'si' && a.WHATSAPP; });
   var asesorAsignado = '';
   var asesorNombre = '';
   var asesorRow = 0;
-  if (asesoresActivos.length > 0) {
-    var totalLeads = Math.max(0, sheet.getLastRow() - 1);
-    var idx = totalLeads % asesoresActivos.length;
-    asesorAsignado = String(asesoresActivos[idx].WHATSAPP).trim();
-    asesorNombre = asesoresActivos[idx].NOMBRE || '';
-    asesorRow = asesoresActivos[idx]._rowNum;
-  }
 
-  // ── GUARDRAIL: Validar duplicados por WhatsApp ──
-  var waLimpio = String(payload.whatsapp || '').replace(/\D/g, '');
-  if (waLimpio && sheet.getLastRow() > 1) {
-    var existentes = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
-    for (var d = 0; d < existentes.length; d++) {
-      if (String(existentes[d][0]).replace(/\D/g, '') === waLimpio) {
-        return { success: true, duplicado: true, mensaje: 'Este WhatsApp ya esta registrado como lead', asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
+  try {
+    if (asesoresActivos.length > 0) {
+      var totalLeads = Math.max(0, sheet.getLastRow() - 1);
+      var idx = totalLeads % asesoresActivos.length;
+      asesorAsignado = String(asesoresActivos[idx].WHATSAPP).trim();
+      asesorNombre = asesoresActivos[idx].NOMBRE || '';
+      asesorRow = asesoresActivos[idx]._rowNum;
+    }
+
+    // ── GUARDRAIL: Validar duplicados por WhatsApp ──
+    var waLimpio = String(payload.whatsapp || '').replace(/\D/g, '');
+    if (waLimpio && sheet.getLastRow() > 1) {
+      var existentes = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
+      for (var d = 0; d < existentes.length; d++) {
+        if (String(existentes[d][0]).replace(/\D/g, '') === waLimpio) {
+          return { success: true, duplicado: true, mensaje: 'Este WhatsApp ya esta registrado como lead', asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
+        }
       }
     }
-  }
 
-  sheet.appendRow([
-    Utilities.formatDate(new Date(), 'America/Bogota', 'M/d/yyyy HH:mm:ss'),
-    clean(payload.nombreContacto),
-    clean(payload.nombreNegocio),
-    clean(payload.whatsapp),
-    clean(payload.email),
-    clean(payload.ciudad),
-    cant,
-    categoria,
-    source,
-    'NUEVO', asesorAsignado, '',
-    clean(payload.notas),
-    clean(payload.autorizaDatos) || 'SI'
-  ]);
+    sheet.appendRow([
+      Utilities.formatDate(new Date(), 'America/Bogota', 'M/d/yyyy HH:mm:ss'),
+      clean(payload.nombreContacto),
+      clean(payload.nombreNegocio),
+      clean(payload.whatsapp),
+      clean(payload.email),
+      clean(payload.ciudad),
+      cant,
+      categoria,
+      source,
+      'NUEVO', asesorAsignado, '',
+      clean(payload.notas),
+      clean(payload.autorizaDatos) || 'SI'
+    ]);
 
-  // Contar la asignación solo si el lead sí fue creado. Así un WhatsApp
-  // duplicado no altera los conteos durante las pruebas.
-  if (asesorRow) {
-    var asesoresSheet = ss.getSheetByName('ASESORES');
-    if (asesoresSheet) {
-      var currentCount = Number(asesoresSheet.getRange(asesorRow, 6).getValue()) || 0;
-      asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
+    // Contar la asignación solo si el lead sí fue creado. Así un WhatsApp
+    // duplicado no altera los conteos durante las pruebas.
+    if (asesorRow) {
+      var asesoresSheet = ss.getSheetByName('ASESORES');
+      if (asesoresSheet) {
+        var currentCount = Number(asesoresSheet.getRange(asesorRow, 6).getValue()) || 0;
+        asesoresSheet.getRange(asesorRow, 6).setValue(currentCount + 1);
+      }
     }
+  } finally {
+    leadLock.releaseLock();
   }
 
   // Notificacion por email
@@ -228,7 +241,10 @@ function handleSaveLead(payload) {
   }
 
   // Alerta WhatsApp al asesor asignado via Evolution API
-  if (asesorAsignado) {
+  // Los leads creados desde WhatsApp ya reciben una única alerta desde el
+  // bot, que conoce el asesor devuelto por este endpoint. Para formularios de
+  // landing, Apps Script conserva el envío directo.
+  if (asesorAsignado && !isWhatsappAgent) {
     var alertMsg = '*🔔 Nuevo Lead ' + nombreProducto + '*\n\n'
       + '👤 Contacto: ' + (payload.nombreContacto || 'Sin nombre') + '\n'
       + '💼 Negocio: ' + (payload.nombreNegocio || '') + '\n'
