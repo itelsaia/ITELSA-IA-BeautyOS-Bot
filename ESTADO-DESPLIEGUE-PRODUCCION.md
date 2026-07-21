@@ -244,6 +244,14 @@ Como medida de seguridad, `reportar_novedad`, cartera y compromisos de pago
 solo están disponibles cuando el número está identificado como cliente en el
 CRM. Los prospectos no pueden crear tickets técnicos.
 
+### Prueba funcional pendiente
+
+Queda pendiente realizar una prueba nueva desde el WhatsApp de un cliente:
+reportar que el bot no responde, responder las preguntas de contexto de Sofi y
+confirmar que el nuevo ticket aparece con negocio, prioridad y técnico
+asignado. El ticket histórico `NOV-20260407-001` no sirve para esta validación,
+porque se creó antes de la configuración actual del equipo de soporte.
+
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
 
 - Responde de forma breve, cálida y con máximo un emoji de belleza por mensaje.
