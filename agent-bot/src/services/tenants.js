@@ -108,6 +108,9 @@ function markSessionAsIncompleteCommercialLead(session, phone, lead) {
     session.estado = 'LEAD_INCOMPLETO';
     session._leadNeedsCompletion = true;
     delete session._leadCapturado;
+    session._commercialExpectedField = '';
+    session._commercialAwaitingField = '';
+    session._awaitingLeadAuthorization = false;
     session.datos = {
         celular: phone,
         nombrePerfil: previousData.nombrePerfil || '',
@@ -133,6 +136,7 @@ function markSessionAsExistingCommercialLead(session, phone, lead) {
     delete session._leadMissingAfterGrace;
     delete session._leadNeedsCompletion;
     session._commercialExpectedField = '';
+    session._commercialAwaitingField = '';
     session._awaitingLeadAuthorization = false;
     session.datos = {
         ...previousData,

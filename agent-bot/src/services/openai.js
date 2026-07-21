@@ -397,7 +397,8 @@ function isCommercialLeadRegistrationComplete(userData = {}, session = null) {
 }
 
 function getCommercialToolsForConversation(userData = {}, session = null) {
-    if (!isCommercialLeadRegistrationComplete(userData, session)) {
+    if (!isCommercialLeadRegistrationComplete(userData, session)
+        && !userData._commercialBlockLeadCapture) {
         return COMMERCIAL_TOOLS;
     }
     return COMMERCIAL_TOOLS.filter(tool => tool.function.name !== 'capturar_lead');
@@ -1229,6 +1230,11 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
     const knownNeed = cleanText(userData.necesidad || userData._notasLead || '', 180);
     const consentGiven = String(userData._autorizaDatos || '').toUpperCase() === 'SI';
     const consentDeclined = Boolean(userData._leadConsentDeclined);
+    const serverRequiredField = cleanText(userData._commercialRequiredField || '', 40);
+    const serverResumeQuestion = cleanText(userData._commercialResumeQuestion || '', 300);
+    const serverCaptureInstruction = serverResumeQuestion
+        ? 'CONTROL DEL SERVIDOR: La persona hizo una duda mientras sigue pendiente el campo "' + serverRequiredField + '". Responde primero la duda en máximo dos frases. No pidas ni infieras otros datos, no uses capturar_lead y cierra exactamente con esta pregunta: "' + serverResumeQuestion + '".'
+        : '';
     const prospectGuide = (() => {
         if (isClient || isExistingLead) return '';
         if (consentDeclined) return 'No vuelvas a pedir autorización. Atiende la duda actual y recuerda con naturalidad que puede autorizar más adelante si cambia de opinión.';
@@ -1288,7 +1294,7 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
 - PROHIBIDO pedir, validar, confirmar o volver a solicitar nombre, negocio o marca, ciudad, equipo o autorización de datos.
 - PROHIBIDO usar capturar_lead. Un "sí", "listo" u "ok" responde solo a tu pregunta de contenido inmediatamente anterior; nunca es una autorización nueva.
 - Responde su duda primero. Si acabas de preguntarle si desea saber cómo usar o configurar algo y responde sí, explica ese proceso de forma breve y clara; no inicies un registro.
-- Si pide corregir un dato específico, reconoce el cambio y solicita únicamente ese dato, sin reiniciar el flujo.`
+- Si pide corregir un dato ya guardado, no reabras la captura ni prometas un cambio automático; indica que el asesor confirmará y actualizará esa ficha.`
         : `CONVERSACIÓN CON PROSPECTOS
 - La conversación debe sentirse como una asesoría, no como un formulario. Haz máximo una pregunta concreta por mensaje.
 - Nunca preguntes "¿a qué negocio te dedicas?" ni "¿cuál es tu negocio?". Primero identifica el TIPO de negocio y después pide su NOMBRE COMERCIAL o marca.
@@ -1296,6 +1302,7 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
 - Si responde algo genérico como "belleza" o "negocio de belleza", aclara con opciones concretas de tipo; no avances ni supongas el nombre de la marca.
 - Sigue la guía de abajo solo para los datos que aún falten. Si el usuario da varios datos claros en un mismo mensaje, aprovéchalos y no los vuelvas a pedir.
 - Si el prospecto hace una pregunta concreta sobre precio, funciones, implementación o uso, respóndela primero en una frase con datos reales. Después retoma únicamente la pregunta objetivo de la guía.
+- El servidor controla qué dato fue preguntado. Nunca supongas que una palabra corta como "sí", "dale", "listo" o "hágale" responde a otro campo. Si algo es ambiguo, pide una aclaración corta del mismo campo y conserva todos los datos válidos.
 - La necesidad o duda es opcional: si la expresa, respóndela y guárdala como contexto; no la exijas antes de solicitar la autorización.
 - No presiones para registrarse. Después de resolver sus dudas, invítalo naturalmente a dejar sus datos para que el equipo pueda orientarlo o darle seguimiento.
 - Cuando conozcas tipo de negocio o necesidad, inclúyelos en notas al llamar capturar_lead: "Tipo de negocio: ... | Necesidad/duda: ...". No inventes esos datos.`;
@@ -1335,6 +1342,8 @@ FAQs útiles para este mensaje:
 ${selectedKnowledge || '- Si no conoces la respuesta, di que la confirmarás con el equipo.'}
 
 ${conversationRules}
+
+${serverCaptureInstruction}
 
 GUÍA DEL SIGUIENTE PASO
 ${prospectGuide || 'No aplica: atiende la necesidad actual sin reiniciar la captura.'}
@@ -1954,11 +1963,13 @@ PASO 5 — POST-CONFIRMACIÓN:
         // la herramienta que crea o completa un lead.
         const commercialRegistrationComplete = config.tenantType === 'comercial'
             && isCommercialLeadRegistrationComplete(userData, session);
+        const commercialCaptureBlocked = config.tenantType === 'comercial'
+            && Boolean(userData._commercialBlockLeadCapture);
         const activeTools = config.tenantType === 'comercial'
             ? getCommercialToolsForConversation(userData, session)
             : TOOLS;
-        if (commercialRegistrationComplete) {
-            console.log('[openai] 🛡️ Lead comercial registrado: captura bloqueada para esta conversación.');
+        if (commercialRegistrationComplete || commercialCaptureBlocked) {
+            console.log('[openai] 🛡️ Captura comercial bloqueada para esta conversación.');
         }
         // Las conversaciones comerciales son deliberadamente breves. 350 tokens
         // alcanzan para una respuesta de WhatsApp y para argumentos de herramientas.
@@ -2462,7 +2473,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             .replace(/[.!?,;:]+$/g, '')
                             .replace(/\s+/g, ' ')
                             .trim();
-                        const respuestaEsConsentimiento = /^(?:si|claro|dale|ok(?:ay)?|listo|perfecto|de acuerdo|esta bien|puedes(?: guardar(?: mis)? datos)?|autorizo(?: el tratamiento(?: de mis datos)?)?|acepto(?: el tratamiento(?: de mis datos)?)?|si (?:claro|por favor|puedes|autorizo|acepto|de acuerdo)|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?)$/.test(respuestaNormalizada);
+                        const respuestaEsConsentimiento = /^(?:si|claro|dale|ok(?:ay)?|listo|listic[oa]|perfecto|de acuerdo|esta bien|puedes(?: guardar(?: mis)? datos)?|autorizo(?: el tratamiento(?: de mis datos)?)?|acepto(?: el tratamiento(?: de mis datos)?)?|si (?:claro|por favor|porfa|senora|señora|senor|señorita|puedes|autorizo|acepto|de acuerdo)|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?)$/.test(respuestaNormalizada);
                         const autorizaDatos = session._awaitingLeadAuthorization
                             && (respuestaEsConsentimiento || String(draft.autorizaDatos || '').toUpperCase() === 'SI')
                             && cleanVal(functionArgs.autorizaDatos).toUpperCase() === 'SI'
@@ -2510,6 +2521,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             session._leadSavedAt = Date.now();
                             session._leadMissingAfterGrace = 0;
                             session._commercialExpectedField = '';
+                            session._commercialAwaitingField = '';
                             session._awaitingLeadAuthorization = false;
                             delete session._leadNeedsCompletion;
                             if (session.datos) {

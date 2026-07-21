@@ -187,6 +187,40 @@ Las pruebas automáticas del bot cubren guardrails post-registro, caché, dedupl
 
 ## CRM comercial y pruebas
 
+## Actualización lista para desplegar — protección del flujo de Sofi
+
+Esta actualización refuerza el recorrido comercial de Sofi antes de aplicarlo
+en la VM. Incluye las siguientes mejoras:
+
+1. Las respuestas de un mismo WhatsApp se procesan en orden y un webhook
+   duplicado se ignora mediante su identificador de mensaje.
+2. El servidor conserva el paso pendiente de la captura, por lo que Sofi no
+   confunde respuestas breves ni reinicia el formulario después de registrar
+   un lead.
+3. Un prospecto puede corregir explícitamente su ciudad antes de autorizar el
+   registro; Sofi actualiza únicamente ese dato y muestra de nuevo el resumen.
+4. La autorización acepta respuestas naturales como `de acuerdo`, `dale`,
+   `listo`, `listica`, `está bien` u `okay` solo cuando la pregunta de
+   autorización está realmente pendiente. Expresiones ambiguas como `hágale`
+   o `sisas` siguen requiriendo confirmación explícita.
+5. Las notas de voz se transcriben y recorren las mismas validaciones que un
+   mensaje escrito.
+
+La validación local se ejecutó con `npm test`: **18 pruebas aprobadas y 0
+fallos**. Después de publicar el commit en GitHub, aplicar en la VM:
+
+    cd /home/iaitelsa/beautyos
+    git pull --ff-only origin main
+    cd agent-bot
+    npm test
+    pm2 restart beautyos-bot --update-env
+    pm2 save
+    pm2 status
+
+La confirmación final debe incluir una prueba real por WhatsApp: corregir una
+ciudad antes del consentimiento y verificar que, tras un registro completo,
+Sofi continúa una conversación sin volver a pedir los datos del formulario.
+
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
 
 - Responde de forma breve, cálida y con máximo un emoji de belleza por mensaje.

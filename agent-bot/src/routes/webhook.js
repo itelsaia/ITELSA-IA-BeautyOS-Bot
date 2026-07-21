@@ -56,7 +56,7 @@ function isGenericCommercialBusinessName(value) {
     const text = normalizeCommercialText(value)
         .replace(/^(?:mi|un|una|el|la)\s+/, '')
         .trim();
-    return /^(?:salon(?: de belleza)?|peluqueria|barberia(?: de (?:hombres|caballeros|damas))?|spa(?: de (?:belleza|bienestar))?|unas|manicure|pedicure|estetica|cejas|pestanas|belleza|negocio de belleza|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(text);
+    return /^(?:salon(?: de belleza)?|pelu(?:queria)?|barberia(?: de (?:hombres|caballeros|damas))?|barber shop|spa(?: de (?:belleza|bienestar))?|unas|nails|manicure|pedicure|estetica|cejas|pestanas|lash(?:es)?|brows?|belleza|negocio de belleza|beauty salon|(?:salon|centro|estudio) de (?:unas|belleza|cejas|pestanas|estetica))$/.test(text);
 }
 
 function isCommercialAcknowledgement(value) {
@@ -67,19 +67,36 @@ function isCommercialPlaceholderValue(value) {
     return /^(?:pendiente|sin (?:nombre|negocio|datos|registro)|n\/?a|na|desconocido|por (?:confirmar|definir)|tbd|-)$/.test(normalizeCommercialText(value).trim());
 }
 
+function isCommercialNonDataResponse(value) {
+    const text = normalizeCommercialText(value)
+        .replace(/[.!?,;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return /^(?:hola|buenas|buenos dias|buenas tardes|bien(?: gracias)?|gracias|me interesa|si quiero|quiero informacion|quiero información|no entiendo|no comprendo|no se|no se todavia|no tengo|no quiero|prefiero no|mas tarde|despues|por ahora|todo bien|de una|hagale|sisas)$/.test(text);
+}
+
 function isInvalidCommercialBusinessName(value) {
     return !normalizeCommercialValue(value)
         || isGenericCommercialBusinessName(value)
         || isCommercialAcknowledgement(value)
+        || isCommercialNonDataResponse(value)
         || isCommercialPlaceholderValue(value);
+}
+
+function isPlausibleCommercialBusinessName(value) {
+    const name = normalizeCommercialValue(value);
+    const text = normalizeCommercialText(name);
+    if (isInvalidCommercialBusinessName(name) || name.length < 2) return false;
+    if (/^(?:tengo|quiero|necesito|quisiera|busco|no\s+(?:se|sé|tengo)|aun\s+no|todavia\s+no|despues|luego|por\s+ahora)\b/.test(text)) return false;
+    if (/\b(?:duda|pregunta|precio|precios|plan(?:es)?|servicio(?:s)?|informacion|información|ayuda)\b/.test(text)) return false;
+    return !isLikelyCommercialQuestion(name);
 }
 
 function hasCompleteCommercialDraft(draft) {
     return Boolean(
         draft
         && normalizeCommercialValue(draft.nombreContacto)
-        && normalizeCommercialValue(draft.negocio)
-        && !isInvalidCommercialBusinessName(draft.negocio)
+        && isPlausibleCommercialBusinessName(draft.negocio)
         && isPlausibleCommercialCity(draft.ciudad)
         && normalizeCommercialValue(draft.empleados)
     );
@@ -90,7 +107,10 @@ function isPositiveCommercialAuthorization(value) {
         .replace(/[.!?,;:]+$/g, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return /^(?:si|claro|dale|ok(?:ay)?|listo|perfecto|de acuerdo|esta bien|puedes(?: guardar(?: mis)? datos)?|autorizo(?: el tratamiento(?: de mis datos)?)?|acepto(?: el tratamiento(?: de mis datos)?)?|si (?:claro|por favor|puedes|autorizo|acepto|de acuerdo)|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?)$/.test(text);
+    // Estas expresiones solo se usan cuando el servidor dejó pendiente la
+    // pregunta exacta de autorización. Mantenemos fuera respuestas demasiado
+    // ambiguas como "hágale" o "sisas", que pueden referirse a una explicación.
+    return /^(?:si(?:\s+(?:claro|por favor|porfa|senora|senor|senorita|quiero|puedes|autorizo|acepto|de acuerdo))?|autorizo(?:\s+el tratamiento(?: de mis datos)?)?|acepto(?:\s+el tratamiento(?: de mis datos)?)?|confirmo(?:\s+la autorizacion)?|puedes(?:\s+guardar)?(?: mis)? datos|ahora si(?: autorizo| puedes guardar(?: mis)? datos)?|de acuerdo|dale|list(?:o|a|ica)|esta bien|okay)$/.test(text);
 }
 
 function isNegativeCommercialAuthorization(value) {
@@ -98,17 +118,27 @@ function isNegativeCommercialAuthorization(value) {
         .replace(/[.!?,;:]+$/g, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return /^(?:no|no autorizo|no acepto|prefiero no|mejor no|ahora no|no quiero(?: compartir| dar| guardar)?(?: mis)? datos?)$/.test(text);
+    return /^(?:no|no autorizo|no acepto|no gracias|prefiero no(?: (?:decir(?:lo)?|compartir|dar|guardar)(?: mis)? datos?)?|mejor no|ahora no|por ahora no|despues|luego|paso|no quiero(?: (?:que me contacten|compartir|dar|guardar)(?: mis)? datos?)?)$/.test(text);
+}
+
+function isExplicitCommercialAuthorizationReopen(value) {
+    const text = normalizeCommercialText(value)
+        .replace(/[.!?,;:]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return /^(?:si\s+)?(?:autorizo|acepto)(?:\s+el tratamiento(?: de mis datos)?)?$/.test(text)
+        || /^(?:si\s+)?puedes(?:\s+guardar)?(?: mis)? datos$/.test(text);
 }
 
 function getCommercialNextExpectedField(session) {
     if (!session || session._commercialRegistrationComplete || session._leadCapturado || session.estado === 'LEAD_EXISTENTE') {
         return '';
     }
+    if (session._commercialCapturePaused) return '';
     const draft = session._datosCaptura || {};
-    if (session.estado === 'LEAD_INCOMPLETO' && isInvalidCommercialBusinessName(draft.negocio)) return 'negocio';
+    if (session.estado === 'LEAD_INCOMPLETO' && !isPlausibleCommercialBusinessName(draft.negocio)) return 'negocio';
     if (!normalizeCommercialValue(draft.tipoNegocio)) return 'tipoNegocio';
-    if (isInvalidCommercialBusinessName(draft.negocio)) return 'negocio';
+    if (!isPlausibleCommercialBusinessName(draft.negocio)) return 'negocio';
     if (!isPlausibleCommercialCity(draft.ciudad)) return 'ciudad';
     if (!normalizeCommercialValue(draft.empleados)) return 'empleados';
     if (!isLikelyCommercialContactName(draft.nombreContacto)) return 'nombreContacto';
@@ -119,41 +149,211 @@ function getCommercialNextExpectedField(session) {
 function isLikelyCommercialContactName(value) {
     const name = normalizeCommercialValue(value);
     if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '\-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+){0,3}$/.test(name)) return false;
-    return !/^(?:hola|si|no|claro|gracias|buenas|buenos|usuario|cliente)$/i.test(name);
+    const normalized = normalizeCommercialText(name);
+    if (/^(?:hola|si|no|claro|gracias|buenas|buenos|usuario|cliente)$/i.test(normalized)) return false;
+    if (isCommercialNonDataResponse(name)) return false;
+    if (/^(?:(?:soy|es)\s+)?(?:la|el)?\s*(?:duen[oa]|encargad[oa]|administrador(?:a)?|asesor(?:a)?|cliente)$/i.test(normalized)) return false;
+    if (/^(?:no\s+(?:quiero|tengo)\s+(?:decir|nombre)|prefiero\s+no\s+decir(?:lo)?)$/.test(normalized)) return false;
+    return !/\b(?:duda|pregunta|precio|precios|servicio|servicios|negocio|barberia|spa|salon)\b/i.test(normalized);
+}
+
+function formatCommercialCity(value) {
+    const city = normalizeCommercialValue(value);
+    const normalized = normalizeCommercialText(city)
+        .replace(/\./g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const aliases = {
+        'bogota': 'Bogotá',
+        'bogota dc': 'Bogotá',
+        'bogota d c': 'Bogotá',
+        'bta': 'Bogotá',
+        'medellin': 'Medellín',
+        'medallo': 'Medellín',
+        'bga': 'Bucaramanga'
+    };
+    if (aliases[normalized]) return aliases[normalized];
+    // No usamos \b: sus límites son ASCII y corrompen tildes como Cúcuta o
+    // Chía. Si la persona ya usó mayúsculas/minúsculas mixtas, conservamos
+    // exactamente su escritura; si escribió todo en una sola caja, normalizamos
+    // solo el inicio de cada palabra.
+    if (city !== city.toLocaleLowerCase('es-CO') && city !== city.toLocaleUpperCase('es-CO')) {
+        return city;
+    }
+    const lowercaseWords = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'y']);
+    return city.split(/\s+/).map((word, index) => {
+        const lower = word.toLocaleLowerCase('es-CO');
+        if (index > 0 && lowercaseWords.has(lower)) return lower;
+        return lower.charAt(0).toLocaleUpperCase('es-CO') + lower.slice(1);
+    }).join(' ');
+}
+
+function parseCommercialCity(value) {
+    let city = normalizeCommercialValue(value);
+    const normalized = normalizeCommercialText(city).replace(/\s+/g, ' ').trim();
+
+    // Si la persona aclara una ciudad principal, sí se permite la cobertura
+    // secundaria posterior. En cualquier otra mención de dos ciudades, no
+    // elegimos una arbitrariamente.
+    const primaryMatch = city.match(/^(?:(?:mi\s+)?(?:ciudad|zona)\s+)?principal\s+(?:es|ser[ií]a)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{2,60})(?:,|;|\.|$)/i);
+    if (primaryMatch) city = primaryMatch[1].trim();
+    else {
+        city = city
+            .replace(/^(?:(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+)?(?:estoy|queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?|soy|vivo|resido|trabajo)\s+(?:en|de|desde|por)\s+/i, '')
+            .replace(/^(?:(?:(?:mi|la)\s+)?ciudad\s+(?:correcta\s+)?(?:es|ser[ií]a)|(?:en\s+)?(?:la\s+)?ciudad\s+de)\s+/i, '')
+            .replace(/^en\s+/i, '')
+            .trim();
+    }
+
+    if (!primaryMatch && (/\b(?:y|o)\b/.test(normalized) || /\b(?:tambien|también)\s+(?:atiendo|trabajo|tengo)\b/.test(normalized))) {
+        return '';
+    }
+    if (/,/.test(city)) city = city.split(',')[0].trim();
+    city = city.replace(/\s+(?:colombia|col)\.?$/i, '').trim();
+    return formatCommercialCity(city);
 }
 
 function isPlausibleCommercialCity(value) {
-    const city = normalizeCommercialValue(value);
+    const city = parseCommercialCity(value);
+    const raw = normalizeCommercialText(value).replace(/[.!?,;:]+$/g, '').replace(/\s+/g, ' ').trim();
     if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ][A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{1,59}$/.test(city)) return false;
     if (isCommercialAcknowledgement(city)) return false;
+    if (isCommercialNonDataResponse(city)) return false;
     if (isCommercialPlaceholderValue(city)) return false;
-    return !/^(?:mi ciudad|el negocio|colombia|no se|ninguna)$/i.test(normalizeCommercialText(city));
+    const normalized = normalizeCommercialText(city);
+    if (/^(?:mi ciudad|el negocio|colombia|no se|no se todavia|todavia no|mas adelante|por ahora|por el momento|estoy empezando|ninguna|ninguno|la casa|mi casa|prefiero no(?: decirlo)?|solo yo|yo solit[oa]|por mi cuenta|independiente)$/i.test(normalized)) return false;
+    if (isPositiveCommercialAuthorization(raw) || isNegativeCommercialAuthorization(raw)) return false;
+    if (detectCommercialTeamSize(raw, false) || detectCommercialBusinessType(raw, true)) return false;
+    if (/\b(?:barrio|localidad|zona|sector|centro|direccion|dirección|casa|hogar|domicilio|local|sur|norte|oriente|occidente)\b/.test(normalized)) return false;
+    if (/^(?:kennedy|suba|chapinero|usaquen|engativa|bosa|fontibon|teusaquillo|tunjuelito|ciudad bolivar|el sur|el norte|el centro)$/i.test(normalized)) return false;
+    if (/^(?:cris(?:tian)?|maria(?: jose)?|juan|jose|ana|carla|carolina|diana|andrea|sofia|carlos|luis|david|pedro|laura|natalia|camila)$/i.test(normalized)) return false;
+    if (/\b(?:quiero|tengo|necesito|duda|pregunta|precio|servicio|funciona|saber)\b/.test(normalized)) return false;
+    return !/\b(?: y | o )\b/.test(normalized);
 }
 
 function detectCommercialBusinessType(messageText, isExpectedTypeAnswer = false) {
     const text = normalizeCommercialText(messageText);
     const isOwnershipStatement = /\b(tengo|manejo|mi\s+(?:negocio|salon|barberia|spa|estudio)|soy\s+duen[oa]|trabajo\s+en)\b/.test(text);
     if (!isExpectedTypeAnswer && !isOwnershipStatement) return '';
-    if (/\bbarber/i.test(text)) return 'Barbería';
+    if (/\bbarber(?:ia|shop)?\b/i.test(text)) return 'Barbería';
     if (/\bspa\b|masajes?|terapias?\b/.test(text)) return 'Spa / bienestar';
-    if (/\bunas\b|manicur|pedicur/.test(text)) return 'Uñas';
-    if (/\bcejas\b|pestanas\b|lash\b|brows?\b/.test(text)) return 'Cejas y pestañas';
+    if (/\bunas\b|nails?\b|manicur|pedicur/.test(text)) return 'Uñas';
+    if (/\bcejas\b|pestanas\b|lash(?:es)?\b|brows?\b/.test(text)) return 'Cejas y pestañas';
     if (/\bestetica\b|facial(?:es)?\b|depilaci/.test(text)) return 'Estética';
-    if (/\bsalon\b|peluquer|estilista|cabello\b/.test(text)) return 'Salón de belleza';
+    if (/\bsalon\b|pelu(?:quer)?|estilista|cabello\b/.test(text)) return 'Salón de belleza';
     return '';
 }
 
 function detectCommercialTeamSize(messageText, allowBareAnswer = false) {
     const text = normalizeCommercialText(messageText);
-    if (/\b(solo\s*yo|yo\s+sol[oa]|trabajo\s+sol[oa]|independiente|unico\s+empleado|yo\s+soy\s+el\s+unico)\b/.test(text)) return 'Solo yo';
-    if (/\b(tengo\s+(?:[2-5]|dos|tres|cuatro|cinco)|somos\s+(?:[2-5]|dos|tres|cuatro|cinco)|(?:[2-5]|dos|tres|cuatro|cinco)\s+(?:emplead|persona|trabajador|estilista|colaborador|chic[oa]s?))\b/.test(text)) return '2 a 5';
-    if (/\b(tengo\s+(?:[6-9]|10|seis|siete|ocho|nueve|diez)|somos\s+(?:[6-9]|10|seis|siete|ocho|nueve|diez)|(?:[6-9]|10|seis|siete|ocho|nueve|diez)\s+(?:emplead|persona|trabajador|estilista|colaborador))\b/.test(text)) return '6 a 10';
-    if (/\b(tengo\s+(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)|somos\s+(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)|(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince)\s+(?:emplead|persona|trabajador|estilista|colaborador)|mas\s+de\s+(?:10|diez))\b/.test(text)) return '11 o mas';
+    const solo = /\b(?:solo\s*yo|yo\s+sol[oa]|yo\s+solit[oa]|trabajo\s+sol[oa]|por\s+mi\s+cuenta|independiente|unico\s+empleado|yo\s+soy\s+el\s+unico|solo\s+atiendo\s+yo)\b/.test(text);
+    if (solo && (allowBareAnswer || /\b(?:trabajo|atiendo|soy|por)\b/.test(text))) return 'Solo yo';
+    if (allowBareAnswer && /\b(?:mi\s+(?:hermana|socio|companera)|una\s+(?:chica|muchacha))\s+y\s+yo\b/.test(text)) return '2 a 5';
+
+    const teamCount = '(?:[2-9]|[1-9]\\d|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince)';
+    const teamNoun = '(?:emplead(?:o|a|os|as)?|personas?|trabajador(?:a|es|as)?|estilistas?|colaboradores?|asesores?|profesionales?|chic[oa]s?|en\\s+total)';
+    const nonTeamNoun = '(?:sede(?:s)?|local(?:es)?|cliente(?:s)?|dia(?:s)?|plan(?:es)?|servicio(?:s)?|pregunta(?:s)?|cita(?:s)?|hora(?:s)?)';
+    const hasNamedTeam = new RegExp('\\b(?:tenemos|atendemos|contamos\\s+con|cuento\\s+con|trabajamos)\\s+' + teamCount + '\\s+' + teamNoun + '\\b').test(text)
+        || new RegExp('\\b' + teamCount + '\\s+' + teamNoun + '\\b').test(text);
+    const hasSomosCount = new RegExp('\\bsomos\\s+(?:mas\\s+de\\s+)?' + teamCount + '\\b(?!\\s+' + nonTeamNoun + '\\b)').test(text)
+        || /\bsomos\s+mas\s+de\s+(?:10|diez)\b/.test(text);
+    const hasBareWorkCount = allowBareAnswer
+        && new RegExp('\\btrabajamos\\s+' + teamCount + '\\b(?!\\s+' + nonTeamNoun + '\\b)').test(text);
+    const hasTeamContext = hasNamedTeam || hasSomosCount || hasBareWorkCount
+        || /\bmas\s+de\s+(?:10|diez)\s+(?:emplead(?:o|a|os|as)?|personas?|trabajador(?:a|es|as)?|estilistas?|colaboradores?|asesores?|profesionales?)\b/.test(text);
+    if (hasTeamContext) {
+        if (/\b(?:[2-5]|dos|tres|cuatro|cinco)\b/.test(text)) return '2 a 5';
+        if (/\b(?:[6-9]|10|seis|siete|ocho|nueve|diez)\b/.test(text)) return '6 a 10';
+        if (/\b(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince|mas\s+de\s+(?:10|diez))\b/.test(text)) return '11 o mas';
+    }
     if (allowBareAnswer) {
         if (/^(?:1|uno|una|yo)$/.test(text)) return 'Solo yo';
         if (/^(?:[2-5]|dos|tres|cuatro|cinco)$/.test(text)) return '2 a 5';
         if (/^(?:[6-9]|10|seis|siete|ocho|nueve|diez)$/.test(text)) return '6 a 10';
         if (/^(?:1[1-9]|[2-9]\d|once|doce|trece|catorce|quince|mas de (?:10|diez))$/.test(text)) return '11 o mas';
+    }
+    return '';
+}
+
+function isLikelyCommercialQuestion(value) {
+    const raw = String(value || '');
+    const text = normalizeCommercialText(raw).replace(/\s+/g, ' ').trim();
+    if (!text) return false;
+    if (/[¿?]/.test(raw)) return true;
+    if (/^(?:como|que|cual|cuanto|cuando|donde|por que|para que|me explicas?|explicame|cuentame|quiero saber|quiero conocer|necesito saber|tengo (?:una )?duda|informame|dime|me cuentas?|me interesa|me gustaria|me gustaría|quisiera|no entiendo|no comprendo|ayudame|ayúdame)\b/.test(text)) return true;
+    if (/^(?:quiero|necesito|dame)\s+(?:saber|ver|conocer|informacion|información|precios?|planes?|servicios?|una\s+demo|soporte)\b/.test(text)) return true;
+    // En audio es frecuente recibir "el funcionamiento de los servicios" sin
+    // signos de interrogación. Detectamos intención, no palabras aisladas:
+    // "Agenda Beauty" o "Citas de Reinas" pueden ser marcas totalmente válidas.
+    if (/\b(?:funcionamiento|funciona|implementacion|configur(?:ar|acion)|soporte)\b/.test(text)) return true;
+    if (/\b(?:precio|precios|plan(?:es)?|servicio(?:s)?|agenda|citas?|crm|sistema|herramienta|demo)\s+(?:de|del|para|por|en|con|sobre)\b/.test(text)) return true;
+    return /^(?:precios?|planes?|servicios?|soporte|demo)(?:\s+beautyos)?$/.test(text);
+}
+
+function isCommercialOptOut(value) {
+    const text = normalizeCommercialText(value).replace(/[.!?,;:]+$/g, '').trim();
+    return /^(?:no gracias|no me interesa|no quiero|mejor no|despues|luego|ahora no|por ahora no|paso|prefiero no)$/i.test(text);
+}
+
+function getCommercialAwaitingField(session, lastAssistantMessage = '') {
+    const requiredField = getCommercialNextExpectedField(session);
+    const current = String(session?._commercialAwaitingField || '').trim();
+    if (current && current === requiredField) return current;
+
+    // Compatibilidad segura para conversaciones iniciadas antes de este
+    // despliegue: solo recuperamos el campo anterior si el último mensaje
+    // realmente contenía esa pregunta, nunca solo porque falta el dato.
+    const legacy = String(session?._commercialExpectedField || '').trim();
+    if (!current && legacy && legacy === requiredField
+        && inferCommercialExpectedField(lastAssistantMessage) === legacy) {
+        return legacy;
+    }
+    return '';
+}
+
+function setCommercialAwaitingField(session, field) {
+    const nextField = field || '';
+    session._commercialAwaitingField = nextField;
+    // Se conserva temporalmente para compatibilidad con sesiones en memoria
+    // creadas por versiones anteriores del bot.
+    session._commercialExpectedField = nextField;
+    session._awaitingLeadAuthorization = nextField === 'autorizacion';
+}
+
+function getCommercialCaptureQuestion(field, draft = {}, options = {}) {
+    const attempt = Number(options.attempt || 0);
+    const resume = Boolean(options.resume);
+    const prefix = resume
+        ? 'Para continuar con tu solicitud, '
+        : (attempt > 1 ? 'No pasa nada; para seguir, ' : (attempt === 1 ? 'Para dejarlo claro, ' : ''));
+    const business = normalizeCommercialValue(draft.negocio);
+    const city = parseCommercialCity(draft.ciudad);
+    const employees = normalizeCommercialValue(draft.empleados);
+
+    if (field === 'tipoNegocio') {
+        const typePrefix = resume
+            ? 'Para continuar con tu solicitud, '
+            : (attempt > 1 ? 'No pasa nada; para seguir, ' : (attempt === 1 ? 'Para dejarlo claro, ' : 'Para orientarte mejor, '));
+        return typePrefix + '¿tu negocio es salón/peluquería, barbería, spa, uñas, cejas/pestañas o estética? Puedes responder con una opción.';
+    }
+    if (field === 'negocio') {
+        return prefix + '¿cómo se llama tu negocio o marca? Ejemplo: “Spa Del Amor”.';
+    }
+    if (field === 'ciudad') {
+        return prefix + '¿en qué ciudad o municipio atiendes principalmente? Ejemplo: Bogotá, Soacha, Medellín o Chía.';
+    }
+    if (field === 'empleados') {
+        return prefix + '¿atiendes solo tú, son 2 a 5, 6 a 10 o 11 o más personas? Puedes responder con una opción.';
+    }
+    if (field === 'nombreContacto') {
+        return prefix + '¿con qué nombre prefieres que te contactemos? Ejemplo: Cris o María José.';
+    }
+    if (field === 'autorizacion') {
+        const contact = normalizeCommercialValue(draft.nombreContacto);
+        const resumen = [business, city, employees].filter(Boolean).join(' · ');
+        const contactoResumen = contact ? 'Contacto: ' + contact : '';
+        return 'Tengo: ' + [resumen, contactoResumen].filter(Boolean).join(' · ') + '. '
+            + '¿Está correcto y autorizas usar estos datos solo para contactarte sobre BeautyOS? Responde “sí, autorizo” o “no autorizo”.';
     }
     return '';
 }
@@ -166,102 +366,111 @@ function updateCommercialCaptureDraft(session, messageText) {
         .reverse()
         .find(entry => entry.role === 'assistant')?.content || '';
     const rawAnswer = normalizeCommercialValue(messageText);
-    const isQuestion = /[¿?]/.test(String(messageText || ''));
-    const isDirectAnswer = rawAnswer && !isQuestion && rawAnswer.length <= 100;
+    // Una pausa explícita no borra el borrador, pero evita que el agente siga
+    // pidiendo datos hasta que la persona indique claramente que desea retomar.
+    if (session._commercialCapturePaused && /^(?:quiero\s+(?:continuar|registrarme|dejar\s+mis\s+datos)|podemos\s+continuar|si\s+quiero\s+registrarme|me\s+quiero\s+registrar)$/i.test(normalizeCommercialText(messageText).trim())) {
+        session._commercialCapturePaused = false;
+    }
+    const isQuestion = isLikelyCommercialQuestion(messageText);
     const flowClosed = Boolean(
         session._commercialRegistrationComplete
         || session._leadCapturado
         || session.estado === 'LEAD_EXISTENTE'
-        || session._leadConsentDeclined
     );
-    const expectedField = session._commercialExpectedField
-        || getCommercialNextExpectedField(session)
-        || (flowClosed ? '' : inferCommercialExpectedField(lastAssistantMessage));
-    let expectedFieldHandled = false;
-    const clearExpectedField = () => {
-        expectedFieldHandled = true;
+    const awaitingField = flowClosed ? '' : getCommercialAwaitingField(session, lastAssistantMessage);
+    let awaitingFieldHandled = false;
+    const changesField = (field, value) => {
+        const cleanValue = normalizeCommercialValue(value);
+        if (!cleanValue || normalizeCommercialValue(draft[field]) === cleanValue) return false;
+        draft[field] = cleanValue;
+        changes[field] = cleanValue;
+        return true;
     };
     const stripBusinessPrefix = (value) => normalizeCommercialValue(value)
-        .replace(/^(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+(?:se\s+llama|es)\s+/i, '')
+        .replace(/^(?:(?:mi|el|la)\s+)?(?:(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+)?(?:se\s+llama|es)\s+/i, '')
         .trim();
     const stripContactPrefix = (value) => normalizeCommercialValue(value)
-        .replace(/^(?:me\s+llamo|mi\s+nombre\s+es)\s+/i, '')
+        .replace(/^(?:me\s+llamo|mi\s+nombre\s+es|me\s+dicen|puedes?\s+llamarme|pueden\s+llamarme|soy)\s+/i, '')
         .trim();
-    const stripCityPrefix = (value) => normalizeCommercialValue(value)
-        .replace(/^(?:(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+)?(?:estoy|queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?)\s+en\s+/i, '')
-        .replace(/^en\s+/i, '')
-        .trim();
+    const acceptField = (field, value) => {
+        const changed = changesField(field, value);
+        if (field === awaitingField && (changed || normalizeCommercialValue(draft[field]))) {
+            awaitingFieldHandled = true;
+            // El siguiente dato no se marca como "preguntado" hasta que la
+            // respuesta se envíe con éxito. Así un fallo de Evolution no deja
+            // una respuesta corta asociada a una pregunta que nunca llegó.
+            setCommercialAwaitingField(session, '');
+        }
+        return changed;
+    };
 
-    // La pregunta exacta anterior permite guardar respuestas breves como
-    // “Corte Fino”, “Bogotá” o “3”, sin adivinar datos en otros contextos.
-    if (isDirectAnswer) {
-        if (expectedField === 'tipoNegocio' && !draft.tipoNegocio) {
+    const applyExpectedAnswer = () => {
+        if (!rawAnswer || isQuestion || !awaitingField) return;
+        if (awaitingField === 'tipoNegocio') {
             const tipoNegocio = detectCommercialBusinessType(messageText, true);
             if (tipoNegocio) {
-                draft.tipoNegocio = tipoNegocio;
-                changes.tipoNegocio = tipoNegocio;
-                clearExpectedField();
+                acceptField('tipoNegocio', tipoNegocio);
             }
-        } else if (expectedField === 'negocio' && !draft.negocio) {
+        } else if (awaitingField === 'negocio') {
             const negocio = stripBusinessPrefix(rawAnswer);
-            if (!isInvalidCommercialBusinessName(negocio)) {
-                draft.negocio = negocio;
-                changes.negocio = negocio;
-                clearExpectedField();
+            if (isPlausibleCommercialBusinessName(negocio)) {
+                acceptField('negocio', negocio);
             }
-        } else if (expectedField === 'ciudad' && !draft.ciudad) {
-            const ciudad = stripCityPrefix(rawAnswer);
-            if (isPlausibleCommercialCity(ciudad)) {
-                draft.ciudad = ciudad;
-                changes.ciudad = ciudad;
-                clearExpectedField();
+        } else if (awaitingField === 'ciudad') {
+            const ciudad = parseCommercialCity(rawAnswer);
+            if (ciudad && isPlausibleCommercialCity(rawAnswer)) {
+                acceptField('ciudad', ciudad);
             }
-        } else if (expectedField === 'empleados' && !draft.empleados) {
+        } else if (awaitingField === 'empleados') {
             const empleados = detectCommercialTeamSize(messageText, true);
             if (empleados) {
-                draft.empleados = empleados;
-                changes.empleados = empleados;
-                clearExpectedField();
+                acceptField('empleados', empleados);
             }
-        } else if (expectedField === 'nombreContacto' && !draft.nombreContacto) {
+        } else if (awaitingField === 'nombreContacto') {
             const nombre = stripContactPrefix(rawAnswer);
-            if (isLikelyCommercialContactName(nombre)) {
-                draft.nombreContacto = nombre;
-                changes.nombreContacto = nombre;
-                clearExpectedField();
+            if (isLikelyCommercialContactName(nombre)
+                && normalizeCommercialText(nombre) !== normalizeCommercialText(draft.negocio)) {
+                acceptField('nombreContacto', nombre);
             }
-        } else if (expectedField === 'necesidad' && !draft.notas) {
+        } else if (awaitingField === 'necesidad') {
             draft.notas = 'Necesidad/duda: ' + rawAnswer;
             changes.notas = draft.notas;
-            clearExpectedField();
+            awaitingFieldHandled = true;
+            setCommercialAwaitingField(session, '');
         }
-    }
+    };
 
-    // La autorización se interpreta solo cuando el servidor ya tenía ese
-    // paso pendiente. Las variantes naturales se aceptan sin convertir un
-    // "sí" relativo a una duda de producto en consentimiento.
-    if (expectedField === 'autorizacion' && isDirectAnswer) {
+    // Nunca interpretar una respuesta corta desde el simple dato faltante:
+    // solo se acepta si ese campo fue preguntado realmente por el servidor.
+    applyExpectedAnswer();
+
+    let authorizationAccepted = false;
+    let authorizationDeclined = false;
+    if (awaitingField === 'autorizacion' && rawAnswer && !isQuestion) {
         if (isPositiveCommercialAuthorization(messageText)) {
             draft.autorizaDatos = 'SI';
             session._leadConsentDeclined = false;
-            session._awaitingLeadAuthorization = true;
+            setCommercialAwaitingField(session, '');
             changes.autorizaDatos = 'SI';
-            clearExpectedField();
+            awaitingFieldHandled = true;
+            authorizationAccepted = true;
         } else if (isNegativeCommercialAuthorization(messageText)) {
             draft.autorizaDatos = 'NO';
             session._leadConsentDeclined = true;
-            session._awaitingLeadAuthorization = false;
+            setCommercialAwaitingField(session, '');
             changes.autorizaDatos = 'NO';
-            clearExpectedField();
+            awaitingFieldHandled = true;
+            authorizationDeclined = true;
         }
-    } else if (session._leadConsentDeclined && isPositiveCommercialAuthorization(messageText)
+    } else if (session._leadConsentDeclined && isExplicitCommercialAuthorizationReopen(messageText)
         && hasCompleteCommercialDraft(draft)) {
         // Permitir que un prospecto cambie de opinión más tarde sin obligarlo
         // a repetir el formulario.
         draft.autorizaDatos = 'SI';
         session._leadConsentDeclined = false;
-        session._awaitingLeadAuthorization = true;
+        setCommercialAwaitingField(session, '');
         changes.autorizaDatos = 'SI';
+        authorizationAccepted = true;
     }
 
     if (!draft.email) {
@@ -272,67 +481,101 @@ function updateCommercialCaptureDraft(session, messageText) {
         }
     }
 
-    if (!draft.tipoNegocio) {
-        const tipoNegocio = detectCommercialBusinessType(messageText, expectedField === 'tipoNegocio');
-        if (tipoNegocio) {
-            draft.tipoNegocio = tipoNegocio;
-            changes.tipoNegocio = tipoNegocio;
+    // Extracción adicional solo para afirmaciones explícitas. Puede coexistir
+    // con una pregunta en el mismo audio/texto ("Atiendo en Bogotá, ¿cuánto
+    // cuesta?"), pero jamás se extrae un dato desde una pregunta pura.
+    if (rawAnswer) {
+        if (!draft.tipoNegocio) {
+            const tipoNegocio = detectCommercialBusinessType(messageText, false);
+            if (tipoNegocio) acceptField('tipoNegocio', tipoNegocio);
         }
-    }
 
-    if (!draft.empleados) {
-        const empleados = detectCommercialTeamSize(messageText);
-        if (empleados) {
-            draft.empleados = empleados;
-            changes.empleados = empleados;
-        }
-    }
-
-    // Solo aceptar el nombre de contacto cuando se presenta explícitamente;
-    // “soy de una barbería” no se interpreta como nombre.
-    if (!draft.nombreContacto) {
-        const nombreMatch = String(messageText || '').match(/\b(?:me llamo|mi nombre es)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,80})/i);
+        const nombreMatch = String(messageText || '').match(/^(?:me llamo|mi nombre es|me dicen|puedes?\s+llamarme|pueden\s+llamarme|soy)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,80})/i);
         if (nombreMatch) {
-            const nombre = normalizeCommercialValue(nombreMatch[1])
+            const nombre = stripContactPrefix(nombreMatch[0])
                 .replace(/\s+(?:y|pero)\s+(?=(?:tengo|manejo|trabajo|soy|mi\s+(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio))\b).*$/i, '')
                 .trim();
-            if (isLikelyCommercialContactName(nombre)) {
-                draft.nombreContacto = nombre;
-                changes.nombreContacto = nombre;
+            if (isLikelyCommercialContactName(nombre)
+                && normalizeCommercialText(nombre) !== normalizeCommercialText(draft.negocio)) {
+                acceptField('nombreContacto', nombre);
             }
         }
-    }
 
-    // Se guarda el nombre comercial solo cuando el prospecto lo indicó de
-    // forma inequívoca. La IA todavía puede extraerlo del historial al final.
-    if (!draft.negocio) {
-        const negocioMatch = String(messageText || '').match(/\b(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+(?:se\s+llama|es)\s+["'“”]?([^.,!?]+)/i);
+        const negocioMatch = String(messageText || '').match(/^(?:(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+(?:se\s+llama|es)|(?:la\s+)?marca\s+(?:se\s+llama|es)|se\s+llama)\s+["'“”]?([^.,!?]+)/i);
         if (negocioMatch) {
-            const negocio = normalizeCommercialValue(negocioMatch[1])
+            const negocio = stripBusinessPrefix(negocioMatch[0])
                 .replace(/\s+(?:y|pero)\s+(?=(?:tengo|manejo|trabajo|soy|mi\s+(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio))\b).*$/i, '')
                 .trim();
-            if (!isInvalidCommercialBusinessName(negocio)) {
-                draft.negocio = negocio;
-                changes.negocio = negocio;
-            }
+            if (isPlausibleCommercialBusinessName(negocio)) acceptField('negocio', negocio);
         }
+
+        const cityStatement = /^(?:(?:(?:mi|la)\s+)?ciudad\s+(?:correcta\s+)?(?:es|ser[ií]a)|(?:mi\s+)?(?:negocio|sal[oó]n|barber[ií]a|spa|marca|estudio)\s+)?(?:queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?|soy|vivo|resido|trabajo)\s+(?:en|de|desde|por)\s+/i.test(String(messageText || ''))
+            || /^(?:(?:(?:mi|la)\s+)?ciudad\s+(?:correcta\s+)?(?:es|ser[ií]a)|(?:en\s+)?la\s+ciudad\s+de)\s+/i.test(String(messageText || ''));
+        if (cityStatement && isPlausibleCommercialCity(messageText)) {
+            const ciudad = parseCommercialCity(messageText);
+            if (ciudad) acceptField('ciudad', ciudad);
+        }
+
+        const empleados = detectCommercialTeamSize(messageText, false);
+        if (empleados) acceptField('empleados', empleados);
     }
 
-    // El extractor libre solo procesa afirmaciones; una pregunta como
-    // “¿BeautyOS está en Bogotá?” no puede convertirse en ciudad del lead.
-    if (!draft.ciudad && !isQuestion) {
-        const ciudadMatch = String(messageText || '').match(/\b(?:queda|est[aá]|atiendo|atendemos|estamos|ubicad[oa]s?)\s+en\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,60}?)(?=\s*(?:,|\.|!|\?|$|\by\b|\bpero\b))/i);
-        if (ciudadMatch) {
-            const ciudad = normalizeCommercialValue(ciudadMatch[1]);
-            if (isPlausibleCommercialCity(ciudad)) {
-                draft.ciudad = ciudad;
-                changes.ciudad = ciudad;
-            }
+    const requiredField = flowClosed ? '' : getCommercialNextExpectedField(session);
+    const attempts = session._commercialClarificationAttempts || {};
+    const clearAttempt = (field) => {
+        if (field && attempts[field]) attempts[field] = 0;
+    };
+    if (awaitingFieldHandled) clearAttempt(awaitingField);
+
+    let inputKind = 'accepted';
+    let directReply = '';
+    let resumeQuestion = '';
+    let blockLeadCapture = false;
+
+    if (flowClosed) {
+        inputKind = 'registered';
+    } else if (authorizationAccepted) {
+        inputKind = 'authorization';
+    } else if (authorizationDeclined) {
+        inputKind = 'authorization_declined';
+        directReply = 'Entendido, respeto tu decisión. Si más adelante quieres que el equipo te contacte sobre BeautyOS, puedes autorizarlo por este medio.';
+    } else if (isCommercialOptOut(messageText)) {
+        session._commercialCapturePaused = true;
+        setCommercialAwaitingField(session, '');
+        inputKind = 'opt_out';
+        directReply = 'Claro, no hay problema. Si más adelante quieres conocer BeautyOS o resolver una duda, aquí estoy.';
+    } else if (isQuestion) {
+        inputKind = 'product_question';
+        if (requiredField) {
+            resumeQuestion = getCommercialCaptureQuestion(requiredField, draft, { resume: true });
+            blockLeadCapture = true;
         }
+    } else if (requiredField) {
+        const needsClarification = awaitingField
+            && awaitingField === requiredField
+            && !awaitingFieldHandled
+            && Object.keys(changes).length === 0;
+        if (needsClarification) {
+            attempts[requiredField] = Math.min((Number(attempts[requiredField]) || 0) + 1, 3);
+            inputKind = 'ambiguous';
+        } else {
+            attempts[requiredField] = 0;
+        }
+        directReply = getCommercialCaptureQuestion(requiredField, draft, { attempt: attempts[requiredField] || 0 });
     }
 
-    if (expectedFieldHandled) session._commercialExpectedField = '';
-    return changes;
+    session._commercialClarificationAttempts = attempts;
+    return {
+        changes,
+        requiredField,
+        awaitingField,
+        inputKind,
+        directReply,
+        resumeQuestion,
+        blockLeadCapture,
+        authorizationAccepted,
+        authorizationDeclined
+    };
 }
 
 function asksCommercialDataAuthorization(text) {
@@ -611,8 +854,10 @@ async function processEvolutionWebhookEvent(event, instance, data) {
 
         // ── Comercial: saltar onboarding, ir directo a IA ──
         let userData;
+        let commercialCaptureState = null;
         if (isComercial) {
-            const draftChanges = updateCommercialCaptureDraft(session, messageText);
+            commercialCaptureState = updateCommercialCaptureDraft(session, messageText);
+            const draftChanges = commercialCaptureState.changes;
             const datosCaptura = session._datosCaptura || {};
             const datosSesion = session.datos || {};
             userData = {
@@ -640,6 +885,10 @@ async function processEvolutionWebhookEvent(event, instance, data) {
                 _notasLead: datosCaptura.notas || '',
                 _autorizaDatos: datosCaptura.autorizaDatos || '',
                 _leadConsentDeclined: Boolean(session._leadConsentDeclined),
+                _commercialRequiredField: commercialCaptureState.requiredField || '',
+                _commercialAwaitingField: commercialCaptureState.awaitingField || '',
+                _commercialResumeQuestion: commercialCaptureState.resumeQuestion || '',
+                _commercialBlockLeadCapture: Boolean(commercialCaptureState.blockLeadCapture),
                 _draftChanges: draftChanges
             };
         } else {
@@ -1852,6 +2101,25 @@ async function processEvolutionWebhookEvent(event, instance, data) {
 
         } // fin de if (!isComercial) — bloques de salon
 
+        // ── Captura comercial controlada por servidor ──
+        // Las preguntas de formulario se generan aquí, no por la IA. Esto
+        // conserva el mismo dato pendiente cuando la respuesta es ambigua o
+        // cuando el prospecto escribe de forma informal.
+        if (isComercial && commercialCaptureState?.directReply) {
+            const directReply = commercialCaptureState.directReply;
+            const nextField = commercialCaptureState.inputKind === 'opt_out'
+                ? ''
+                : commercialCaptureState.requiredField;
+            setCommercialAwaitingField(session, nextField);
+
+            session.history.push({ role: 'user', content: messageText });
+            session.history.push({ role: 'assistant', content: directReply });
+            if (session.history.length > 8) session.history.splice(0, 2);
+
+            await evolutionClient.sendText(instanceName, phoneNumber, directReply);
+            return;
+        }
+
         // ── Respuesta de IA (OpenAI con Function Calling) ��─
         // Inyectar datos comerciales en config para openai.js
         if (isComercial) {
@@ -1873,7 +2141,7 @@ async function processEvolutionWebhookEvent(event, instance, data) {
             }
         }
 
-        const aiReply = await generateAIResponse(
+        let aiReply = await generateAIResponse(
             messageText,
             tenant.config,
             tenant.servicesCatalog,
@@ -1891,6 +2159,17 @@ async function processEvolutionWebhookEvent(event, instance, data) {
             tenant.festivosConfig || []
         );
 
+        // Una duda de producto se responde con IA, pero el servidor vuelve a
+        // anexar la pregunta cerrada del mismo campo. Así no se reinicia el
+        // registro ni una respuesta posterior se interpreta como otro dato.
+        if (isComercial && commercialCaptureState?.resumeQuestion) {
+            const normalizedReply = normalizeCommercialText(aiReply).replace(/\s+/g, ' ').trim();
+            const normalizedQuestion = normalizeCommercialText(commercialCaptureState.resumeQuestion).replace(/\s+/g, ' ').trim();
+            if (!normalizedReply.includes(normalizedQuestion)) {
+                aiReply = String(aiReply || '').trim() + '\n\n' + commercialCaptureState.resumeQuestion;
+            }
+        }
+
         // Recordar cuál fue la pregunta concreta de Sofi. Esto permite que
         // una respuesta breve en el siguiente turno se guarde sin adivinar.
         // La autorización solo se habilita con el perfil ya validado.
@@ -1904,17 +2183,16 @@ async function processEvolutionWebhookEvent(event, instance, data) {
                 // Una pregunta de producto nunca puede dejar armada una
                 // autorización pendiente ni un campo de formulario. Así un
                 // "sí" posterior conserva el contexto de la explicación.
-                session._commercialExpectedField = '';
-                session._awaitingLeadAuthorization = false;
+                setCommercialAwaitingField(session, '');
             } else {
-                // La máquina de estados es propiedad del servidor, no de la
-                // redacción del modelo. Aunque Sofi parafrasee una pregunta,
-                // la siguiente respuesta corta se guardará en el campo real.
-                const expectedField = getCommercialNextExpectedField(session);
-                session._commercialExpectedField = expectedField;
-                session._awaitingLeadAuthorization = expectedField === 'autorizacion'
-                    && hasCompleteCommercialDraft(session._datosCaptura)
-                    && asksCommercialDataAuthorization(aiReply);
+                const requiredField = getCommercialNextExpectedField(session);
+                const serverResumedField = commercialCaptureState?.resumeQuestion
+                    ? requiredField
+                    : '';
+                const aiAskedField = inferCommercialExpectedField(aiReply);
+                const nextAwaitingField = serverResumedField
+                    || (aiAskedField === requiredField ? aiAskedField : '');
+                setCommercialAwaitingField(session, nextAwaitingField);
             }
         }
 
@@ -2263,6 +2541,15 @@ module.exports = {
     enqueueConversationTask,
     resetWebhookGuardsForTests,
     getCommercialNextExpectedField,
+    getCommercialAwaitingField,
+    setCommercialAwaitingField,
+    getCommercialCaptureQuestion,
+    updateCommercialCaptureDraft,
+    isLikelyCommercialQuestion,
+    isPlausibleCommercialBusinessName,
+    isPlausibleCommercialCity,
+    detectCommercialTeamSize,
     isPositiveCommercialAuthorization,
-    isNegativeCommercialAuthorization
+    isNegativeCommercialAuthorization,
+    isExplicitCommercialAuthorizationReopen
 };
