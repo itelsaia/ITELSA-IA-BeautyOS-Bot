@@ -397,11 +397,21 @@ function isCommercialLeadRegistrationComplete(userData = {}, session = null) {
 }
 
 function getCommercialToolsForConversation(userData = {}, session = null) {
+    const isClient = userData.estado === 'CLIENTE_EXISTENTE' || Boolean(userData.idCliente);
+    // Un prospecto no puede abrir tickets ni consultar cartera: esas acciones
+    // son exclusivas de una ficha de cliente reconocida por el CRM.
+    const allowedTools = !isClient
+        ? COMMERCIAL_TOOLS.filter(tool => ![
+            'reportar_novedad',
+            'consultar_estado_cuenta',
+            'registrar_compromiso_pago'
+        ].includes(tool.function.name))
+        : COMMERCIAL_TOOLS;
     if (!isCommercialLeadRegistrationComplete(userData, session)
         && !userData._commercialBlockLeadCapture) {
-        return COMMERCIAL_TOOLS;
+        return allowedTools;
     }
-    return COMMERCIAL_TOOLS.filter(tool => tool.function.name !== 'capturar_lead');
+    return allowedTools.filter(tool => tool.function.name !== 'capturar_lead');
 }
 
 // ============================================================
@@ -2623,15 +2633,18 @@ PASO 5 — POST-CONFIRMACIÓN:
             }
 
             else if (functionName === "reportar_novedad") {
+                const clienteData = userData || {};
                 const crmUrl = config.crmBeautyosUrl;
-                if (!crmUrl) {
+                const esClienteExistente = clienteData.estado === 'CLIENTE_EXISTENTE' || Boolean(clienteData.idCliente);
+                if (!esClienteExistente) {
+                    toolResultText = '❌ Solo se pueden registrar novedades para clientes activos identificados en el CRM.';
+                } else if (!crmUrl) {
                     toolResultText = '❌ CRM URL no configurada. No se pudo registrar la novedad.';
                 } else {
-                    const clienteData = userData || {};
                     const resp = await api.postToCRM(crmUrl, {
                         action: 'saveNovedad',
                         whatsapp: clienteData.celular || session?.datos?.celular || '',
-                        nombreNegocio: clienteData.nombre || session?.datos?.nombre || '',
+                        nombreNegocio: clienteData.negocio || session?.datos?.negocio || clienteData.nombre || '',
                         idCliente: clienteData.idCliente || session?.datos?.idCliente || '',
                         tipoNovedad: functionArgs.tipoNovedad,
                         descripcion: functionArgs.descripcion,

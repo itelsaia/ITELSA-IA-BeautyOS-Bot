@@ -221,6 +221,29 @@ La confirmación final debe incluir una prueba real por WhatsApp: corregir una
 ciudad antes del consentimiento y verificar que, tras un registro completo,
 Sofi continúa una conversación sin volver a pedir los datos del formulario.
 
+## Módulo de soporte técnico — activación operativa
+
+Los clientes existentes pueden reportar incidentes a Sofi por WhatsApp. Sofi
+recopila qué ocurre, desde cuándo y el impacto; después crea un ticket en la
+hoja `NOVEDADES` con estado `ABIERTA` y con el nombre comercial correcto.
+
+Para activar la asignación automática, ejecutar una sola vez
+`crearHojaSoporteTecnico()` desde el proyecto de Apps Script. Luego agregar en
+la hoja `SOPORTE_TECNICO` cada técnico con estas columnas:
+
+| NOMBRE | CELULAR | EMAIL | ESPECIALIDAD | ACTIVO | TICKETS_ASIGNADOS |
+|---|---|---|---|---|---|
+| Nombre del técnico | 57XXXXXXXXXX | correo@dominio.com | Bot, CRM o general | si | 0 |
+
+Cada ticket se asigna por turno a un técnico activo, se le notifica por
+WhatsApp y también genera una alerta por correo. Al actualizar el ticket a
+`RESUELTA` desde el panel CRM, el cliente recibe la confirmación y las notas
+de solución por WhatsApp.
+
+Como medida de seguridad, `reportar_novedad`, cartera y compromisos de pago
+solo están disponibles cuando el número está identificado como cliente en el
+CRM. Los prospectos no pueden crear tickets técnicos.
+
 El agente beautyos-comercial ya está vinculado y puede captar leads comerciales. El flujo actual:
 
 - Responde de forma breve, cálida y con máximo un emoji de belleza por mensaje.

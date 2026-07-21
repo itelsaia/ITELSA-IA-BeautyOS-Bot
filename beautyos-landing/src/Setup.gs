@@ -18,6 +18,7 @@ function setupLanding() {
   crearPagos(ss);
   crearNovedades(ss);
   crearEstadosNovedad(ss);
+  crearSoporteTecnico(ss);
   crearAsesores(ss);
   crearPlanes(ss);
   crearCondiciones(ss);

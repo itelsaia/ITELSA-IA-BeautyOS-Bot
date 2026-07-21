@@ -791,7 +791,16 @@ async function processEvolutionWebhookEvent(event, instance, data) {
                     tenant.userSessions[phoneNumber] = {
                         history: [],
                         estado: 'CLIENTE_EXISTENTE',
-                        datos: { celular: phoneNumber, nombre: clienteMatch.nombre, idCliente: clienteMatch.id }
+                        // El CRM comercial expone el nombre del negocio como
+                        // "nombre". Lo conservamos también como negocio para
+                        // que los tickets de soporte queden ligados a la marca
+                        // correcta y no al nombre visible del contacto.
+                        datos: {
+                            celular: phoneNumber,
+                            nombre: clienteMatch.nombre,
+                            negocio: clienteMatch.nombre,
+                            idCliente: clienteMatch.id
+                        }
                     };
                 } else {
                     // Buscar si ya es un lead capturado previamente

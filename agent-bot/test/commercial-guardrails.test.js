@@ -76,6 +76,22 @@ test('un lead ya registrado no recibe instrucciones de captura ni la herramienta
     assert.ok(toolNames.includes('transferir_asesor'));
 });
 
+test('solo un cliente identificado puede usar las herramientas de soporte y cartera', () => {
+    const prospectTools = getCommercialToolsForConversation({ estado: 'PROSPECTO' })
+        .map(tool => tool.function.name);
+    assert.equal(prospectTools.includes('reportar_novedad'), false);
+    assert.equal(prospectTools.includes('consultar_estado_cuenta'), false);
+    assert.equal(prospectTools.includes('registrar_compromiso_pago'), false);
+
+    const clientTools = getCommercialToolsForConversation({
+        estado: 'CLIENTE_EXISTENTE',
+        idCliente: 'CLI-001'
+    }).map(tool => tool.function.name);
+    assert.equal(clientTools.includes('reportar_novedad'), true);
+    assert.equal(clientTools.includes('consultar_estado_cuenta'), true);
+    assert.equal(clientTools.includes('registrar_compromiso_pago'), true);
+});
+
 test('un sí ambiguo no se trata como autorización mientras falta el nombre comercial', () => {
     const prompt = buildPrompt({
         estado: 'PROSPECTO',
