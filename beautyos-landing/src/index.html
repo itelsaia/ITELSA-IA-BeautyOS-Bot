@@ -327,15 +327,16 @@
       }
       .hero-visual {
         position: relative;
-        min-height: 545px;
+        min-height: 500px;
+        padding-top: 8px;
       }
       .hero-photo {
         position: absolute;
-        inset: 12px 24px 142px 44px;
-        border-radius: 136px 24px 24px 24px;
+        inset: 8px 0 0 18px;
+        border-radius: 150px 28px 28px 28px;
         overflow: hidden;
-        border: 1px solid rgba(255, 255, 255, 0.16);
-        box-shadow: 0 36px 90px rgba(0, 0, 0, 0.38);
+        border: 1px solid rgba(119, 231, 239, 0.28);
+        box-shadow: 0 34px 80px rgba(0, 0, 0, 0.36);
       }
       .hero-photo img {
         width: 100%;
@@ -350,35 +351,16 @@
           linear-gradient(90deg, rgba(7, 24, 35, 0.36), transparent 40%),
           linear-gradient(0deg, rgba(7, 24, 35, 0.42), transparent 45%);
       }
+      /* El hero comunica una sola idea visual: el salón. El dashboard y Sofi
+         se muestran en sus propias secciones para conservar jerarquía y aire. */
       .logo-orbit {
-        position: absolute;
-        right: 6px;
-        top: 0;
-        width: 132px;
-        background: rgba(3, 16, 25, 0.9);
-        padding: 15px;
-        border: 1px solid rgba(0, 216, 232, 0.35);
-        border-radius: 22px;
-        box-shadow:
-          0 20px 50px rgba(0, 0, 0, 0.35),
-          0 0 35px rgba(0, 216, 232, 0.12);
-        z-index: 3;
+        display: none;
       }
       .logo-orbit img {
         border-radius: 20px;
       }
       .dashboard-card {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        width: 56%;
-        padding: 15px;
-        background: rgba(246, 252, 253, 0.96);
-        border: 1px solid white;
-        border-radius: 18px;
-        box-shadow: var(--shadow);
-        z-index: 3;
-        color: var(--navy);
+        display: none;
       }
       .dash-head {
         display: flex;
@@ -444,17 +426,7 @@
         height: 55px;
       }
       .chat-card {
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        width: 39%;
-        padding: 15px;
-        background: #f5fbfc;
-        color: var(--text);
-        border-radius: 20px;
-        box-shadow: var(--shadow);
-        z-index: 4;
-        font-size: 0.72rem;
+        display: none;
       }
       .chat-top {
         display: flex;
