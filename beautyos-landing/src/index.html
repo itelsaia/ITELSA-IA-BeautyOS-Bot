@@ -645,6 +645,19 @@
         color: #b7cbd4;
         font-size: 1.08rem;
       }
+      .agent-clarity {
+        margin: 24px 0 0;
+        padding: 18px 20px;
+        border: 1px solid rgba(0, 216, 232, 0.34);
+        border-radius: 16px;
+        background: rgba(0, 216, 232, 0.08);
+        color: #dbeef2;
+      }
+      .agent-clarity strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--cyan-bright);
+      }
       .check-list {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -992,47 +1005,6 @@
         position: absolute !important;
         left: -9999px !important;
       }
-      .qr {
-        background: white;
-      }
-      .qr-wrap {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 60px;
-        align-items: center;
-        border: 1px solid var(--line);
-        border-radius: 26px;
-        padding: 44px 54px;
-      }
-      .qr-wrap h2 {
-        font-size: 2.25rem;
-      }
-      .qr-box {
-        width: 190px;
-        height: 190px;
-        border: 2px dashed #a9c3cd;
-        border-radius: 20px;
-        padding: 18px;
-        display: grid;
-        place-items: center;
-        text-align: center;
-        background: var(--mist);
-        color: var(--blue);
-      }
-      .qr-pattern {
-        width: 92px;
-        height: 92px;
-        background: repeating-conic-gradient(
-            var(--navy) 0 25%,
-            transparent 0 50%
-          )
-          0/18px 18px;
-        border: 8px solid white;
-        box-shadow: 0 0 0 1px var(--line);
-      }
-      .qr-box small {
-        font-weight: 700;
-      }
       footer {
         background: #04131d;
         color: #aac0c9;
@@ -1284,14 +1256,6 @@
         .field.full {
           grid-column: auto;
         }
-        .qr-wrap {
-          grid-template-columns: 1fr;
-          padding: 34px 24px;
-          gap: 25px;
-        }
-        .qr-box {
-          margin: auto;
-        }
         .footer-grid {
           grid-template-columns: 1fr;
         }
@@ -1351,7 +1315,7 @@
           ></a
         >
         <div class="nav-links">
-          <a href="#solucion">Solución</a><a href="#sofi">Sofi IA</a
+          <a href="#solucion">Solución</a><a href="#sofi">Agente personalizado</a
           ><a href="#incluye">Qué incluye</a><a href="#precio">Precio</a
           ><a class="nav-cta" data-wa href="#">Hablar con Sofi</a>
         </div>
@@ -1392,7 +1356,7 @@
             <div class="hero-actions">
               <a class="btn btn-primary" data-wa href="#"
                 ><svg aria-hidden="true"><use href="#i-chat"></use></svg>Hablar
-                con Sofi por WhatsApp</a
+                con Sofi · Asesora BeautyOS</a
               ><a class="btn btn-outline" href="#incluye"
                 >Ver qué incluye BeautyOS</a
               >
@@ -1435,7 +1399,7 @@
               </div>
             </div>
             <div class="chat-card" aria-hidden="true">
-              <div class="chat-top"><i></i>Sofi · Asistente virtual</div>
+              <div class="chat-top"><i></i>Tu agente · Tu negocio</div>
               <div class="bubble sofi">
                 ¡Hola! ¿Te ayudo a agendar tu cita? ✨
               </div>
@@ -1481,13 +1445,13 @@
         <div class="container sofi-grid">
           <div
             class="phone"
-            aria-label="Ejemplo de atención de Sofi por WhatsApp"
+            aria-label="Ejemplo de un agente virtual personalizado por WhatsApp"
           >
             <div class="phone-notch"></div>
             <div class="phone-head">
-              <div class="sofi-avatar">S</div>
+              <div class="sofi-avatar">A</div>
               <div>
-                <strong>Sofi · BeautyOS</strong
+                <strong>Tu agente · Tu negocio</strong
                 ><small>● disponible ahora</small>
               </div>
             </div>
@@ -1508,20 +1472,27 @@
             </div>
           </div>
           <div class="sofi-copy">
-            <span class="eyebrow">Tu asistente virtual</span>
-            <h2>Sofi atiende, orienta y hace seguimiento por WhatsApp</h2>
+            <span class="eyebrow">Agente virtual personalizado</span>
+            <h2>Tu negocio tendrá su propio agente por WhatsApp</h2>
             <p>
-              Responde preguntas frecuentes, apoya la reserva de citas y captura
-              oportunidades comerciales incluso cuando estás atendiendo a tus
-              clientes.
+              Lo configuramos con el nombre, el tono y la identidad que elijas.
+              Atenderá consultas, apoyará las reservas y registrará oportunidades
+              comerciales siguiendo la información de tu empresa.
             </p>
+            <div class="agent-clarity">
+              <strong>Sofi es la asesora comercial de BeautyOS</strong>
+              Ella te orienta antes de adquirir la solución. No será el agente de
+              tu empresa: tu negocio tendrá uno propio y tú elegirás su nombre.
+            </div>
             <div class="check-list">
-              <span><b>✓</b> Atención rápida y consistente</span
-              ><span><b>✓</b> Disponible fuera de horario</span
+              <span><b>✓</b> Nombre e identidad personalizados</span
+              ><span><b>✓</b> Reservas según tu disponibilidad</span
               ><span><b>✓</b> Conversación natural en español</span
               ><span><b>✓</b> Prospectos registrados en tu CRM</span>
             </div>
-            <a class="btn btn-primary" data-wa href="#">Conocer a Sofi</a>
+            <a class="btn btn-primary" data-wa href="#"
+              >Consultar con Sofi sobre mi agente</a
+            >
           </div>
         </div>
       </section>
@@ -1564,8 +1535,8 @@
             </div>
             <div class="step">
               <div class="step-num">04</div>
-              <h3>Conectamos a Sofi</h3>
-              <p>Preparamos su atención por WhatsApp.</p>
+              <h3>Configuramos tu agente</h3>
+              <p>Le damos el nombre, tono e información de tu negocio.</p>
             </div>
             <div class="step">
               <div class="step-num">05</div>
@@ -1591,8 +1562,8 @@
               <div class="daily">Desde $6.000 COP al día</div>
               <div class="monthly">$180.000 <small>COP / mes</small></div>
               <p>
-                IVA incluido. Consulta con Sofi las condiciones de
-                implementación vigentes.
+                IVA incluido. Consulta con Sofi, asesora comercial de BeautyOS,
+                las condiciones de implementación vigentes.
               </p>
               <a class="btn btn-primary" data-wa href="#">Quiero información</a>
             </div>
@@ -1607,8 +1578,9 @@
               <span class="eyebrow">Hablemos de tu negocio</span>
               <h2>Descubre cómo BeautyOS puede ayudarte</h2>
               <p>
-                Cuéntanos qué deseas mejorar. Sofi o un asesor te contactará con
-                una orientación más precisa.
+                Cuéntanos qué deseas mejorar. Sofi, nuestra asesora comercial, o
+                un integrante del equipo te contactará con una orientación más
+                precisa.
               </p>
               <div class="lead-benefits">
                 <div><b>01</b> Evaluación inicial de tu necesidad</div>
@@ -1678,7 +1650,7 @@
                     ><select id="necesidad" name="necesidadPrincipal" required>
                       <option value="">Selecciona una opción</option>
                       <option>Agenda y citas</option>
-                      <option>Atención por WhatsApp</option>
+                      <option>Agente virtual para WhatsApp</option>
                       <option>Seguimiento de clientes</option>
                       <option>Ventas y marketing</option>
                       <option>Inventario y operación</option>
@@ -1719,29 +1691,6 @@
         </div>
       </section>
 
-      <section class="section qr">
-        <div class="container">
-          <div class="qr-wrap">
-            <div>
-              <span class="eyebrow">Contacto directo</span>
-              <h2>Escanea el QR y conversa con Sofi</h2>
-              <p
-                class="section-lead"
-                style="margin: 0 0 24px; text-align: left"
-              >
-                Este espacio queda preparado para insertar el código QR oficial
-                de WhatsApp. Mientras tanto, puedes abrir la conversación desde
-                el botón.
-              </p>
-              <a class="btn btn-primary" data-wa href="#">Abrir WhatsApp</a>
-            </div>
-            <div class="qr-box">
-              <div class="qr-pattern" aria-hidden="true"></div>
-              <small>QR oficial de Sofi</small>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer>
@@ -1765,7 +1714,7 @@
             </div>
           </div>
           <div>
-            <div class="footer-title">Sofi · Asesora BeautyOS</div>
+            <div class="footer-title">Sofi · Asesora comercial BeautyOS</div>
             <div class="footer-links">
               <a data-wa href="#">+57 310 882 8904</a
               ><a href="#solucion">Conocer la solución</a
@@ -1786,7 +1735,7 @@
       class="wa-float"
       data-wa
       href="#"
-      aria-label="Hablar con Sofi por WhatsApp"
+      aria-label="Hablar con Sofi, asesora comercial de BeautyOS"
       ><svg aria-hidden="true"><use href="#i-chat"></use></svg
     ></a>
 
@@ -1940,8 +1889,8 @@
           ],
           [
             "i-chat",
-            "Sofi, agente por WhatsApp",
-            "Atiende consultas, orienta y registra prospectos automáticamente.",
+            "Agente virtual personalizado",
+            "Atiende con el nombre, el tono y la información de tu negocio.",
           ],
           [
             "i-box",
@@ -1963,7 +1912,7 @@
           "Agenda de citas",
           "Recordatorios automáticos",
           "CRM de clientes",
-          "Sofi por WhatsApp",
+          "Agente virtual con nombre propio",
           "Servicios y precios",
           "Equipo y horarios",
           "Inventario básico",
@@ -2005,7 +1954,7 @@
           })
           .join("");
         var includeBackgrounds = [
-          "agenda", "recordatorios", "crm", "sofi",
+          "agenda", "recordatorios", "crm", "agente",
           "servicios", "equipo", "inventario", "campanas",
           "prospectos", "reportes", "landing", "soporte"
         ];
@@ -2101,8 +2050,8 @@
               }
               showStatus(
                 result && result.duplicado
-                  ? "Tu WhatsApp ya estaba registrado. Sofi podrá continuar la conversación contigo."
-                  : "¡Gracias! Tu solicitud quedó registrada. Sofi o un asesor te contactará.",
+                  ? "Tu WhatsApp ya estaba registrado. Sofi, asesora comercial de BeautyOS, podrá continuar la conversación contigo."
+                  : "¡Gracias! Tu solicitud quedó registrada. Sofi, asesora comercial de BeautyOS, o un integrante del equipo te contactará.",
                 "ok",
               );
               if (!(result && result.duplicado)) form.reset();

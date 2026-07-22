@@ -18,7 +18,7 @@ Google Apps Script ni de rutas temporales.
 | `beautyos-agenda-hostinger-v1.webp` | Agenda de citas |
 | `beautyos-recordatorios-hostinger-v1.webp` | Recordatorios automáticos |
 | `beautyos-crm-hostinger-v1.webp` | CRM de clientes |
-| `beautyos-sofi-whatsapp-hostinger-v1.webp` | Sofi por WhatsApp |
+| `beautyos-agente-virtual-hostinger-v1.webp` | Agente virtual personalizado del cliente |
 | `beautyos-servicios-precios-hostinger-v1.webp` | Servicios y precios |
 | `beautyos-equipo-horarios-hostinger-v1.webp` | Equipo y horarios |
 | `beautyos-inventario-hostinger-v1.webp` | Inventario básico |
@@ -31,6 +31,8 @@ Google Apps Script ni de rutas temporales.
 ## Criterios de uso
 
 - Mantener los nombres para que el código de Hostinger pueda referenciarlos de forma estable.
+- Presentar siempre a Sofi como asesora comercial de BeautyOS. El agente de cada cliente tendrá el nombre y la identidad que ese negocio elija.
+- El archivo `beautyos-sofi-whatsapp-hostinger-v1.webp` se conserva únicamente por compatibilidad y no debe usarse en contenido nuevo.
 - Usar `object-fit: cover` en las tarjetas y conservar el enfoque visual hacia la derecha.
 - Aplicar un degradado oscuro desde la izquierda para asegurar la lectura de títulos blancos.
 - No recomprimir estos archivos al cargarlos; ya están optimizados para web.
