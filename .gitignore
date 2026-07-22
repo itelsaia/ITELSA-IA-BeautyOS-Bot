@@ -31,6 +31,7 @@ redis_data/
 
 # Deploy (archivos de producción con datos sensibles)
 deploy/
+beautyos-landing/hostinger/*.zip
 
 # Clasp backup
 *.backup

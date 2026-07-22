@@ -1,0 +1,2101 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#071823" />
+    <meta
+      name="description"
+      content="BeautyOS by ITELSA IA: sistema integral de gestión para salones de belleza, spas y centros estéticos."
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://www.itelsaia.com/beautyos/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:title" content="BeautyOS by ITELSA IA" />
+    <meta
+      property="og:description"
+      content="Gestión, automatización y agente virtual personalizado para negocios de belleza."
+    />
+    <meta property="og:url" content="https://www.itelsaia.com/beautyos/" />
+    <meta
+      property="og:image"
+      content="https://www.itelsaia.com/beautyos/assets/beautyos-hero-salon-hostinger-v1.webp"
+    />
+    <title>BeautyOS by ITELSA IA | Gestión para negocios de belleza</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      window.BEAUTYOS_BRAND_ASSETS = {
+        logo: "assets/beautyos-logo-oficial-hostinger-v1.webp",
+        hero: "assets/beautyos-hero-salon-hostinger-v1.webp",
+      };
+      window.BEAUTYOS_CARD_ASSETS = {
+        agenda: "assets/beautyos-agenda-hostinger-v1.webp",
+        recordatorios: "assets/beautyos-recordatorios-hostinger-v1.webp",
+        crm: "assets/beautyos-crm-hostinger-v1.webp",
+        agente: "assets/beautyos-agente-virtual-hostinger-v1.webp",
+        servicios: "assets/beautyos-servicios-precios-hostinger-v1.webp",
+        equipo: "assets/beautyos-equipo-horarios-hostinger-v1.webp",
+        inventario: "assets/beautyos-inventario-hostinger-v1.webp",
+        campanas: "assets/beautyos-campanas-hostinger-v1.webp",
+        prospectos: "assets/beautyos-prospectos-hostinger-v1.webp",
+        reportes: "assets/beautyos-reportes-hostinger-v1.webp",
+        landing: "assets/beautyos-landing-hostinger-v1.webp",
+        soporte: "assets/beautyos-soporte-hostinger-v1.webp",
+      };
+    </script>
+    <style>
+      :root {
+        --ink: #071823;
+        --navy: #0b1f2a;
+        --blue: #0a3d62;
+        --cyan: #00bfd6;
+        --cyan-bright: #00d8e8;
+        --white: #fff;
+        --mist: #f4f8fa;
+        --text: #2b2b2b;
+        --muted: #62727d;
+        --copper: #d88a5b;
+        --line: #dce8ed;
+        --shadow: 0 24px 70px rgba(3, 31, 43, 0.14);
+        --radius: 24px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        font-family: "DM Sans", Arial, sans-serif;
+        color: var(--text);
+        background: var(--white);
+        line-height: 1.55;
+        overflow-x: hidden;
+      }
+      img {
+        max-width: 100%;
+        display: block;
+      }
+      a {
+        color: inherit;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      .container {
+        width: min(1180px, calc(100% - 40px));
+        margin: auto;
+      }
+      .section {
+        padding: 104px 0;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: #087a8c;
+        font-weight: 800;
+        font-size: 0.77rem;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      .eyebrow:before {
+        content: "";
+        width: 24px;
+        height: 2px;
+        background: var(--cyan);
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: "Manrope", Arial, sans-serif;
+        color: var(--navy);
+        line-height: 1.12;
+        margin-top: 0;
+      }
+      h2 {
+        font-size: clamp(2rem, 4vw, 3.35rem);
+        letter-spacing: -0.045em;
+        margin-bottom: 20px;
+      }
+      .section-lead {
+        font-size: 1.08rem;
+        color: var(--muted);
+        max-width: 690px;
+        margin: 0 auto 48px;
+      }
+      .section-head {
+        text-align: center;
+        margin-bottom: 54px;
+      }
+      .section-head .eyebrow {
+        margin-bottom: 18px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 52px;
+        padding: 0 24px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: pointer;
+        transition: 0.2s ease;
+      }
+      .btn-primary {
+        color: #04212c;
+        background: linear-gradient(135deg, var(--cyan-bright), #64edf4);
+        box-shadow: 0 14px 34px rgba(0, 216, 232, 0.22);
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 18px 42px rgba(0, 216, 232, 0.3);
+      }
+      .btn-outline {
+        color: white;
+        border-color: rgba(255, 255, 255, 0.28);
+        background: rgba(255, 255, 255, 0.06);
+      }
+      .btn-outline:hover {
+        border-color: var(--cyan);
+        background: rgba(0, 191, 214, 0.12);
+      }
+      .btn-dark {
+        color: white;
+        background: var(--navy);
+      }
+      .btn svg {
+        width: 19px;
+        height: 19px;
+      }
+      .topbar {
+        background: #04141e;
+        color: #bcd0d9;
+        font-size: 0.82rem;
+        text-align: center;
+        padding: 8px 20px;
+      }
+      .topbar strong {
+        color: var(--cyan-bright);
+      }
+      .nav {
+        position: absolute;
+        z-index: 20;
+        left: 0;
+        right: 0;
+        color: white;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .nav-inner {
+        height: 82px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 30px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+      }
+      .brand img {
+        width: 54px;
+        height: 54px;
+        border-radius: 50%;
+        object-fit: cover;
+        object-position: 50% 24%;
+        box-shadow: 0 0 25px rgba(0, 216, 232, 0.2);
+      }
+      .brand-copy {
+        font-family: "Manrope";
+        font-weight: 800;
+        font-size: 1.2rem;
+        letter-spacing: -0.03em;
+      }
+      .brand-copy small {
+        display: block;
+        font-family: "DM Sans";
+        font-weight: 500;
+        font-size: 0.63rem;
+        letter-spacing: 0.18em;
+        color: #9db6c1;
+      }
+      .nav-links {
+        display: flex;
+        gap: 28px;
+        align-items: center;
+      }
+      .nav-links a {
+        text-decoration: none;
+        color: #d6e4e9;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      .nav-links a:hover {
+        color: var(--cyan-bright);
+      }
+      .nav-cta {
+        padding: 10px 16px !important;
+        border: 1px solid rgba(0, 216, 232, 0.45);
+        border-radius: 10px;
+        color: white !important;
+      }
+      .menu-btn {
+        display: none;
+        border: 0;
+        background: none;
+        color: white;
+        padding: 8px;
+      }
+      .menu-btn svg {
+        width: 27px;
+        height: 27px;
+      }
+      .hero {
+        position: relative;
+        min-height: 840px;
+        padding: 172px 0 92px;
+        background:
+          radial-gradient(
+            circle at 77% 25%,
+            rgba(0, 191, 214, 0.16),
+            transparent 30%
+          ),
+          linear-gradient(120deg, #04131d 0%, #092939 58%, #071823 100%);
+        color: white;
+        overflow: hidden;
+      }
+      .hero:after {
+        content: "";
+        position: absolute;
+        inset: auto 0 0;
+        height: 120px;
+        background: linear-gradient(transparent, rgba(4, 20, 30, 0.35));
+        pointer-events: none;
+      }
+      .hero-grid {
+        position: relative;
+        z-index: 2;
+        display: grid;
+        grid-template-columns: 1.03fr 0.97fr;
+        gap: 50px;
+        align-items: center;
+      }
+      .hero .eyebrow {
+        color: var(--cyan-bright);
+        margin-bottom: 22px;
+      }
+      .hero h1 {
+        font-size: clamp(2.7rem, 5vw, 5rem);
+        color: white;
+        letter-spacing: -0.06em;
+        margin-bottom: 25px;
+      }
+      .hero h1 span {
+        display: block;
+        color: var(--cyan-bright);
+      }
+      .hero-sub {
+        font-size: 1.12rem;
+        color: #c5d6dd;
+        max-width: 650px;
+        margin: 0 0 28px;
+      }
+      .price-strip {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        margin: 28px 0;
+      }
+      .price-main {
+        font-family: "Manrope";
+        font-size: 1.28rem;
+        font-weight: 800;
+        color: white;
+      }
+      .price-main strong {
+        color: var(--cyan-bright);
+        font-size: 1.5rem;
+      }
+      .price-detail {
+        font-size: 0.86rem;
+        color: #a9bec8;
+        border-left: 1px solid rgba(255, 255, 255, 0.2);
+        padding-left: 18px;
+      }
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .trust-row {
+        display: flex;
+        gap: 22px;
+        flex-wrap: wrap;
+        margin-top: 30px;
+        color: #a9bec8;
+        font-size: 0.82rem;
+      }
+      .trust-row span {
+        display: flex;
+        gap: 7px;
+        align-items: center;
+      }
+      .trust-row b {
+        color: var(--cyan-bright);
+      }
+      .hero-visual {
+        position: relative;
+        min-height: 500px;
+        padding-top: 8px;
+      }
+      .hero-photo {
+        position: absolute;
+        inset: 8px 0 0 18px;
+        border-radius: 150px 28px 28px 28px;
+        overflow: hidden;
+        border: 1px solid rgba(119, 231, 239, 0.28);
+        box-shadow: 0 34px 80px rgba(0, 0, 0, 0.36);
+      }
+      .hero-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .hero-photo:after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(90deg, rgba(7, 24, 35, 0.36), transparent 40%),
+          linear-gradient(0deg, rgba(7, 24, 35, 0.42), transparent 45%);
+      }
+      /* El hero comunica una sola idea visual: el salón. El dashboard y Sofi
+         se muestran en sus propias secciones para conservar jerarquía y aire. */
+      .logo-orbit {
+        display: none;
+      }
+      .logo-orbit img {
+        border-radius: 20px;
+      }
+      .dashboard-card {
+        display: none;
+      }
+      .dash-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 13px;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+      .dotset {
+        display: flex;
+        gap: 4px;
+      }
+      .dotset i {
+        display: block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #b8cbd2;
+      }
+      .dash-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 7px;
+      }
+      .dash-stat {
+        padding: 10px 7px;
+        background: #eaf8fa;
+        border-radius: 10px;
+        font-size: 0.63rem;
+        color: #66808a;
+      }
+      .dash-stat b {
+        display: block;
+        font: 800 1.12rem "Manrope";
+        color: var(--blue);
+      }
+      .dash-chart {
+        height: 72px;
+        margin-top: 9px;
+        border-radius: 10px;
+        background:
+          linear-gradient(180deg, rgba(0, 191, 214, 0.2), transparent),
+          linear-gradient(
+            90deg,
+            transparent 24%,
+            rgba(11, 31, 42, 0.06) 25%,
+            transparent 26%,
+            transparent 49%,
+            rgba(11, 31, 42, 0.06) 50%,
+            transparent 51%,
+            transparent 74%,
+            rgba(11, 31, 42, 0.06) 75%,
+            transparent 76%
+          );
+        position: relative;
+        overflow: hidden;
+      }
+      .dash-chart svg {
+        position: absolute;
+        inset: 12px 5px 0;
+        width: calc(100% - 10px);
+        height: 55px;
+      }
+      .chat-card {
+        display: none;
+      }
+      .chat-top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--navy);
+        font-weight: 800;
+        margin-bottom: 12px;
+      }
+      .chat-top i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: #20c56f;
+      }
+      .bubble {
+        padding: 9px 11px;
+        border-radius: 12px;
+        margin: 7px 0;
+        line-height: 1.35;
+      }
+      .bubble.sofi {
+        background: #dff7f8;
+        color: #0b3747;
+        margin-right: 20px;
+      }
+      .bubble.client {
+        background: var(--blue);
+        color: white;
+        margin-left: 38px;
+      }
+      .hero-glow {
+        position: absolute;
+        width: 370px;
+        height: 370px;
+        border: 1px solid rgba(0, 216, 232, 0.18);
+        border-radius: 50%;
+        right: -190px;
+        top: 80px;
+        box-shadow: 0 0 90px rgba(0, 216, 232, 0.08);
+      }
+      .pain {
+        background: var(--mist);
+      }
+      .pain-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+      .pain-card {
+        background: white;
+        border: 1px solid var(--line);
+        padding: 26px;
+        border-radius: 18px;
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        transition: 0.2s;
+      }
+      .pain-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 15px 35px rgba(10, 61, 98, 0.08);
+      }
+      .icon {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        border-radius: 13px;
+        display: grid;
+        place-items: center;
+        color: var(--blue);
+        background: #e4f8fa;
+      }
+      .icon svg {
+        width: 22px;
+        height: 22px;
+      }
+      .pain-card h3 {
+        font-size: 1rem;
+        margin: 2px 0 7px;
+      }
+      .pain-card p {
+        font-size: 0.89rem;
+        color: var(--muted);
+        margin: 0;
+      }
+      .solution {
+        background: white;
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 15px;
+      }
+      .feature {
+        position: relative;
+        padding: 27px 20px 25px;
+        border-radius: 19px;
+        background: linear-gradient(145deg, #fff, #f3f9fb);
+        border: 1px solid var(--line);
+        min-height: 250px;
+        overflow: hidden;
+      }
+      .feature:after {
+        content: "";
+        position: absolute;
+        width: 80px;
+        height: 80px;
+        border: 18px solid rgba(0, 191, 214, 0.045);
+        border-radius: 50%;
+        right: -28px;
+        bottom: -28px;
+      }
+      .feature-num {
+        font: 800 0.72rem "Manrope";
+        letter-spacing: 0.13em;
+        color: var(--cyan);
+        margin-bottom: 23px;
+      }
+      .feature h3 {
+        font-size: 1.03rem;
+        margin: 18px 0 10px;
+      }
+      .feature p {
+        font-size: 0.87rem;
+        color: var(--muted);
+        margin: 0;
+      }
+      .feature .icon {
+        background: var(--navy);
+        color: var(--cyan-bright);
+      }
+      .sofi {
+        background: var(--navy);
+        color: white;
+        position: relative;
+        overflow: hidden;
+      }
+      .sofi:before {
+        content: "";
+        position: absolute;
+        width: 500px;
+        height: 500px;
+        border-radius: 50%;
+        right: -260px;
+        top: -260px;
+        border: 1px solid rgba(0, 216, 232, 0.18);
+        box-shadow: 0 0 100px rgba(0, 216, 232, 0.08);
+      }
+      .sofi-grid {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 80px;
+        align-items: center;
+      }
+      .phone {
+        width: 315px;
+        margin: auto;
+        border: 8px solid #193a49;
+        border-radius: 45px;
+        background: #eaf3f5;
+        padding: 16px 13px 22px;
+        color: var(--text);
+        box-shadow: 0 35px 80px rgba(0, 0, 0, 0.35);
+        transform: rotate(-2deg);
+      }
+      .phone-notch {
+        width: 100px;
+        height: 20px;
+        border-radius: 20px;
+        background: #193a49;
+        margin: -11px auto 15px;
+      }
+      .phone-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 3px 14px;
+        border-bottom: 1px solid #d5e2e6;
+      }
+      .sofi-avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: var(--navy);
+        color: var(--cyan-bright);
+        font-weight: 800;
+      }
+      .phone-head strong {
+        font-size: 0.9rem;
+        color: var(--navy);
+      }
+      .phone-head small {
+        display: block;
+        color: #38a86c;
+        font-size: 0.65rem;
+      }
+      .phone-chat {
+        padding: 14px 2px;
+      }
+      .phone-chat .bubble {
+        font-size: 0.72rem;
+      }
+      .sofi-copy .eyebrow {
+        color: var(--cyan-bright);
+        margin-bottom: 18px;
+      }
+      .sofi-copy h2 {
+        color: white;
+      }
+      .sofi-copy > p {
+        color: #b7cbd4;
+        font-size: 1.08rem;
+      }
+      .agent-clarity {
+        margin: 24px 0 0;
+        padding: 18px 20px;
+        border: 1px solid rgba(0, 216, 232, 0.34);
+        border-radius: 16px;
+        background: rgba(0, 216, 232, 0.08);
+        color: #dbeef2;
+      }
+      .agent-clarity strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--cyan-bright);
+      }
+      .check-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 13px;
+        margin: 30px 0;
+      }
+      .check-list span {
+        display: flex;
+        gap: 9px;
+        align-items: flex-start;
+        color: #dbe8ed;
+        font-size: 0.9rem;
+      }
+      .check-list b {
+        color: var(--cyan-bright);
+      }
+      .includes {
+        position: relative;
+        overflow: hidden;
+        color: white;
+        background:
+          radial-gradient(circle at 12% 18%, rgba(216, 138, 91, 0.24), transparent 24%),
+          radial-gradient(circle at 92% 78%, rgba(0, 216, 232, 0.2), transparent 26%),
+          linear-gradient(135deg, #061b27, #0b3441 52%, #071b27);
+      }
+      .includes:before,
+      .includes:after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 50%;
+      }
+      .includes:before {
+        width: 420px;
+        height: 420px;
+        left: -210px;
+        bottom: -250px;
+      }
+      .includes:after {
+        width: 330px;
+        height: 330px;
+        right: -130px;
+        top: -180px;
+        box-shadow: 0 0 90px rgba(0, 216, 232, 0.13);
+      }
+      .includes .container {
+        position: relative;
+        z-index: 1;
+      }
+      .includes h2 {
+        color: white;
+      }
+      .includes .section-lead {
+        color: #c9dce3;
+      }
+      .include-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 15px;
+      }
+      .include-item {
+        position: relative;
+        min-height: 106px;
+        background: #082633;
+        border: 1px solid rgba(183, 237, 241, 0.26);
+        border-radius: 18px;
+        padding: 20px;
+        display: flex;
+        gap: 11px;
+        align-items: center;
+        font-weight: 700;
+        color: #f6fbfc;
+        font-size: 0.89rem;
+        overflow: hidden;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+      }
+      .include-item:before {
+        content: "";
+        width: 72px;
+        height: 72px;
+        position: absolute;
+        right: -25px;
+        bottom: -34px;
+        border-radius: 50%;
+        background: rgba(216, 138, 91, 0.26);
+        z-index: 2;
+      }
+      .include-item:after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(3, 19, 29, 0.94) 0%, rgba(4, 29, 41, 0.72) 55%, rgba(4, 28, 40, 0.2) 100%);
+        z-index: 1;
+        pointer-events: none;
+      }
+      .include-media {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        opacity: 0.72;
+        transform: scale(1.02);
+        transition: transform 0.35s ease, opacity 0.35s ease;
+      }
+      .include-item:hover {
+        transform: translateY(-6px);
+        border-color: rgba(98, 237, 244, 0.75);
+        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 216, 232, 0.12);
+      }
+      .include-item:hover .include-media {
+        opacity: 0.86;
+        transform: scale(1.08);
+      }
+      .include-item svg,
+      .include-item span {
+        position: relative;
+        z-index: 3;
+      }
+      .include-item svg {
+        width: 19px;
+        color: var(--cyan-bright);
+        flex: 0 0 19px;
+      }
+      .steps {
+        background: white;
+      }
+      .steps-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        counter-reset: steps;
+      }
+      .step {
+        position: relative;
+        text-align: center;
+        padding: 10px;
+      }
+      .step:not(:last-child):after {
+        content: "";
+        position: absolute;
+        top: 34px;
+        right: -25%;
+        width: 50%;
+        height: 1px;
+        background: linear-gradient(90deg, var(--cyan), var(--line));
+      }
+      .step-num {
+        width: 50px;
+        height: 50px;
+        margin: 0 auto 18px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--cyan);
+        border-radius: 50%;
+        font: 800 1rem "Manrope";
+        color: var(--blue);
+        background: white;
+        position: relative;
+        z-index: 1;
+      }
+      .step h3 {
+        font-size: 0.96rem;
+        margin-bottom: 8px;
+      }
+      .step p {
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin: 0;
+      }
+      .pricing {
+        padding-top: 0;
+      }
+      .pricing-card {
+        position: relative;
+        overflow: hidden;
+        background: linear-gradient(125deg, #071823, #0a3d62);
+        color: white;
+        border-radius: 32px;
+        padding: 54px;
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        align-items: center;
+        gap: 50px;
+        box-shadow: 0 30px 80px rgba(7, 24, 35, 0.24);
+      }
+      .pricing-card:after {
+        content: "";
+        position: absolute;
+        width: 360px;
+        height: 360px;
+        border-radius: 50%;
+        border: 1px solid rgba(0, 216, 232, 0.17);
+        right: -170px;
+        top: -180px;
+      }
+      .pricing-card h2 {
+        color: white;
+        margin-bottom: 14px;
+      }
+      .pricing-card p {
+        color: #bfd0d7;
+      }
+      .price-box {
+        position: relative;
+        z-index: 1;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        padding: 30px;
+        border-radius: 20px;
+      }
+      .price-box .daily {
+        color: var(--cyan-bright);
+        font-weight: 800;
+      }
+      .price-box .monthly {
+        font: 800 clamp(2.1rem, 4vw, 3.2rem) "Manrope";
+        letter-spacing: -0.05em;
+        margin: 7px 0;
+      }
+      .price-box .monthly small {
+        font-size: 0.9rem;
+        font-weight: 500;
+        letter-spacing: 0;
+      }
+      .price-box p {
+        font-size: 0.82rem;
+        margin: 0 0 20px;
+      }
+      .lead-section {
+        background: var(--mist);
+      }
+      .lead-wrap {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        background: white;
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+      .lead-copy {
+        background: linear-gradient(145deg, var(--navy), #0b4661);
+        padding: 52px;
+        color: white;
+      }
+      .lead-copy h2 {
+        color: white;
+        font-size: 2.35rem;
+      }
+      .lead-copy p {
+        color: #c1d1d8;
+      }
+      .lead-benefits {
+        margin-top: 30px;
+      }
+      .lead-benefits div {
+        display: flex;
+        gap: 10px;
+        margin: 14px 0;
+        font-size: 0.9rem;
+      }
+      .lead-benefits b {
+        color: var(--cyan-bright);
+      }
+      .form-panel {
+        padding: 48px;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .field.full {
+        grid-column: 1/-1;
+      }
+      .field label {
+        font-weight: 700;
+        color: var(--navy);
+        font-size: 0.85rem;
+      }
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        border: 1px solid #cbdce3;
+        border-radius: 11px;
+        padding: 13px 14px;
+        background: white;
+        color: var(--text);
+        outline: none;
+        transition: 0.2s;
+      }
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: var(--cyan);
+        box-shadow: 0 0 0 4px rgba(0, 191, 214, 0.1);
+      }
+      .field textarea {
+        resize: vertical;
+        min-height: 88px;
+      }
+      .consent {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        font-size: 0.78rem;
+        color: var(--muted);
+        margin: 18px 0;
+      }
+      .consent input {
+        margin-top: 3px;
+      }
+      .submit {
+        width: 100%;
+      }
+      .form-status {
+        display: none;
+        margin-top: 15px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 0.87rem;
+      }
+      .form-status.show {
+        display: block;
+      }
+      .form-status.ok {
+        background: #e6f8ee;
+        color: #176d42;
+      }
+      .form-status.error {
+        background: #fff0f0;
+        color: #9a3030;
+      }
+      .hp {
+        position: absolute !important;
+        left: -9999px !important;
+      }
+      footer {
+        background: #04131d;
+        color: #aac0c9;
+        padding: 62px 0 24px;
+      }
+      .footer-grid {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+        gap: 50px;
+      }
+      .footer-brand {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+      .footer-brand img {
+        width: 72px;
+        height: 72px;
+        border-radius: 16px;
+        object-fit: cover;
+      }
+      .footer-brand strong {
+        font: 800 1.2rem "Manrope";
+        color: white;
+      }
+      .footer-brand small {
+        display: block;
+        color: var(--cyan);
+        letter-spacing: 0.12em;
+      }
+      .footer-title {
+        color: white;
+        font: 700 0.9rem "Manrope";
+        margin-bottom: 16px;
+      }
+      .footer-links {
+        display: grid;
+        gap: 9px;
+        font-size: 0.87rem;
+      }
+      .footer-links a {
+        text-decoration: none;
+      }
+      .footer-links a:hover {
+        color: var(--cyan-bright);
+      }
+      .copyright {
+        border-top: 1px solid rgba(255, 255, 255, 0.09);
+        margin-top: 42px;
+        padding-top: 20px;
+        font-size: 0.76rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .wa-float {
+        position: fixed;
+        right: 22px;
+        bottom: 22px;
+        z-index: 30;
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: #24d366;
+        color: white;
+        box-shadow: 0 14px 36px rgba(17, 112, 62, 0.32);
+        transition: 0.2s;
+      }
+      .wa-float:hover {
+        transform: scale(1.06);
+      }
+      .wa-float svg {
+        width: 29px;
+        height: 29px;
+      }
+      @media (max-width: 1020px) {
+        .nav-links {
+          display: none;
+        }
+        .menu-btn {
+          display: block;
+        }
+        .nav.open .nav-links {
+          display: flex;
+          position: absolute;
+          top: 82px;
+          left: 20px;
+          right: 20px;
+          flex-direction: column;
+          align-items: stretch;
+          padding: 24px;
+          background: #082432;
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          border-radius: 16px;
+        }
+        .hero-grid {
+          grid-template-columns: 1fr;
+        }
+        .hero {
+          padding-top: 150px;
+        }
+        .hero-copy {
+          max-width: 800px;
+        }
+        .hero-visual {
+          min-height: 540px;
+          max-width: 700px;
+          margin: auto;
+          width: 100%;
+        }
+        .feature-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .sofi-grid {
+          gap: 40px;
+        }
+        .include-grid {
+          grid-template-columns: repeat(3, 1fr);
+        }
+        .steps-row {
+          grid-template-columns: repeat(3, 1fr);
+          gap: 30px;
+        }
+        .step:after {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .container {
+          width: min(100% - 28px, 1180px);
+        }
+        .section {
+          padding: 76px 0;
+        }
+        .topbar {
+          font-size: 0.73rem;
+        }
+        .brand-copy {
+          font-size: 1rem;
+        }
+        .nav-inner {
+          height: 72px;
+        }
+        .brand img {
+          width: 46px;
+          height: 46px;
+        }
+        .hero {
+          padding: 130px 0 70px;
+          min-height: auto;
+        }
+        .hero-grid {
+          gap: 30px;
+        }
+        .hero h1 {
+          font-size: clamp(2.35rem, 10vw, 3.4rem);
+        }
+        .hero-sub {
+          font-size: 1rem;
+        }
+        .price-strip {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .price-detail {
+          border-left: 0;
+          padding-left: 0;
+        }
+        .hero-actions .btn {
+          width: 100%;
+        }
+        .hero-visual {
+          min-height: 430px;
+        }
+        .hero-photo {
+          left: 20px;
+          right: 0;
+          bottom: 35px;
+          border-radius: 100px 20px 20px 20px;
+        }
+        .logo-orbit {
+          width: 125px;
+          right: -8px;
+          top: 0;
+          padding: 9px;
+          border-radius: 20px;
+        }
+        .dashboard-card {
+          width: 68%;
+          padding: 10px;
+        }
+        .chat-card {
+          width: 165px;
+          right: -4px;
+          bottom: 18px;
+          padding: 10px;
+        }
+        .pain-grid,
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+        .feature {
+          min-height: auto;
+        }
+        .sofi-grid {
+          grid-template-columns: 1fr;
+        }
+        .phone {
+          width: min(300px, 92%);
+        }
+        .check-list {
+          grid-template-columns: 1fr;
+        }
+        .include-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .steps-row {
+          grid-template-columns: 1fr;
+        }
+        .step {
+          display: grid;
+          grid-template-columns: 50px 1fr;
+          text-align: left;
+          column-gap: 15px;
+        }
+        .step-num {
+          grid-row: 1/3;
+          margin: 0;
+        }
+        .pricing-card {
+          grid-template-columns: 1fr;
+          padding: 35px 25px;
+          gap: 25px;
+        }
+        .lead-wrap {
+          grid-template-columns: 1fr;
+        }
+        .lead-copy,
+        .form-panel {
+          padding: 35px 24px;
+        }
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+        .field.full {
+          grid-column: auto;
+        }
+        .footer-grid {
+          grid-template-columns: 1fr;
+        }
+        .copyright {
+          flex-direction: column;
+        }
+        .trust-row {
+          gap: 12px;
+        }
+        .section-head {
+          margin-bottom: 38px;
+        }
+      }
+      @media (max-width: 440px) {
+        .include-grid {
+          grid-template-columns: 1fr;
+        }
+        .hero-visual {
+          min-height: 390px;
+        }
+        .chat-card {
+          display: none;
+        }
+        .dashboard-card {
+          width: 80%;
+        }
+        .footer-grid {
+          gap: 30px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        *,
+        *:before,
+        *:after {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      Una solución desarrollada por <strong>ITELSA IA</strong> para negocios de
+      belleza en Colombia
+    </div>
+    <nav class="nav" id="nav" aria-label="Navegación principal">
+      <div class="container nav-inner">
+        <a
+          class="brand"
+          href="#inicio"
+          aria-label="BeautyOS by ITELSA IA, inicio"
+          ><img data-brand-logo alt="Logo oficial de BeautyOS" /><span
+            class="brand-copy"
+            >BeautyOS <small>BY ITELSA IA</small></span
+          ></a
+        >
+        <div class="nav-links">
+          <a href="#solucion">Solución</a><a href="#sofi">Agente personalizado</a
+          ><a href="#incluye">Qué incluye</a><a href="#precio">Precio</a
+          ><a class="nav-cta" data-wa href="#">Hablar con Sofi</a>
+        </div>
+        <button
+          class="menu-btn"
+          id="menuBtn"
+          aria-label="Abrir menú"
+          aria-expanded="false"
+        >
+          <svg aria-hidden="true"><use href="#i-menu"></use></svg>
+        </button>
+      </div>
+    </nav>
+
+    <main>
+      <section class="hero" id="inicio">
+        <div class="hero-glow"></div>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <span class="eyebrow">Tecnología creada para la belleza</span>
+            <h1>
+              Sistema integral de gestión para
+              <span>salones de belleza, spas y centros estéticos</span>
+            </h1>
+            <p class="hero-sub">
+              BeautyOS by ITELSA IA automatiza citas, recordatorios, clientes,
+              ventas, inventario y marketing para que tu negocio trabaje con más
+              organización, más eficiencia y mejor seguimiento.
+            </p>
+            <div class="price-strip">
+              <div class="price-main">
+                Desde <strong>$6.000 COP</strong> al día
+              </div>
+              <div class="price-detail">
+                $180.000 COP al mes<br />IVA incluido
+              </div>
+            </div>
+            <div class="hero-actions">
+              <a class="btn btn-primary" data-wa href="#"
+                ><svg aria-hidden="true"><use href="#i-chat"></use></svg>Hablar
+                con Sofi · Asesora BeautyOS</a
+              ><a class="btn btn-outline" href="#incluye"
+                >Ver qué incluye BeautyOS</a
+              >
+            </div>
+            <div class="trust-row">
+              <span><b>✓</b> Configuración acompañada</span
+              ><span><b>✓</b> Soporte en español</span
+              ><span><b>✓</b> Sin permanencia</span>
+            </div>
+          </div>
+          <div class="hero-visual" aria-label="BeautyOS en acción">
+            <div class="hero-photo">
+              <img
+                id="heroPhoto"
+                alt="Salón de belleza moderno y profesional"
+              />
+            </div>
+            <div class="logo-orbit">
+              <img data-brand-logo alt="BeautyOS by ITELSA IA" />
+            </div>
+            <div class="dashboard-card" aria-hidden="true">
+              <div class="dash-head">
+                <span>Panel de control BeautyOS</span
+                ><span class="dotset"><i></i><i></i><i></i></span>
+              </div>
+              <div class="dash-stats">
+                <div class="dash-stat"><b>18</b>Citas hoy</div>
+                <div class="dash-stat"><b>92%</b>Ocupación</div>
+                <div class="dash-stat"><b>+24%</b>Ventas</div>
+              </div>
+              <div class="dash-chart">
+                <svg viewBox="0 0 300 55" preserveAspectRatio="none">
+                  <path
+                    d="M0 46 C35 42 42 20 75 30 S118 48 150 23 S205 5 230 18 S270 23 300 5"
+                    fill="none"
+                    stroke="#00bfd6"
+                    stroke-width="4"
+                  />
+                </svg>
+              </div>
+            </div>
+            <div class="chat-card" aria-hidden="true">
+              <div class="chat-top"><i></i>Tu agente · Tu negocio</div>
+              <div class="bubble sofi">
+                ¡Hola! ¿Te ayudo a agendar tu cita? ✨
+              </div>
+              <div class="bubble client">Sí, para el viernes</div>
+              <div class="bubble sofi">
+                Perfecto. Tengo 3 horarios disponibles.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section pain" id="problemas">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">El reto diario</span>
+            <h2>Más claridad y tiempo para cuidar lo que hace especial a tu negocio</h2>
+            <p class="section-lead">
+              Cuando la información vive en cuadernos, chats y hojas separadas,
+              es fácil perder tiempo, dinero y oportunidades.
+            </p>
+          </div>
+          <div class="pain-grid" id="painGrid"></div>
+        </div>
+      </section>
+
+      <section class="section solution" id="solucion">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">Una sola plataforma</span>
+            <h2>Todo tu negocio, conectado y bajo control</h2>
+            <p class="section-lead">
+              BeautyOS by ITELSA IA reúne las herramientas clave para que puedas
+              atender mejor, organizarte y tomar decisiones con información
+              real.
+            </p>
+          </div>
+          <div class="feature-grid" id="featureGrid"></div>
+        </div>
+      </section>
+
+      <section class="section sofi" id="sofi">
+        <div class="container sofi-grid">
+          <div
+            class="phone"
+            aria-label="Ejemplo de un agente virtual personalizado por WhatsApp"
+          >
+            <div class="phone-notch"></div>
+            <div class="phone-head">
+              <div class="sofi-avatar">A</div>
+              <div>
+                <strong>Tu agente · Tu negocio</strong
+                ><small>● disponible ahora</small>
+              </div>
+            </div>
+            <div class="phone-chat">
+              <div class="bubble client">Hola, quisiera agendar una cita</div>
+              <div class="bubble sofi">
+                ¡Hola! ✨ Claro. ¿Qué servicio deseas reservar?
+              </div>
+              <div class="bubble client">Limpieza facial</div>
+              <div class="bubble sofi">
+                Tengo disponibilidad mañana a las 10:00 a. m. y 2:30 p. m. ¿Cuál
+                prefieres?
+              </div>
+              <div class="bubble client">A las 10</div>
+              <div class="bubble sofi">
+                ¡Listo! Tu cita quedó agendada. Te enviaré un recordatorio. 🌸
+              </div>
+            </div>
+          </div>
+          <div class="sofi-copy">
+            <span class="eyebrow">Agente virtual personalizado</span>
+            <h2>Tu negocio tendrá su propio agente por WhatsApp</h2>
+            <p>
+              Lo configuramos con el nombre, el tono y la identidad que elijas.
+              Atenderá consultas, apoyará las reservas y registrará oportunidades
+              comerciales siguiendo la información de tu empresa.
+            </p>
+            <div class="agent-clarity">
+              <strong>Sofi es la asesora comercial de BeautyOS</strong>
+              Ella te orienta antes de adquirir la solución. No será el agente de
+              tu empresa: tu negocio tendrá uno propio y tú elegirás su nombre.
+            </div>
+            <div class="check-list">
+              <span><b>✓</b> Nombre e identidad personalizados</span
+              ><span><b>✓</b> Reservas según tu disponibilidad</span
+              ><span><b>✓</b> Conversación natural en español</span
+              ><span><b>✓</b> Prospectos registrados en tu CRM</span>
+            </div>
+            <a class="btn btn-primary" data-wa href="#"
+              >Consultar con Sofi sobre mi agente</a
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="section includes" id="incluye">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">Qué incluye</span>
+            <h2>Todo lo que necesitas para atender y crecer con tranquilidad</h2>
+            <p class="section-lead">
+              Un ecosistema pensado para salones, spas, centros estéticos,
+              barberías, estudios de uñas y profesionales independientes.
+            </p>
+          </div>
+          <div class="include-grid" id="includeGrid"></div>
+        </div>
+      </section>
+
+      <section class="section steps" id="como-funciona">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">Implementación acompañada</span>
+            <h2>Así ponemos BeautyOS a trabajar contigo</h2>
+          </div>
+          <div class="steps-row">
+            <div class="step">
+              <div class="step-num">01</div>
+              <h3>Conocemos tu negocio</h3>
+              <p>Servicios, equipo y forma de trabajo.</p>
+            </div>
+            <div class="step">
+              <div class="step-num">02</div>
+              <h3>Configuramos la plataforma</h3>
+              <p>Adaptamos BeautyOS a tu operación.</p>
+            </div>
+            <div class="step">
+              <div class="step-num">03</div>
+              <h3>Cargamos tu información</h3>
+              <p>Clientes, servicios, precios y horarios.</p>
+            </div>
+            <div class="step">
+              <div class="step-num">04</div>
+              <h3>Configuramos tu agente</h3>
+              <p>Le damos el nombre, tono e información de tu negocio.</p>
+            </div>
+            <div class="step">
+              <div class="step-num">05</div>
+              <h3>Te acompañamos</h3>
+              <p>Capacitación, soporte y mejora continua.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section pricing" id="precio">
+        <div class="container">
+          <div class="pricing-card">
+            <div>
+              <span class="eyebrow">Inversión simple</span>
+              <h2>Más orden y seguimiento por el valor de $6.000 al día</h2>
+              <p>
+                Empieza a profesionalizar la gestión de tu negocio con
+                acompañamiento de un equipo colombiano.
+              </p>
+            </div>
+            <div class="price-box">
+              <div class="daily">Desde $6.000 COP al día</div>
+              <div class="monthly">$180.000 <small>COP / mes</small></div>
+              <p>
+                IVA incluido. Consulta con Sofi, asesora comercial de BeautyOS,
+                las condiciones de implementación vigentes.
+              </p>
+              <a class="btn btn-primary" data-wa href="#">Quiero información</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section lead-section" id="contacto">
+        <div class="container">
+          <div class="lead-wrap">
+            <div class="lead-copy">
+              <span class="eyebrow">Hablemos de tu negocio</span>
+              <h2>Descubre cómo BeautyOS puede ayudarte</h2>
+              <p>
+                Cuéntanos qué deseas mejorar. Sofi, nuestra asesora comercial, o
+                un integrante del equipo te contactará con una orientación más
+                precisa.
+              </p>
+              <div class="lead-benefits">
+                <div><b>01</b> Evaluación inicial de tu necesidad</div>
+                <div><b>02</b> Demostración enfocada en tu operación</div>
+                <div><b>03</b> Acompañamiento para dar el siguiente paso</div>
+              </div>
+            </div>
+            <div class="form-panel">
+              <form id="leadForm" novalidate>
+                <div class="form-grid">
+                  <div class="field">
+                    <label for="nombre">Tu nombre *</label
+                    ><input
+                      id="nombre"
+                      name="nombreContacto"
+                      autocomplete="name"
+                      required
+                      placeholder="Ej. Laura Gómez"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="negocio">Nombre del negocio *</label
+                    ><input
+                      id="negocio"
+                      name="nombreNegocio"
+                      required
+                      placeholder="Ej. Aura Spa"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="ciudad">Ciudad *</label
+                    ><input
+                      id="ciudad"
+                      name="ciudad"
+                      autocomplete="address-level2"
+                      required
+                      placeholder="Ej. Bogotá"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="whatsapp">WhatsApp *</label
+                    ><input
+                      id="whatsapp"
+                      name="whatsapp"
+                      type="tel"
+                      inputmode="tel"
+                      autocomplete="tel"
+                      required
+                      placeholder="Ej. 310 123 4567"
+                    />
+                  </div>
+                  <div class="field">
+                    <label for="tipo">Tipo de negocio *</label
+                    ><select id="tipo" name="tipoNegocio" required>
+                      <option value="">Selecciona una opción</option>
+                      <option>Salón de belleza</option>
+                      <option>Spa o centro de bienestar</option>
+                      <option>Centro estético</option>
+                      <option>Barbería</option>
+                      <option>Estudio de uñas</option>
+                      <option>Profesional independiente</option>
+                      <option>Otro negocio de belleza</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label for="necesidad">¿Qué deseas mejorar? *</label
+                    ><select id="necesidad" name="necesidadPrincipal" required>
+                      <option value="">Selecciona una opción</option>
+                      <option>Agenda y citas</option>
+                      <option>Agente virtual para WhatsApp</option>
+                      <option>Seguimiento de clientes</option>
+                      <option>Ventas y marketing</option>
+                      <option>Inventario y operación</option>
+                      <option>Organización general</option>
+                    </select>
+                  </div>
+                  <div class="field hp" aria-hidden="true">
+                    <label for="website">Sitio web</label
+                    ><input
+                      id="website"
+                      name="website"
+                      tabindex="-1"
+                      autocomplete="off"
+                    />
+                  </div>
+                </div>
+                <label class="consent"
+                  ><input id="consent" type="checkbox" required /><span
+                    >Autorizo el tratamiento de estos datos para recibir
+                    información comercial sobre BeautyOS by ITELSA IA. *</span
+                  ></label
+                ><button
+                  class="btn btn-dark submit"
+                  type="submit"
+                  id="submitBtn"
+                >
+                  Solicitar información
+                </button>
+                <div
+                  class="form-status"
+                  id="formStatus"
+                  role="status"
+                  aria-live="polite"
+                ></div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer>
+      <div class="container">
+        <div class="footer-grid">
+          <div>
+            <div class="footer-brand">
+              <img data-brand-logo alt="Logo de BeautyOS" />
+              <div><strong>BeautyOS</strong><small>BY ITELSA IA</small></div>
+            </div>
+            <p>Tecnología con propósito para negocios de belleza.</p>
+          </div>
+          <div>
+            <div class="footer-title">ITELSA IA</div>
+            <div class="footer-links">
+              <a href="tel:+573017161000">+57 301 716 1000</a
+              ><a href="mailto:contacto@itelsaia.com">contacto@itelsaia.com</a
+              ><a href="https://www.itelsaia.com" target="_blank" rel="noopener"
+                >www.itelsaia.com</a
+              >
+            </div>
+          </div>
+          <div>
+            <div class="footer-title">Sofi · Asesora comercial BeautyOS</div>
+            <div class="footer-links">
+              <a data-wa href="#">+57 310 882 8904</a
+              ><a href="#solucion">Conocer la solución</a
+              ><a href="#contacto">Solicitar información</a>
+            </div>
+          </div>
+        </div>
+        <div class="copyright">
+          <span
+            >© <span id="year"></span> ITELSA IA. Todos los derechos
+            reservados.</span
+          ><span>BeautyOS by ITELSA IA</span>
+        </div>
+      </div>
+    </footer>
+
+    <a
+      class="wa-float"
+      data-wa
+      href="#"
+      aria-label="Hablar con Sofi, asesora comercial de BeautyOS"
+      ><svg aria-hidden="true"><use href="#i-chat"></use></svg
+    ></a>
+
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-menu" viewBox="0 0 24 24">
+          <path
+            d="M4 7h16M4 12h16M4 17h16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </symbol>
+        <symbol id="i-chat" viewBox="0 0 24 24">
+          <path
+            d="M20 11.5a8 8 0 0 1-11.8 7L4 20l1.5-4.1A8 8 0 1 1 20 11.5Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          />
+          <path
+            d="M9 9.5c.5 2 2 3.5 4 4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </symbol>
+        <symbol id="i-check" viewBox="0 0 24 24">
+          <path
+            d="m5 12 4 4L19 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </symbol>
+        <symbol id="i-calendar" viewBox="0 0 24 24">
+          <path
+            d="M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Zm2-2v4m10-4v4M3 9h18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          />
+        </symbol>
+        <symbol id="i-users" viewBox="0 0 24 24">
+          <circle
+            cx="9"
+            cy="8"
+            r="3"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          />
+          <path
+            d="M3 20c0-4 2-6 6-6s6 2 6 6m1-15a3 3 0 0 1 0 6m1 3c3.2.3 4.5 2.2 4.5 5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          />
+        </symbol>
+        <symbol id="i-chart" viewBox="0 0 24 24">
+          <path
+            d="M4 20V10m6 10V4m6 16v-7m5 7H2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </symbol>
+        <symbol id="i-box" viewBox="0 0 24 24">
+          <path
+            d="m3 7 9-4 9 4-9 4-9-4Zm0 0v10l9 4 9-4V7m-9 4v10"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linejoin="round"
+          />
+        </symbol>
+        <symbol id="i-spark" viewBox="0 0 24 24">
+          <path
+            d="M12 2c.8 5 3 7.2 8 8-5 .8-7.2 3-8 8-.8-5-3-7.2-8-8 5-.8 7.2-3 8-8Zm7 14c.3 1.8 1.2 2.7 3 3-1.8.3-2.7 1.2-3 3-.3-1.8-1.2-2.7-3-3 1.8-.3 2.7-1.2 3-3Z"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+          />
+        </symbol>
+      </defs>
+    </svg>
+
+    <script>
+      (function () {
+        var SOFI_NUMBER = "573108828904";
+        var SOFI_TEXT =
+          "Hola Sofi, quiero más información sobre BeautyOS para mi negocio de belleza.";
+        var ASSETS = window.BEAUTYOS_BRAND_ASSETS || {};
+        document.querySelectorAll("[data-brand-logo]").forEach(function (img) {
+          img.src = ASSETS.logo || "";
+        });
+        document.getElementById("heroPhoto").src = ASSETS.hero || "";
+        document.querySelectorAll("[data-wa]").forEach(function (a) {
+          a.href =
+            "https://wa.me/" +
+            SOFI_NUMBER +
+            "?text=" +
+            encodeURIComponent(SOFI_TEXT);
+          a.target = "_blank";
+          a.rel = "noopener";
+        });
+        document.getElementById("year").textContent = new Date().getFullYear();
+
+        var pains = [
+          [
+            "i-calendar",
+            "Citas perdidas o mal organizadas",
+            "La agenda manual aumenta cruces, olvidos y espacios sin aprovechar.",
+          ],
+          [
+            "i-chat",
+            "Mensajes sin responder",
+            "Cada consulta tardía puede convertirse en una venta que se va con otro negocio.",
+          ],
+          [
+            "i-users",
+            "Clientes sin seguimiento",
+            "Sin historial ni recordatorios, es más difícil fidelizar y recuperar clientes.",
+          ],
+          [
+            "i-box",
+            "Inventario sin control",
+            "Los faltantes y compras tardías afectan la operación y la experiencia.",
+          ],
+          [
+            "i-chart",
+            "Ventas sin información clara",
+            "Tomar decisiones sin datos impide saber qué funciona y qué debes mejorar.",
+          ],
+          [
+            "i-spark",
+            "Marketing improvisado",
+            "Publicar sin estrategia dificulta mantener una comunicación constante.",
+          ],
+        ];
+        var features = [
+          [
+            "i-calendar",
+            "Agenda y recordatorios",
+            "Organiza citas, horarios y confirmaciones desde un solo lugar.",
+          ],
+          [
+            "i-chat",
+            "Agente virtual personalizado",
+            "Atiende con el nombre, el tono y la información de tu negocio.",
+          ],
+          [
+            "i-box",
+            "Operación e inventario",
+            "Controla servicios, recursos y movimientos clave del negocio.",
+          ],
+          [
+            "i-spark",
+            "Marketing y fidelización",
+            "Crea campañas y mantén una relación activa con tus clientes.",
+          ],
+          [
+            "i-chart",
+            "Reportes de gestión",
+            "Consulta indicadores para decidir con mayor claridad.",
+          ],
+        ];
+        var included = [
+          "Agenda de citas",
+          "Recordatorios automáticos",
+          "CRM de clientes",
+          "Agente virtual con nombre propio",
+          "Servicios y precios",
+          "Equipo y horarios",
+          "Inventario básico",
+          "Campañas comerciales",
+          "Seguimiento de prospectos",
+          "Reportes de gestión",
+          "Landing profesional",
+          "Soporte y acompañamiento",
+        ];
+        function icon(id) {
+          return '<svg aria-hidden="true"><use href="#' + id + '"></use></svg>';
+        }
+        document.getElementById("painGrid").innerHTML = pains
+          .map(function (x) {
+            return (
+              '<article class="pain-card"><span class="icon">' +
+              icon(x[0]) +
+              "</span><div><h3>" +
+              x[1] +
+              "</h3><p>" +
+              x[2] +
+              "</p></div></article>"
+            );
+          })
+          .join("");
+        document.getElementById("featureGrid").innerHTML = features
+          .map(function (x, i) {
+            return (
+              '<article class="feature"><div class="feature-num">0' +
+              (i + 1) +
+              '</div><span class="icon">' +
+              icon(x[0]) +
+              "</span><h3>" +
+              x[1] +
+              "</h3><p>" +
+              x[2] +
+              "</p></article>"
+            );
+          })
+          .join("");
+        var includeBackgrounds = [
+          "agenda", "recordatorios", "crm", "agente",
+          "servicios", "equipo", "inventario", "campanas",
+          "prospectos", "reportes", "landing", "soporte"
+        ];
+        document.getElementById("includeGrid").innerHTML = included
+          .map(function (x, i) {
+            var image = window.BEAUTYOS_CARD_ASSETS[includeBackgrounds[i]];
+            return (
+              '<div class="include-item">' +
+              '<img class="include-media" src="' + image + '" alt="" aria-hidden="true">' +
+              icon("i-check") +
+              "<span>" +
+              x +
+              "</span></div>"
+            );
+          })
+          .join("");
+
+        var menu = document.getElementById("menuBtn"),
+          nav = document.getElementById("nav");
+        menu.addEventListener("click", function () {
+          var open = nav.classList.toggle("open");
+          menu.setAttribute("aria-expanded", String(open));
+        });
+        nav.querySelectorAll("a").forEach(function (a) {
+          a.addEventListener("click", function () {
+            nav.classList.remove("open");
+            menu.setAttribute("aria-expanded", "false");
+          });
+        });
+
+        var form = document.getElementById("leadForm"),
+          status = document.getElementById("formStatus"),
+          submit = document.getElementById("submitBtn");
+        function showStatus(message, type) {
+          status.textContent = message;
+          status.className = "form-status show " + type;
+        }
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          if (!form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          if (form.website.value) return;
+          var digits = form.whatsapp.value.replace(/\D/g, "");
+          if (digits.length < 10 || digits.length > 15) {
+            showStatus(
+              "Revisa el número de WhatsApp e incluye el indicativo si estás fuera de Colombia.",
+              "error",
+            );
+            form.whatsapp.focus();
+            return;
+          }
+          var data = new FormData(form);
+          var payload = {
+            nombreContacto: data.get("nombreContacto").trim(),
+            nombreNegocio: data.get("nombreNegocio").trim(),
+            ciudad: data.get("ciudad").trim(),
+            whatsapp: digits,
+            tipoNegocio: data.get("tipoNegocio"),
+            necesidadPrincipal: data.get("necesidadPrincipal"),
+            cantidadEmpleados: "No indicado",
+            email: "",
+            fuente: "landing-web",
+            autorizaDatos: "SI",
+            notas:
+              "Tipo de negocio: " +
+              data.get("tipoNegocio") +
+              " | Desea mejorar: " +
+              data.get("necesidadPrincipal"),
+          };
+          submit.disabled = true;
+          submit.textContent = "Enviando...";
+          showStatus("Estamos registrando tu solicitud.", "ok");
+          fetch("api/lead.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          })
+            .then(function (response) {
+              return response.json().then(function (result) {
+                if (!response.ok) {
+                  throw new Error(result.error || "No fue posible registrar la solicitud.");
+                }
+                return result;
+              });
+            })
+            .then(function (result) {
+              if (result && result.error) throw new Error(result.error);
+              showStatus(
+                result && result.duplicado
+                  ? "Tu WhatsApp ya estaba registrado. Sofi, asesora comercial de BeautyOS, podrá continuar la conversación contigo."
+                  : "¡Gracias! Tu solicitud quedó registrada. Sofi, asesora comercial de BeautyOS, o un integrante del equipo te contactará.",
+                "ok",
+              );
+              if (!(result && result.duplicado)) form.reset();
+            })
+            .catch(function (err) {
+              showStatus(
+                err.message || "No pudimos enviar la solicitud en este momento. Escríbenos por WhatsApp o inténtalo de nuevo.",
+                "error",
+              );
+              console.error(err);
+            })
+            .finally(function () {
+              submit.disabled = false;
+              submit.textContent = "Solicitar información";
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>
