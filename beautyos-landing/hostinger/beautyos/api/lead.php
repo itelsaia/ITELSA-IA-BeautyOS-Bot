@@ -109,8 +109,16 @@ if ($nombreContacto === '' || $nombreNegocio === '' || $ciudad === '' || $tipoNe
     respond(422, ['error' => 'Completa todos los campos obligatorios.']);
 }
 $employeeOptions = ['Solo yo', '2 a 5', '6 a 10', '11 o mas'];
+$businessTypeOptions = ['Salón de belleza', 'Spa o centro de bienestar', 'Centro estético', 'Barbería', 'Estudio de uñas', 'Estudio de cejas y pestañas', 'Profesional independiente', 'Otro negocio de belleza'];
+$needOptions = ['Agenda y citas', 'Agente virtual para WhatsApp', 'Seguimiento de clientes', 'Ventas y marketing', 'Inventario y operación', 'Organización general'];
 if (!in_array($cantidadEmpleados, $employeeOptions, true)) {
     respond(422, ['error' => 'Selecciona una cantidad de empleados válida.']);
+}
+if (!in_array($tipoNegocio, $businessTypeOptions, true)) {
+    respond(422, ['error' => 'Selecciona un tipo de negocio válido.']);
+}
+if (!in_array($necesidad, $needOptions, true)) {
+    respond(422, ['error' => 'Selecciona una necesidad válida.']);
 }
 if (strlen($whatsapp) < 10 || strlen($whatsapp) > 15) {
     respond(422, ['error' => 'Revisa el número de WhatsApp.']);
@@ -125,6 +133,7 @@ if (is_file($rateFile) && time() - (int) filemtime($rateFile) < 8) {
 
 $payload = [
     'action' => 'saveLead',
+    'schemaVersion' => 'lead-v2',
     'nombreContacto' => $nombreContacto,
     'nombreNegocio' => $nombreNegocio,
     'ciudad' => $ciudad,

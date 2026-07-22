@@ -41,6 +41,7 @@ function createLeadSheet() {
   }
 
   return {
+    schemaVersion: 'lead-v2',
     rows,
     getLastColumn() { return rows[0].length; },
     getLastRow() { return rows.length; },
@@ -92,6 +93,7 @@ function validPayload(overrides = {}) {
     whatsapp: '573101234567',
     email: '',
     ciudad: 'Bogotá',
+    tipoNegocio: 'Spa o centro de bienestar',
     cantidadEmpleados: '2 a 5',
     necesidadPrincipal: 'Agenda y citas',
     fuente: 'landing-hostinger',
@@ -101,24 +103,32 @@ function validPayload(overrides = {}) {
   };
 }
 
-test('el formulario, PHP y CRM comparten los dos campos de calificación', () => {
+test('el formulario, PHP y CRM comparten los campos de calificación y el origen', () => {
   for (const htmlPath of ['src/index.html', 'hostinger/beautyos/index.html']) {
     const html = read(htmlPath);
     assert.match(html, /name="cantidadEmpleados"/);
     assert.match(html, /cantidadEmpleados:\s*data\.get\("cantidadEmpleados"\)/);
     assert.match(html, /name="necesidadPrincipal"/);
+    assert.match(html, /name="tipoNegocio"/);
+    assert.match(html, /schemaVersion:\s*"lead-v2"/);
   }
 
   const php = read('hostinger/beautyos/api/lead.php');
   assert.match(php, /\$input\['cantidadEmpleados'\]/);
   assert.match(php, /'cantidadEmpleados'\s*=>\s*\$cantidadEmpleados/);
+  assert.match(php, /'tipoNegocio'\s*=>\s*\$tipoNegocio/);
+  assert.match(php, /'fuente'\s*=>\s*'landing-hostinger'/);
+  assert.match(php, /'schemaVersion'\s*=>\s*'lead-v2'/);
 
   const panel = read('src/panel.html');
   assert.match(panel, /NECESIDAD_PRINCIPAL/);
   assert.match(panel, /CANTIDAD_EMPLEADOS/);
+  assert.match(panel, /TIPO_NEGOCIO/);
+  assert.match(panel, /Sofi · WhatsApp/);
+  assert.match(panel, /Landing web/);
 });
 
-test('GAS crea NECESIDAD_PRINCIPAL y persiste ambos valores', () => {
+test('GAS crea y persiste la calificación completa', () => {
   const sheet = createLeadSheet();
   const backend = loadBackend(sheet);
 
@@ -126,8 +136,10 @@ test('GAS crea NECESIDAD_PRINCIPAL y persiste ambos valores', () => {
 
   assert.equal(result.success, true);
   assert.equal(sheet.rows[0][14], 'NECESIDAD_PRINCIPAL');
+  assert.equal(sheet.rows[0][15], 'TIPO_NEGOCIO');
   assert.equal(sheet.rows[1][6], '2 a 5');
   assert.equal(sheet.rows[1][14], 'Agenda y citas');
+  assert.equal(sheet.rows[1][15], 'Spa o centro de bienestar');
 });
 
 test('la migración antigua recupera AUTORIZA_DATOS antes de la necesidad', () => {
@@ -139,22 +151,26 @@ test('la migración antigua recupera AUTORIZA_DATOS antes de la necesidad', () =
 
   assert.equal(columns.autorizaDatos, 14);
   assert.equal(columns.necesidadPrincipal, 15);
+  assert.equal(columns.tipoNegocio, 16);
   assert.equal(sheet.rows[0][13], 'AUTORIZA_DATOS');
   assert.equal(sheet.rows[0][14], 'NECESIDAD_PRINCIPAL');
+  assert.equal(sheet.rows[0][15], 'TIPO_NEGOCIO');
 });
 
 test('un WhatsApp duplicado completa la calificación sin crear otra fila', () => {
   const sheet = createLeadSheet();
   const backend = loadBackend(sheet);
-  backend.handleSaveLead(validPayload({ cantidadEmpleados: '', necesidadPrincipal: '' }));
+  backend.handleSaveLead(validPayload());
 
   const result = backend.handleSaveLead(validPayload({
     cantidadEmpleados: '6 a 10',
     necesidadPrincipal: 'Ventas y marketing',
+    tipoNegocio: 'Centro estético',
   }));
 
   assert.equal(result.duplicado, true);
   assert.equal(sheet.rows.length, 2);
   assert.equal(sheet.rows[1][6], '6 a 10');
   assert.equal(sheet.rows[1][14], 'Ventas y marketing');
+  assert.equal(sheet.rows[1][15], 'Centro estético');
 });

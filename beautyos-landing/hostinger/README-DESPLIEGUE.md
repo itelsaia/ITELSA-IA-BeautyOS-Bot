@@ -28,7 +28,8 @@ landing vive únicamente dentro de la carpeta `beautyos`.
 3. Abrir `https://www.itelsaia.com/beautyos/api/lead.php`. Debe responder en JSON
    que el método no está permitido; eso confirma que PHP está funcionando.
 4. Enviar un prospecto de prueba desde el formulario y confirmar que aparezca
-   en la hoja `LEADS` con fuente `landing-hostinger`.
+   en la hoja `LEADS` con fuente `landing-hostinger`, tipo de negocio, cantidad
+   de empleados y necesidad principal.
 5. Eliminar o marcar claramente el prospecto de prueba en el CRM.
 6. Confirmar que HTTPS esté activo y forzado para `itelsaia.com`.
 
@@ -46,3 +47,8 @@ Para actualizar solo el diseño, se reemplazan `index.html` y los recursos que
 hayan cambiado. Si cambia el identificador del despliegue de GAS, se actualiza
 `api/config.php`. Antes de reemplazar archivos en producción se debe descargar
 una copia de la carpeta `public_html/beautyos` desde hPanel.
+
+La versión `lead-v2` mantiene iguales los catálogos de la landing y Sofi. El CRM
+presenta el origen como `Landing web` o `Sofi · WhatsApp`, lo que permite medir
+el rendimiento de cada estrategia sin duplicar campos ni mezclar la información
+de calificación dentro de las notas.

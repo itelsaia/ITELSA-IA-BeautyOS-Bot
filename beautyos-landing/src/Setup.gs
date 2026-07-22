@@ -219,12 +219,12 @@ function crearLeads(ss) {
     'FECHA', 'NOMBRE_CONTACTO', 'NOMBRE_NEGOCIO', 'WHATSAPP', 'EMAIL',
     'CIUDAD', 'CANTIDAD_EMPLEADOS', 'CATEGORIA', 'FUENTE',
     'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS', 'AUTORIZA_DATOS',
-    'NECESIDAD_PRINCIPAL'
+    'NECESIDAD_PRINCIPAL', 'TIPO_NEGOCIO'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
   sheet.setFrozenRows(1);
-  var widths = [140, 160, 200, 140, 200, 120, 150, 130, 100, 120, 130, 140, 300, 130, 220];
+  var widths = [140, 160, 200, 140, 200, 120, 150, 130, 100, 120, 130, 140, 300, 130, 220, 210];
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 

@@ -1641,6 +1641,7 @@
                       <option>Centro estético</option>
                       <option>Barbería</option>
                       <option>Estudio de uñas</option>
+                      <option>Estudio de cejas y pestañas</option>
                       <option>Profesional independiente</option>
                       <option>Otro negocio de belleza</option>
                     </select>
@@ -2020,6 +2021,7 @@
           }
           var data = new FormData(form);
           var payload = {
+            schemaVersion: "lead-v2",
             nombreContacto: data.get("nombreContacto").trim(),
             nombreNegocio: data.get("nombreNegocio").trim(),
             ciudad: data.get("ciudad").trim(),

@@ -73,6 +73,9 @@ function buildCommercialLeadsCache(leads) {
         negocio: lead.NOMBRE_NEGOCIO || '',
         ciudad: lead.CIUDAD || '',
         empleados: lead.CANTIDAD_EMPLEADOS || lead.CANTIDAD_EMPLEAD || '',
+        tipoNegocio: lead.TIPO_NEGOCIO || '',
+        necesidadPrincipal: lead.NECESIDAD_PRINCIPAL || '',
+        fuente: lead.FUENTE || '',
         estado: lead.ESTADO || 'NUEVO'
     }));
 }
@@ -103,6 +106,8 @@ function markSessionAsIncompleteCommercialLead(session, phone, lead) {
     if (!draft.empleados && ['Solo yo', '2 a 5', '6 a 10', '11 o mas'].includes(String(lead.empleados || '').trim())) {
         draft.empleados = String(lead.empleados).trim();
     }
+    if (!draft.tipoNegocio && lead.tipoNegocio) draft.tipoNegocio = String(lead.tipoNegocio).trim();
+    if (!draft.necesidadPrincipal && lead.necesidadPrincipal) draft.necesidadPrincipal = String(lead.necesidadPrincipal).trim();
 
     const previousData = session.datos || {};
     session.estado = 'LEAD_INCOMPLETO';
@@ -127,6 +132,8 @@ function markSessionAsExistingCommercialLead(session, phone, lead) {
     if (!draft.negocio && lead.negocio) draft.negocio = String(lead.negocio).trim();
     if (!draft.ciudad && lead.ciudad) draft.ciudad = String(lead.ciudad).trim();
     if (!draft.empleados && lead.empleados) draft.empleados = String(lead.empleados).trim();
+    if (!draft.tipoNegocio && lead.tipoNegocio) draft.tipoNegocio = String(lead.tipoNegocio).trim();
+    if (!draft.necesidadPrincipal && lead.necesidadPrincipal) draft.necesidadPrincipal = String(lead.necesidadPrincipal).trim();
 
     session.estado = 'LEAD_EXISTENTE';
     session._leadCapturado = lead.negocio || previousData.negocio || draft.negocio || '';

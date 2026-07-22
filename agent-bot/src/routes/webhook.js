@@ -8,6 +8,28 @@ const { loadPendingAppointments } = require('../services/sheets');
 const { transcribeAudio, MAX_AUDIO_TRANSCRIPTION_BYTES } = require('../services/whisper');
 const api = require('../services/api'); // singleton — override webhookUrl por tenant
 
+// Catálogos compartidos con la landing y el CRM. Guardamos siempre estos
+// textos canónicos aunque la persona responda con un número o una expresión
+// coloquial, para poder comparar prospectos sin importar su canal de origen.
+const COMMERCIAL_BUSINESS_TYPES = [
+    'Salón de belleza',
+    'Spa o centro de bienestar',
+    'Centro estético',
+    'Barbería',
+    'Estudio de uñas',
+    'Estudio de cejas y pestañas',
+    'Profesional independiente',
+    'Otro negocio de belleza'
+];
+const COMMERCIAL_NEEDS = [
+    'Agenda y citas',
+    'Agente virtual para WhatsApp',
+    'Seguimiento de clientes',
+    'Ventas y marketing',
+    'Inventario y operación',
+    'Organización general'
+];
+
 // Helper: Parsea campo CUMPLE en formato "dd/mm" o "15 de marzo"
 const MESES_ES = { enero:'01', febrero:'02', marzo:'03', abril:'04', mayo:'05', junio:'06', julio:'07', agosto:'08', septiembre:'09', octubre:'10', noviembre:'11', diciembre:'12' };
 function parseCumpleDDMM(cumpleStr) {
@@ -99,6 +121,8 @@ function hasCompleteCommercialDraft(draft) {
         && isPlausibleCommercialBusinessName(draft.negocio)
         && isPlausibleCommercialCity(draft.ciudad)
         && normalizeCommercialValue(draft.empleados)
+        && normalizeCommercialValue(draft.tipoNegocio)
+        && normalizeCommercialValue(draft.necesidadPrincipal)
     );
 }
 
@@ -141,6 +165,7 @@ function getCommercialNextExpectedField(session) {
     if (!isPlausibleCommercialBusinessName(draft.negocio)) return 'negocio';
     if (!isPlausibleCommercialCity(draft.ciudad)) return 'ciudad';
     if (!normalizeCommercialValue(draft.empleados)) return 'empleados';
+    if (!normalizeCommercialValue(draft.necesidadPrincipal)) return 'necesidad';
     if (!isLikelyCommercialContactName(draft.nombreContacto)) return 'nombreContacto';
     if (session._leadConsentDeclined) return '';
     return 'autorizacion';
@@ -233,14 +258,34 @@ function isPlausibleCommercialCity(value) {
 
 function detectCommercialBusinessType(messageText, isExpectedTypeAnswer = false) {
     const text = normalizeCommercialText(messageText);
+    if (isExpectedTypeAnswer && /^[1-8]$/.test(text.trim())) {
+        return COMMERCIAL_BUSINESS_TYPES[Number(text.trim()) - 1];
+    }
     const isOwnershipStatement = /\b(tengo|manejo|mi\s+(?:negocio|salon|barberia|spa|estudio)|soy\s+duen[oa]|trabajo\s+en)\b/.test(text);
     if (!isExpectedTypeAnswer && !isOwnershipStatement) return '';
     if (/\bbarber(?:ia|shop)?\b/i.test(text)) return 'Barbería';
-    if (/\bspa\b|masajes?|terapias?\b/.test(text)) return 'Spa / bienestar';
-    if (/\bunas\b|nails?\b|manicur|pedicur/.test(text)) return 'Uñas';
-    if (/\bcejas\b|pestanas\b|lash(?:es)?\b|brows?\b/.test(text)) return 'Cejas y pestañas';
-    if (/\bestetica\b|facial(?:es)?\b|depilaci/.test(text)) return 'Estética';
+    if (/\bspa\b|bienestar|masajes?|terapias?\b/.test(text)) return 'Spa o centro de bienestar';
+    if (/\bunas\b|nails?\b|manicur|pedicur/.test(text)) return 'Estudio de uñas';
+    if (/\bcejas\b|pestanas\b|lash(?:es)?\b|brows?\b/.test(text)) return 'Estudio de cejas y pestañas';
+    if (/\bestetica\b|centro estetico|facial(?:es)?\b|depilaci/.test(text)) return 'Centro estético';
     if (/\bsalon\b|pelu(?:quer)?|estilista|cabello\b/.test(text)) return 'Salón de belleza';
+    if (/\bprofesional independiente\b|\bindependiente\b|\btrabajo por mi cuenta\b/.test(text)) return 'Profesional independiente';
+    if (isExpectedTypeAnswer && /\botro\b|\bnegocio de belleza\b/.test(text)) return 'Otro negocio de belleza';
+    return '';
+}
+
+function detectCommercialNeed(messageText, isExpectedNeedAnswer = false) {
+    const text = normalizeCommercialText(messageText).replace(/\s+/g, ' ').trim();
+    if (isExpectedNeedAnswer && /^[1-6]$/.test(text)) {
+        return COMMERCIAL_NEEDS[Number(text) - 1];
+    }
+    if (!isExpectedNeedAnswer && !/\b(?:quiero|necesito|me gustaria|deseo|busco|mejorar|organizar|automatizar)\b/.test(text)) return '';
+    if (/\b(?:agenda|citas?|reservas?|agendamiento)\b/.test(text)) return 'Agenda y citas';
+    if (/\b(?:agente virtual|bot|whatsapp|mensajes?|respuestas? automaticas?)\b/.test(text)) return 'Agente virtual para WhatsApp';
+    if (/\b(?:seguimiento|clientes?|crm|fidelizaci)\b/.test(text)) return 'Seguimiento de clientes';
+    if (/\b(?:ventas?|marketing|campanas?|redes sociales|promociones?)\b/.test(text)) return 'Ventas y marketing';
+    if (/\b(?:inventario|operacion|stock|productos?|insumos?)\b/.test(text)) return 'Inventario y operación';
+    if (/\b(?:organizacion|organizar|administracion|todo|general)\b/.test(text)) return 'Organización general';
     return '';
 }
 
@@ -329,12 +374,14 @@ function getCommercialCaptureQuestion(field, draft = {}, options = {}) {
     const business = normalizeCommercialValue(draft.negocio);
     const city = parseCommercialCity(draft.ciudad);
     const employees = normalizeCommercialValue(draft.empleados);
+    const businessType = normalizeCommercialValue(draft.tipoNegocio);
+    const need = normalizeCommercialValue(draft.necesidadPrincipal);
 
     if (field === 'tipoNegocio') {
         const typePrefix = resume
             ? 'Para continuar con tu solicitud, '
             : (attempt > 1 ? 'No pasa nada; para seguir, ' : (attempt === 1 ? 'Para dejarlo claro, ' : 'Para orientarte mejor, '));
-        return typePrefix + '¿tu negocio es salón/peluquería, barbería, spa, uñas, cejas/pestañas o estética? Puedes responder con una opción.';
+        return typePrefix + '¿cuál opción describe mejor tu negocio?\n1. Salón de belleza\n2. Spa o centro de bienestar\n3. Centro estético\n4. Barbería\n5. Estudio de uñas\n6. Estudio de cejas y pestañas\n7. Profesional independiente\n8. Otro negocio de belleza\nPuedes responder con el número o el nombre.';
     }
     if (field === 'negocio') {
         return prefix + '¿cómo se llama tu negocio o marca? Ejemplo: “Spa Del Amor”.';
@@ -345,12 +392,15 @@ function getCommercialCaptureQuestion(field, draft = {}, options = {}) {
     if (field === 'empleados') {
         return prefix + '¿atiendes solo tú, son 2 a 5, 6 a 10 o 11 o más personas? Puedes responder con una opción.';
     }
+    if (field === 'necesidad') {
+        return prefix + '¿qué te gustaría mejorar primero?\n1. Agenda y citas\n2. Agente virtual para WhatsApp\n3. Seguimiento de clientes\n4. Ventas y marketing\n5. Inventario y operación\n6. Organización general\nPuedes responder con el número o el nombre.';
+    }
     if (field === 'nombreContacto') {
         return prefix + '¿con qué nombre prefieres que te contactemos? Ejemplo: Cris o María José.';
     }
     if (field === 'autorizacion') {
         const contact = normalizeCommercialValue(draft.nombreContacto);
-        const resumen = [business, city, employees].filter(Boolean).join(' · ');
+        const resumen = [businessType, business, city, employees, need].filter(Boolean).join(' · ');
         const contactoResumen = contact ? 'Contacto: ' + contact : '';
         return 'Tengo: ' + [resumen, contactoResumen].filter(Boolean).join(' · ') + '. '
             + '¿Está correcto y autorizas usar estos datos solo para contactarte sobre BeautyOS? Responde “sí, autorizo” o “no autorizo”.';
@@ -433,10 +483,10 @@ function updateCommercialCaptureDraft(session, messageText) {
                 acceptField('nombreContacto', nombre);
             }
         } else if (awaitingField === 'necesidad') {
-            draft.notas = 'Necesidad/duda: ' + rawAnswer;
-            changes.notas = draft.notas;
-            awaitingFieldHandled = true;
-            setCommercialAwaitingField(session, '');
+            const necesidadPrincipal = detectCommercialNeed(messageText, true);
+            if (necesidadPrincipal) {
+                acceptField('necesidadPrincipal', necesidadPrincipal);
+            }
         }
     };
 
@@ -488,6 +538,10 @@ function updateCommercialCaptureDraft(session, messageText) {
         if (!draft.tipoNegocio) {
             const tipoNegocio = detectCommercialBusinessType(messageText, false);
             if (tipoNegocio) acceptField('tipoNegocio', tipoNegocio);
+        }
+        if (!draft.necesidadPrincipal) {
+            const necesidadPrincipal = detectCommercialNeed(messageText, false);
+            if (necesidadPrincipal) acceptField('necesidadPrincipal', necesidadPrincipal);
         }
 
         const nombreMatch = String(messageText || '').match(/^(?:me llamo|mi nombre es|me dicen|puedes?\s+llamarme|pueden\s+llamarme|soy)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ' -]{2,80})/i);
@@ -585,12 +639,12 @@ function asksCommercialDataAuthorization(text) {
 function inferCommercialExpectedField(text) {
     const normalized = normalizeCommercialText(text);
     if (asksCommercialDataAuthorization(text)) return 'autorizacion';
-    if (/que tipo de negocio(?: de belleza)? tienes/.test(normalized)) return 'tipoNegocio';
+    if (/(?:que tipo de negocio|cual opcion describe mejor tu negocio)/.test(normalized)) return 'tipoNegocio';
     if (/como se llama tu (?:negocio|marca|salon|barberia|spa|estudio)/.test(normalized)) return 'negocio';
     if (/en que ciudad (?:atiendes|esta|se encuentra|funciona)/.test(normalized)) return 'ciudad';
     if (/(?:trabajas tu sol[oa]|cuantas personas (?:atienden|trabajan)|solo yo, 2 a 5)/.test(normalized)) return 'empleados';
     if (/(?:como prefieres que te llamemos|como te llamas)/.test(normalized)) return 'nombreContacto';
-    if (/que te gustaria (?:resolver|conocer) primero/.test(normalized)) return 'necesidad';
+    if (/que te gustaria (?:resolver|conocer|mejorar) primero/.test(normalized)) return 'necesidad';
     return '';
 }
 
@@ -815,6 +869,8 @@ async function processEvolutionWebhookEvent(event, instance, data) {
                             if (['Solo yo', '2 a 5', '6 a 10', '11 o mas'].includes(normalizeCommercialValue(leadMatch.empleados))) {
                                 draft.empleados = normalizeCommercialValue(leadMatch.empleados);
                             }
+                            if (leadMatch.tipoNegocio) draft.tipoNegocio = normalizeCommercialValue(leadMatch.tipoNegocio);
+                            if (leadMatch.necesidadPrincipal) draft.necesidadPrincipal = normalizeCommercialValue(leadMatch.necesidadPrincipal);
                             tenant.userSessions[phoneNumber] = {
                                 history: [],
                                 estado: 'LEAD_INCOMPLETO',
@@ -891,6 +947,7 @@ async function processEvolutionWebhookEvent(event, instance, data) {
                 _empleados: datosCaptura.empleados || '',
                 _email: datosCaptura.email || '',
                 _tipoNegocio: datosCaptura.tipoNegocio || '',
+                _necesidadPrincipal: datosCaptura.necesidadPrincipal || '',
                 _notasLead: datosCaptura.notas || '',
                 _autorizaDatos: datosCaptura.autorizaDatos || '',
                 _leadConsentDeclined: Boolean(session._leadConsentDeclined),
@@ -2558,6 +2615,8 @@ module.exports = {
     isPlausibleCommercialBusinessName,
     isPlausibleCommercialCity,
     detectCommercialTeamSize,
+    detectCommercialBusinessType,
+    detectCommercialNeed,
     isPositiveCommercialAuthorization,
     isNegativeCommercialAuthorization,
     isExplicitCommercialAuthorizationReopen

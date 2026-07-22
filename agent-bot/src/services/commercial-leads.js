@@ -8,6 +8,7 @@ function cleanValue(value) {
 function buildCommercialNotes(draft) {
     return [
         cleanValue(draft.tipoNegocio) ? 'Tipo de negocio: ' + cleanValue(draft.tipoNegocio) : '',
+        cleanValue(draft.necesidadPrincipal) ? 'Necesidad principal: ' + cleanValue(draft.necesidadPrincipal) : '',
         cleanValue(draft.notas)
     ].filter(Boolean).join(' | ').slice(0, 900);
 }
@@ -23,8 +24,8 @@ function queueAdvisorAlert(config, session, result) {
         return;
     }
 
-    const { nombreContacto, nombreNegocio, whatsapp, ciudad, cantidadEmpleados, notas } = result;
-    const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n📱 WhatsApp: ${whatsapp}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contáctalo para cerrar la venta.`;
+    const { nombreContacto, nombreNegocio, whatsapp, ciudad, cantidadEmpleados, tipoNegocio, necesidadPrincipal, notas } = result;
+    const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n🏷️ Tipo: ${tipoNegocio}\n📱 WhatsApp: ${whatsapp}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n🎯 Desea mejorar: ${necesidadPrincipal}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contáctalo para cerrar la venta.`;
     if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
     session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
     if (asesores.length > 1 && asesores[0] !== asesorAsignado) {
@@ -36,7 +37,7 @@ function queueAdvisorAlert(config, session, result) {
 }
 
 function markCommercialLeadSaved(session, result) {
-    const { nombreContacto, nombreNegocio, ciudad, cantidadEmpleados, tipoNegocio, notas, email, response } = result;
+    const { nombreContacto, nombreNegocio, ciudad, cantidadEmpleados, tipoNegocio, necesidadPrincipal, notas, email, response } = result;
     const isCompletingExistingLead = Boolean(session._leadNeedsCompletion || session.estado === 'LEAD_INCOMPLETO');
 
     session._leadCapturado = nombreNegocio;
@@ -66,6 +67,7 @@ function markCommercialLeadSaved(session, result) {
         ciudad,
         empleados: cantidadEmpleados,
         tipoNegocio,
+        necesidadPrincipal,
         notas,
         email,
         autorizaDatos: 'SI'
@@ -94,6 +96,7 @@ async function saveCommercialLeadFromDraft({ config, session, phoneNumber }) {
     const ciudad = cleanValue(draft.ciudad);
     const cantidadEmpleados = cleanValue(draft.empleados);
     const tipoNegocio = cleanValue(draft.tipoNegocio);
+    const necesidadPrincipal = cleanValue(draft.necesidadPrincipal);
     const email = cleanValue(draft.email).toLowerCase();
     const autorizaDatos = cleanValue(draft.autorizaDatos).toUpperCase();
     const whatsapp = cleanValue(session?.datos?.celular || phoneNumber);
@@ -103,6 +106,8 @@ async function saveCommercialLeadFromDraft({ config, session, phoneNumber }) {
     if (!nombreNegocio) missing.push('nombre comercial');
     if (!ciudad) missing.push('ciudad');
     if (!cantidadEmpleados) missing.push('equipo');
+    if (!tipoNegocio) missing.push('tipo de negocio');
+    if (!necesidadPrincipal) missing.push('qué desea mejorar');
     if (autorizaDatos !== 'SI') missing.push('autorización');
     if (!whatsapp) missing.push('WhatsApp');
     if (missing.length > 0) return { ok: false, missing, error: 'Faltan datos validados para registrar el lead.' };
@@ -113,12 +118,15 @@ async function saveCommercialLeadFromDraft({ config, session, phoneNumber }) {
     const isCompletingExistingLead = Boolean(session._leadNeedsCompletion || session.estado === 'LEAD_INCOMPLETO');
     const payload = {
         action: isCompletingExistingLead ? 'completeLeadByWhatsapp' : 'saveLead',
+        schemaVersion: 'lead-v2',
         nombreContacto,
         nombreNegocio,
         whatsapp,
         email,
         ciudad,
         cantidadEmpleados,
+        tipoNegocio,
+        necesidadPrincipal,
         notas,
         fuente: 'whatsapp-agente',
         autorizaDatos: 'SI'
@@ -138,6 +146,7 @@ async function saveCommercialLeadFromDraft({ config, session, phoneNumber }) {
         ciudad,
         cantidadEmpleados,
         tipoNegocio,
+        necesidadPrincipal,
         notas
     };
     result.state = markCommercialLeadSaved(session, result);

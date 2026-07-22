@@ -21,6 +21,8 @@ const {
     isPlausibleCommercialBusinessName,
     isPlausibleCommercialCity,
     detectCommercialTeamSize,
+    detectCommercialBusinessType,
+    detectCommercialNeed,
     isPositiveCommercialAuthorization,
     isNegativeCommercialAuthorization,
     isExplicitCommercialAuthorizationReopen
@@ -92,11 +94,28 @@ test('solo un cliente identificado puede usar las herramientas de soporte y cart
     assert.equal(clientTools.includes('registrar_compromiso_pago'), true);
 });
 
+test('la herramienta de Sofi usa los mismos catálogos y campos obligatorios de la landing', () => {
+    const captureTool = getCommercialToolsForConversation({ estado: 'PROSPECTO' })
+        .find(tool => tool.function.name === 'capturar_lead');
+    const parameters = captureTool.function.parameters;
+
+    assert.deepEqual(parameters.properties.tipoNegocio.enum, [
+        'Salón de belleza', 'Spa o centro de bienestar', 'Centro estético', 'Barbería',
+        'Estudio de uñas', 'Estudio de cejas y pestañas', 'Profesional independiente', 'Otro negocio de belleza'
+    ]);
+    assert.deepEqual(parameters.properties.necesidadPrincipal.enum, [
+        'Agenda y citas', 'Agente virtual para WhatsApp', 'Seguimiento de clientes',
+        'Ventas y marketing', 'Inventario y operación', 'Organización general'
+    ]);
+    assert.ok(parameters.required.includes('tipoNegocio'));
+    assert.ok(parameters.required.includes('necesidadPrincipal'));
+});
+
 test('un sí ambiguo no se trata como autorización mientras falta el nombre comercial', () => {
     const prompt = buildPrompt({
         estado: 'PROSPECTO',
         nombre: 'Cris',
-        _tipoNegocio: 'Spa / bienestar'
+        _tipoNegocio: 'Spa o centro de bienestar'
     }, 'sí');
 
     assert.match(prompt, /Pregunta objetivo: "¡Perfecto! ¿Cómo se llama tu negocio o marca\?"/);
@@ -108,7 +127,7 @@ test('una pregunta de producto durante la captura se responde antes de retomar s
     const prompt = buildPrompt({
         estado: 'PROSPECTO',
         nombre: 'Cris',
-        _tipoNegocio: 'Spa / bienestar',
+        _tipoNegocio: 'Spa o centro de bienestar',
         _negocio: 'Spa Del Amor'
     }, '¿Cómo funcionan los servicios?', [{
         intent: 'servicios',
@@ -203,7 +222,7 @@ test('la máquina comercial conserva el campo pendiente aunque la IA parafrasee 
     const session = { estado: 'PROSPECTO', _datosCaptura: {} };
     assert.equal(getCommercialNextExpectedField(session), 'tipoNegocio');
 
-    session._datosCaptura.tipoNegocio = 'Spa / bienestar';
+    session._datosCaptura.tipoNegocio = 'Spa o centro de bienestar';
     assert.equal(getCommercialNextExpectedField(session), 'negocio');
 
     session._datosCaptura.negocio = 'Spa Del amor';
@@ -213,6 +232,9 @@ test('la máquina comercial conserva el campo pendiente aunque la IA parafrasee 
     assert.equal(getCommercialNextExpectedField(session), 'empleados');
 
     session._datosCaptura.empleados = 'Solo yo';
+    assert.equal(getCommercialNextExpectedField(session), 'necesidad');
+
+    session._datosCaptura.necesidadPrincipal = 'Agenda y citas';
     assert.equal(getCommercialNextExpectedField(session), 'nombreContacto');
 
     session._datosCaptura.nombreContacto = 'Cris';
@@ -228,13 +250,36 @@ test('un dato faltante no interpreta respuestas breves si el servidor no hizo es
     const first = processCaptureTurn(session, 'Spa');
     assert.equal(first.requiredField, 'tipoNegocio');
     assert.equal(session._datosCaptura.tipoNegocio, undefined);
-    assert.match(first.directReply, /salón\/peluquería, barbería, spa/i);
+    assert.match(first.directReply, /1\. Salón de belleza[\s\S]*8\. Otro negocio de belleza/i);
     assert.equal(getCommercialAwaitingField(session), 'tipoNegocio');
 
     const accepted = processCaptureTurn(session, 'Spa');
-    assert.equal(accepted.changes.tipoNegocio, 'Spa / bienestar');
-    assert.equal(session._datosCaptura.tipoNegocio, 'Spa / bienestar');
+    assert.equal(accepted.changes.tipoNegocio, 'Spa o centro de bienestar');
+    assert.equal(session._datosCaptura.tipoNegocio, 'Spa o centro de bienestar');
     assert.equal(getCommercialAwaitingField(session), 'negocio');
+});
+
+test('Sofi normaliza opciones numéricas con los mismos catálogos de la landing', () => {
+    assert.equal(detectCommercialBusinessType('2', true), 'Spa o centro de bienestar');
+    assert.equal(detectCommercialBusinessType('estudio de uñas', true), 'Estudio de uñas');
+    assert.equal(detectCommercialNeed('2', true), 'Agente virtual para WhatsApp');
+    assert.equal(detectCommercialNeed('Quiero mejorar ventas y marketing', true), 'Ventas y marketing');
+
+    const session = {
+        estado: 'PROSPECTO',
+        history: [],
+        _commercialAwaitingField: 'necesidad',
+        _datosCaptura: {
+            tipoNegocio: 'Spa o centro de bienestar',
+            negocio: 'Aura Spa',
+            ciudad: 'Bogotá',
+            empleados: '2 a 5'
+        }
+    };
+    const result = processCaptureTurn(session, '3');
+    assert.equal(result.changes.necesidadPrincipal, 'Seguimiento de clientes');
+    assert.equal(session._datosCaptura.necesidadPrincipal, 'Seguimiento de clientes');
+    assert.equal(result.requiredField, 'nombreContacto');
 });
 
 test('una duda de producto, incluso sin signos, no se guarda como ciudad ni tipo de negocio', () => {
@@ -242,7 +287,7 @@ test('una duda de producto, incluso sin signos, no se guarda como ciudad ni tipo
         estado: 'PROSPECTO',
         history: [],
         _commercialAwaitingField: 'ciudad',
-        _datosCaptura: { tipoNegocio: 'Spa / bienestar', negocio: 'Spa Del Amor' }
+        _datosCaptura: { tipoNegocio: 'Spa o centro de bienestar', negocio: 'Spa Del Amor' }
     };
     const cityResult = updateCommercialCaptureDraft(citySession, 'El funcionamiento de los servicios');
 
@@ -256,7 +301,7 @@ test('una duda de producto, incluso sin signos, no se guarda como ciudad ni tipo
         estado: 'PROSPECTO',
         history: [],
         _commercialAwaitingField: 'ciudad',
-        _datosCaptura: { tipoNegocio: 'Spa / bienestar', negocio: 'Spa Del Amor' }
+        _datosCaptura: { tipoNegocio: 'Spa o centro de bienestar', negocio: 'Spa Del Amor' }
     };
     const interestResult = updateCommercialCaptureDraft(interestSession, 'Me interesa');
     assert.equal(interestResult.inputKind, 'product_question');
@@ -279,7 +324,7 @@ test('las respuestas ambiguas conservan el campo y generan una pregunta cerrada'
         history: [],
         _commercialAwaitingField: 'empleados',
         _datosCaptura: {
-            tipoNegocio: 'Spa / bienestar',
+            tipoNegocio: 'Spa o centro de bienestar',
             negocio: 'Spa Del Amor',
             ciudad: 'Bogotá'
         }
@@ -305,6 +350,7 @@ test('acepta expresiones colombianas claras sin inventar los datos', () => {
     processCaptureTurn(session, "Se llama K'Bella Studio 54");
     processCaptureTurn(session, 'Atiendo en Bogotá, Colombia');
     processCaptureTurn(session, 'Yo solita');
+    processCaptureTurn(session, 'Quiero mejorar la agenda y las citas');
     processCaptureTurn(session, 'Me dicen Cris');
 
     assert.deepEqual(session._datosCaptura, {
@@ -312,6 +358,7 @@ test('acepta expresiones colombianas claras sin inventar los datos', () => {
         negocio: "K'Bella Studio 54",
         ciudad: 'Bogotá',
         empleados: 'Solo yo',
+        necesidadPrincipal: 'Agenda y citas',
         nombreContacto: 'Cris'
     });
     assert.equal(getCommercialAwaitingField(session), 'autorizacion');
@@ -323,10 +370,11 @@ test('acepta expresiones colombianas claras sin inventar los datos', () => {
 
 test('consentimiento solo se acepta en la pregunta exacta y conserva el borrador si es coloquial ambiguo', () => {
     const draft = {
-        tipoNegocio: 'Spa / bienestar',
+        tipoNegocio: 'Spa o centro de bienestar',
         negocio: 'Spa Del Amor',
         ciudad: 'Bogotá',
         empleados: 'Solo yo',
+        necesidadPrincipal: 'Agenda y citas',
         nombreContacto: 'Cris'
     };
     const session = {
@@ -365,10 +413,11 @@ test('una corrección explícita antes de guardar actualiza solo ese dato y vuel
         history: [],
         _commercialAwaitingField: 'autorizacion',
         _datosCaptura: {
-            tipoNegocio: 'Spa / bienestar',
+            tipoNegocio: 'Spa o centro de bienestar',
             negocio: 'Spa Del Amor',
             ciudad: 'Bogotá',
             empleados: 'Solo yo',
+            necesidadPrincipal: 'Agenda y citas',
             nombreContacto: 'Cris'
         }
     };
@@ -399,7 +448,7 @@ test('una duda en medio de la captura bloquea técnicamente capturar_lead hasta 
     const userData = {
         estado: 'PROSPECTO',
         nombre: 'Cris',
-        _tipoNegocio: 'Spa / bienestar',
+        _tipoNegocio: 'Spa o centro de bienestar',
         _negocio: 'Spa Del Amor',
         _commercialRequiredField: 'ciudad',
         _commercialResumeQuestion: 'Para continuar con tu solicitud, ¿en qué ciudad atiendes?',

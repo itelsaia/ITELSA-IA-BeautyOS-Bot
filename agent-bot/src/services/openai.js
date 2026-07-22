@@ -289,21 +289,22 @@ const COMMERCIAL_TOOLS = [
         type: "function",
         function: {
             name: "capturar_lead",
-            description: "Guarda un prospecto interesado en BeautyOS SOLO cuando ya tienes nombre, negocio, ciudad, cantidad de empleados y autorizacion expresa para tratar sus datos.",
+            description: "Guarda un prospecto interesado en BeautyOS SOLO cuando ya tienes nombre, tipo y nombre del negocio, ciudad, cantidad de empleados, necesidad principal y autorizacion expresa para tratar sus datos.",
             parameters: {
                 type: "object",
                 properties: {
                     nombreContacto: { type: "string", description: "Nombre real de la persona de contacto, expresado o confirmado por ella. Nunca usar el nombre de perfil de WhatsApp como dato confirmado." },
                     nombreNegocio: { type: "string", description: "Nombre comercial o marca del negocio, por ejemplo 'Corte Fino'. Nunca usar solo el tipo genérico como 'barbería', 'spa' o 'salón'." },
-                    tipoNegocio: { type: "string", description: "Tipo de negocio informado por el prospecto, por ejemplo salón, barbería, spa, uñas, cejas o estética. Es opcional y se guarda dentro de las notas." },
+                    tipoNegocio: { type: "string", enum: ["Salón de belleza", "Spa o centro de bienestar", "Centro estético", "Barbería", "Estudio de uñas", "Estudio de cejas y pestañas", "Profesional independiente", "Otro negocio de belleza"], description: "Tipo de negocio normalizado con el mismo catálogo de la landing." },
                     whatsapp: { type: "string", description: "Numero WhatsApp del prospecto (ya lo tienes del chat)" },
                     email: { type: "string", description: "Correo electronico (opcional)" },
                     ciudad: { type: "string", description: "Ciudad del negocio" },
                     cantidadEmpleados: { type: "string", enum: ["Solo yo", "2 a 5", "6 a 10", "11 o mas"], description: "Cuantos empleados tiene" },
+                    necesidadPrincipal: { type: "string", enum: ["Agenda y citas", "Agente virtual para WhatsApp", "Seguimiento de clientes", "Ventas y marketing", "Inventario y operación", "Organización general"], description: "Aspecto que el prospecto desea mejorar primero, usando el catálogo compartido con la landing." },
                     notas: { type: "string", description: "Contexto dicho por el prospecto: necesidad, duda u objetivo. Incluye el tipo de negocio si lo conoces; nunca inventes datos." },
                     autorizaDatos: { type: "string", enum: ["SI", "NO"], description: "Si el prospecto autorizo el tratamiento de sus datos personales" }
                 },
-                required: ["nombreContacto", "nombreNegocio", "whatsapp", "ciudad", "cantidadEmpleados", "autorizaDatos"]
+                required: ["nombreContacto", "nombreNegocio", "tipoNegocio", "whatsapp", "ciudad", "cantidadEmpleados", "necesidadPrincipal", "autorizaDatos"]
             }
         }
     },
@@ -1237,7 +1238,9 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
 
     const profileName = cleanText(userData.nombrePerfil || '', 80);
     const knownBusinessType = cleanText(userData.tipoNegocio || userData._tipoNegocio || '', 80);
-    const knownNeed = cleanText(userData.necesidad || userData._notasLead || '', 180);
+    const knownNeed = cleanText(userData.necesidadPrincipal || userData._necesidadPrincipal || userData.necesidad || '', 180);
+    if (!knownBusinessType) missingData.push('tipo de negocio');
+    if (!knownNeed) missingData.push('qué desea mejorar');
     const consentGiven = String(userData._autorizaDatos || '').toUpperCase() === 'SI';
     const consentDeclined = Boolean(userData._leadConsentDeclined);
     const serverRequiredField = cleanText(userData._commercialRequiredField || '', 40);
@@ -1262,6 +1265,9 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
         }
         if (!knownEmployees) {
             return `Pregunta objetivo: "¿Trabajas tú sola/o o cuántas personas atienden en ${knownBusiness}? Puedes responder: solo yo, 2 a 5, 6 a 10 u 11 o más."`;
+        }
+        if (!knownNeed) {
+            return 'Pregunta objetivo: "¿Qué te gustaría mejorar primero: agenda y citas, agente virtual para WhatsApp, seguimiento de clientes, ventas y marketing, inventario y operación u organización general?"';
         }
         if (!displayName) {
             return 'Pregunta objetivo: "Para dejar tu solicitud a nombre de la persona correcta, ¿cómo prefieres que te llamemos?"';
@@ -1313,14 +1319,14 @@ function buildCommercialPrompt(config, userData, knowledgeCatalog, servicesCatal
 - Sigue la guía de abajo solo para los datos que aún falten. Si el usuario da varios datos claros en un mismo mensaje, aprovéchalos y no los vuelvas a pedir.
 - Si el prospecto hace una pregunta concreta sobre precio, funciones, implementación o uso, respóndela primero en una frase con datos reales. Después retoma únicamente la pregunta objetivo de la guía.
 - El servidor controla qué dato fue preguntado. Nunca supongas que una palabra corta como "sí", "dale", "listo" o "hágale" responde a otro campo. Si algo es ambiguo, pide una aclaración corta del mismo campo y conserva todos los datos válidos.
-- La necesidad o duda es opcional: si la expresa, respóndela y guárdala como contexto; no la exijas antes de solicitar la autorización.
+- El tipo de negocio y lo que desea mejorar son campos obligatorios de calificación. Usa únicamente las opciones normalizadas que controla el servidor.
 - No presiones para registrarse. Después de resolver sus dudas, invítalo naturalmente a dejar sus datos para que el equipo pueda orientarlo o darle seguimiento.
-- Cuando conozcas tipo de negocio o necesidad, inclúyelos en notas al llamar capturar_lead: "Tipo de negocio: ... | Necesidad/duda: ...". No inventes esos datos.`;
+- Al llamar capturar_lead envía tipoNegocio y necesidadPrincipal en sus campos separados. No inventes esos datos.`;
     const captureRules = isExistingLead
         ? `CAPTURA DE PROSPECTO
 - CERRADA PARA ESTE CONTACTO: no pidas datos de registro ni llames capturar_lead.`
         : `CAPTURA DE PROSPECTO
-- Antes de capturar exige nombre de contacto confirmado, nombre comercial del negocio, ciudad, cantidad de empleados y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
+- Antes de capturar exige nombre de contacto confirmado, tipo y nombre comercial del negocio, ciudad, cantidad de empleados, necesidad principal y autorización expresa. El WhatsApp ya viene del chat; nunca lo pidas. El email es opcional.
 - Usa datos del historial y del contexto. No vuelvas a pedir un dato ya respondido.
 - Si el contexto indica LEAD CON REGISTRO INCOMPLETO, completa los datos faltantes y, tras la autorización, llama capturar_lead: el sistema actualizará la misma ficha sin crear un duplicado.
 - Si dice que quiere contratar pero falta un dato o autorización, pide solamente lo pendiente; no prometas que quedó registrado aún.
@@ -2472,8 +2478,10 @@ PASO 5 — POST-CONFIRMACIÓN:
                         const ciudad = isInvalidCity(draft.ciudad) ? '' : cleanVal(draft.ciudad);
                         const cantidadEmpleados = cleanVal(draft.empleados);
                         const tipoNegocio = cleanVal(draft.tipoNegocio);
+                        const necesidadPrincipal = cleanVal(draft.necesidadPrincipal);
                         const notas = [
                             tipoNegocio ? 'Tipo de negocio: ' + tipoNegocio : '',
+                            necesidadPrincipal ? 'Necesidad principal: ' + necesidadPrincipal : '',
                             cleanVal(draft.notas)
                         ].filter(Boolean).join(' | ').slice(0, 900);
 
@@ -2499,6 +2507,8 @@ PASO 5 — POST-CONFIRMACIÓN:
                         if (!nombreNegocio) faltantes.push('nombre comercial del negocio');
                         if (!ciudad) faltantes.push('ciudad');
                         if (!cantidadEmpleados) faltantes.push('cantidad de empleados');
+                        if (!tipoNegocio) faltantes.push('tipo de negocio');
+                        if (!necesidadPrincipal) faltantes.push('qué desea mejorar');
                         if (autorizaDatos !== 'SI') faltantes.push('autorizacion de datos');
 
                         if (faltantes.length > 0) {
@@ -2509,12 +2519,15 @@ PASO 5 — POST-CONFIRMACIÓN:
                         const isCompletingExistingLead = session._leadNeedsCompletion || session.estado === 'LEAD_INCOMPLETO';
                         const resp = await api.postToCRM(crmUrl, {
                             action: isCompletingExistingLead ? 'completeLeadByWhatsapp' : 'saveLead',
+                            schemaVersion: 'lead-v2',
                             nombreContacto,
                             nombreNegocio,
                             whatsapp: whatsappReal,
                             email: cleanVal(draft.email),
                             ciudad,
                             cantidadEmpleados,
+                            tipoNegocio,
+                            necesidadPrincipal,
                             notas,
                             fuente: 'whatsapp-agente',
                             autorizaDatos
@@ -2552,6 +2565,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                                 ciudad,
                                 empleados: cantidadEmpleados,
                                 tipoNegocio,
+                                necesidadPrincipal,
                                 notas,
                                 email: cleanVal(session._datosCaptura?.email)
                             };
@@ -2574,7 +2588,7 @@ PASO 5 — POST-CONFIRMACIÓN:
                             const asesores = (config.whatsappAsesores || '').split(',').map(n => n.trim()).filter(Boolean);
                             const asesorAsignado = resp.asesorAsignado || '';
                             if (!resp.actualizado && !resp.duplicado && asesores.length > 0 && asesorAsignado) {
-                                const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
+                                const alertMsg = `*🔔 Nuevo Lead BeautyOS*\n\n👤 Contacto: ${nombreContacto}\n💼 Negocio: ${nombreNegocio}\n🏷️ Tipo: ${tipoNegocio}\n📱 WhatsApp: ${whatsappReal}\n📍 Ciudad: ${ciudad}\n👥 Empleados: ${cantidadEmpleados}\n🎯 Desea mejorar: ${necesidadPrincipal}\n\n${notas ? '📝 Notas: ' + notas + '\n\n' : ''}✅ *Asignado a ti.* Contactalo para cerrar la venta.`;
                                 if (!session._pendingTransferMessages) session._pendingTransferMessages = [];
                                 session._pendingTransferMessages.push({ to: asesorAsignado, text: alertMsg });
                                 if (asesores.length > 1 && asesores[0] !== asesorAsignado) {

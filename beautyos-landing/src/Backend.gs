@@ -105,8 +105,21 @@ function getCommercialLeadMissingFields_(payload) {
   if (isInvalidCommercialBusinessName_(payload.nombreNegocio)) missing.push('nombre comercial del negocio');
   if (isInvalidCommercialCity_(payload.ciudad)) missing.push('ciudad');
   if (!cleanCommercialLeadValue_(payload.cantidadEmpleados)) missing.push('cantidad de empleados');
+  if (cleanCommercialLeadValue_(payload.schemaVersion) === 'lead-v2') {
+    if (!cleanCommercialLeadValue_(payload.tipoNegocio)) missing.push('tipo de negocio');
+    if (!cleanCommercialLeadValue_(payload.necesidadPrincipal)) missing.push('qué desea mejorar');
+  }
   if (cleanCommercialLeadValue_(payload.autorizaDatos).toUpperCase() !== 'SI') missing.push('autorización de datos');
   return missing;
+}
+
+function hasValidCommercialLeadCatalogs_(payload) {
+  var employeeOptions = ['Solo yo', '2 a 5', '6 a 10', '11 o mas'];
+  var businessTypeOptions = ['Salón de belleza', 'Spa o centro de bienestar', 'Centro estético', 'Barbería', 'Estudio de uñas', 'Estudio de cejas y pestañas', 'Profesional independiente', 'Otro negocio de belleza'];
+  var needOptions = ['Agenda y citas', 'Agente virtual para WhatsApp', 'Seguimiento de clientes', 'Ventas y marketing', 'Inventario y operación', 'Organización general'];
+  return employeeOptions.indexOf(cleanCommercialLeadValue_(payload.cantidadEmpleados)) !== -1
+    && businessTypeOptions.indexOf(cleanCommercialLeadValue_(payload.tipoNegocio)) !== -1
+    && needOptions.indexOf(cleanCommercialLeadValue_(payload.necesidadPrincipal)) !== -1;
 }
 
 // Convierte imágenes de Google Drive a base64 para compatibilidad móvil
@@ -195,10 +208,21 @@ function ensureLeadQualificationColumns_(sheet) {
     sheet.setColumnWidth(needIndex + 1, 220);
   }
 
+  headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function(value) { return String(value).trim(); });
+  var businessTypeIndex = headers.indexOf('TIPO_NEGOCIO');
+  if (businessTypeIndex < 0) {
+    sheet.insertColumnAfter(sheet.getLastColumn());
+    businessTypeIndex = sheet.getLastColumn() - 1;
+    headerStyle(sheet.getRange(1, businessTypeIndex + 1).setValue('TIPO_NEGOCIO'));
+    sheet.setColumnWidth(businessTypeIndex + 1, 210);
+  }
+
   return {
     cantidadEmpleados: employeeIndex + 1,
     autorizaDatos: authorizationIndex + 1,
-    necesidadPrincipal: needIndex + 1
+    necesidadPrincipal: needIndex + 1,
+    tipoNegocio: businessTypeIndex + 1
   };
 }
 
@@ -215,6 +239,10 @@ function handleSaveLead(payload) {
   var source = clean(payload.fuente) || 'landing';
   var isWhatsappAgent = source === 'whatsapp-agente';
 
+  if (clean(payload.schemaVersion) === 'lead-v2' && !hasValidCommercialLeadCatalogs_(payload)) {
+    return { error: 'La calificación comercial contiene una opción no válida' };
+  }
+
   // Defensa en profundidad: un POST del agente no puede crear un lead con
   // datos deducidos, incompletos o sin consentimiento explícito.
   if (isWhatsappAgent) {
@@ -224,6 +252,7 @@ function handleSaveLead(payload) {
 
   var cant = String(payload.cantidadEmpleados || '').trim();
   var necesidadPrincipal = clean(payload.necesidadPrincipal);
+  var tipoNegocio = clean(payload.tipoNegocio);
   var categoria = 'Propia empresa';
   if (cant === '2 a 5') categoria = 'Mediano';
   else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
@@ -265,6 +294,9 @@ function handleSaveLead(payload) {
           if (necesidadPrincipal) {
             sheet.getRange(duplicateRow, qualificationColumns.necesidadPrincipal).setValue(necesidadPrincipal);
           }
+          if (tipoNegocio) {
+            sheet.getRange(duplicateRow, qualificationColumns.tipoNegocio).setValue(tipoNegocio);
+          }
           return { success: true, duplicado: true, mensaje: 'Este WhatsApp ya esta registrado como lead', asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
         }
       }
@@ -283,7 +315,8 @@ function handleSaveLead(payload) {
       'NUEVO', asesorAsignado, '',
       clean(payload.notas),
       clean(payload.autorizaDatos) || 'SI',
-      necesidadPrincipal
+      necesidadPrincipal,
+      tipoNegocio
     ]);
 
     // Contar la asignación solo si el lead sí fue creado. Así un WhatsApp
@@ -325,6 +358,7 @@ function handleSaveLead(payload) {
       + '📱 WhatsApp: ' + (payload.whatsapp || '') + '\n'
       + '📍 Ciudad: ' + (payload.ciudad || 'No indicada') + '\n'
       + '👥 Empleados: ' + (cant || 'No indicado') + '\n'
+      + '🏪 Tipo de negocio: ' + (tipoNegocio || 'No indicado') + '\n'
       + '🎯 Desea mejorar: ' + (necesidadPrincipal || 'No indicado') + '\n'
       + '📋 Fuente: ' + (payload.fuente || 'landing') + '\n\n'
       + '✅ *Asignado a ti (' + asesorNombre + ').* Contactalo para cerrar la venta.';
@@ -418,10 +452,14 @@ function handleCompleteLeadByWhatsapp(payload) {
 
   var missing = getCommercialLeadMissingFields_(payload);
   if (missing.length > 0) return { error: 'Lead incompleto: falta ' + missing.join(', ') };
+  if (cleanCommercialLeadValue_(payload.schemaVersion) === 'lead-v2' && !hasValidCommercialLeadCatalogs_(payload)) {
+    return { error: 'La calificación comercial contiene una opción no válida' };
+  }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('LEADS');
   if (!sheet) return { error: 'Hoja LEADS no encontrada' };
+  var qualificationColumns = ensureLeadQualificationColumns_(sheet);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { error: 'No hay leads para completar' };
 
@@ -453,6 +491,12 @@ function handleCompleteLeadByWhatsapp(payload) {
   sheet.getRange(foundRow, 6).setValue(cleanCommercialLeadValue_(payload.ciudad));
   sheet.getRange(foundRow, 7).setValue(cant);
   sheet.getRange(foundRow, 8).setValue(categoria);
+  if (cleanCommercialLeadValue_(payload.necesidadPrincipal)) {
+    sheet.getRange(foundRow, qualificationColumns.necesidadPrincipal).setValue(cleanCommercialLeadValue_(payload.necesidadPrincipal));
+  }
+  if (cleanCommercialLeadValue_(payload.tipoNegocio)) {
+    sheet.getRange(foundRow, qualificationColumns.tipoNegocio).setValue(cleanCommercialLeadValue_(payload.tipoNegocio));
+  }
 
   var notasActuales = String(existing[12] || '').trim();
   var notasNuevas = cleanCommercialLeadValue_(payload.notas);
@@ -1184,7 +1228,6 @@ function buildLeadEmailHtml(payload, nombreProducto, categoria) {
     + emailRow('Desea mejorar', payload.necesidadPrincipal)
     + emailRow('Empleados', payload.cantidadEmpleados)
     + emailRow('Categoria', categoria)
-    + emailRow('Desea mejorar', payload.necesidadPrincipal)
     + emailRow('Necesidad / contexto', payload.notas)
     + emailRow('Fuente', payload.fuente)
     + '</table></div>'
