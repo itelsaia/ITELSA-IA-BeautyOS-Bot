@@ -17,6 +17,7 @@
     />
     <?!= include('BrandAssets'); ?>
     <?!= include('CardAssets'); ?>
+    <?!= include('ServiceCardAssets'); ?>
     <style>
       :root {
         --ink: #071823;
@@ -2004,9 +2005,9 @@
           })
           .join("");
         var includeBackgrounds = [
-          "agenda", "agenda", "sofi", "sofi",
-          "inventario", "agenda", "inventario", "sofi",
-          "sofi", "sofi", "sofi", "inventario"
+          "agenda", "recordatorios", "crm", "sofi",
+          "servicios", "equipo", "inventario", "campanas",
+          "prospectos", "reportes", "landing", "soporte"
         ];
         document.getElementById("includeGrid").innerHTML = included
           .map(function (x, i) {
