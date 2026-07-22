@@ -146,11 +146,68 @@ function getDatosLanding() {
 // ─── LEADS ───
 // ═══════════════════════════════════════════════
 
+// Garantiza que los campos de calificación comercial existan sin borrar ni
+// reordenar los leads actuales. También normaliza el encabezado abreviado que
+// usaron algunas versiones anteriores del CRM.
+function ensureLeadQualificationColumns_(sheet) {
+  if (!sheet) return {};
+  var headerStyle = function(range) {
+    range.setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
+  };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function(value) { return String(value).trim(); });
+  var employeeIndex = headers.indexOf('CANTIDAD_EMPLEADOS');
+  var legacyEmployeeIndex = headers.indexOf('CANTIDAD_EMPLEAD');
+
+  if (employeeIndex < 0 && legacyEmployeeIndex >= 0) {
+    employeeIndex = legacyEmployeeIndex;
+    headerStyle(sheet.getRange(1, employeeIndex + 1).setValue('CANTIDAD_EMPLEADOS'));
+  } else if (employeeIndex < 0) {
+    sheet.insertColumnBefore(7);
+    employeeIndex = 6;
+    headerStyle(sheet.getRange(1, 7).setValue('CANTIDAD_EMPLEADOS'));
+    sheet.setColumnWidth(7, 150);
+  }
+
+  headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function(value) { return String(value).trim(); });
+  var authorizationIndex = headers.indexOf('AUTORIZA_DATOS');
+  var needIndex = headers.indexOf('NECESIDAD_PRINCIPAL');
+  if (authorizationIndex < 0) {
+    if (needIndex >= 0) {
+      sheet.insertColumnBefore(needIndex + 1);
+      authorizationIndex = needIndex;
+    } else {
+      sheet.insertColumnAfter(sheet.getLastColumn());
+      authorizationIndex = sheet.getLastColumn() - 1;
+    }
+    headerStyle(sheet.getRange(1, authorizationIndex + 1).setValue('AUTORIZA_DATOS'));
+    sheet.setColumnWidth(authorizationIndex + 1, 130);
+  }
+
+  headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function(value) { return String(value).trim(); });
+  needIndex = headers.indexOf('NECESIDAD_PRINCIPAL');
+  if (needIndex < 0) {
+    sheet.insertColumnAfter(sheet.getLastColumn());
+    needIndex = sheet.getLastColumn() - 1;
+    headerStyle(sheet.getRange(1, needIndex + 1).setValue('NECESIDAD_PRINCIPAL'));
+    sheet.setColumnWidth(needIndex + 1, 220);
+  }
+
+  return {
+    cantidadEmpleados: employeeIndex + 1,
+    autorizaDatos: authorizationIndex + 1,
+    necesidadPrincipal: needIndex + 1
+  };
+}
+
 // Guarda un lead desde el formulario de la landing
 function handleSaveLead(payload) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('LEADS');
   if (!sheet) return { error: 'Hoja LEADS no encontrada. Ejecuta setupLanding().' };
+  var qualificationColumns = ensureLeadQualificationColumns_(sheet);
 
   var config = leerClaveValor(ss, 'CONFIGURACION');
   // Limpiar undefined/null que pueden venir del bot o de integraciones.
@@ -166,6 +223,7 @@ function handleSaveLead(payload) {
   }
 
   var cant = String(payload.cantidadEmpleados || '').trim();
+  var necesidadPrincipal = clean(payload.necesidadPrincipal);
   var categoria = 'Propia empresa';
   if (cant === '2 a 5') categoria = 'Mediano';
   else if (cant === '6 a 10' || cant === '11 o mas') categoria = 'Grande';
@@ -200,6 +258,13 @@ function handleSaveLead(payload) {
       var existentes = sheet.getRange(2, 4, sheet.getLastRow() - 1, 1).getValues();
       for (var d = 0; d < existentes.length; d++) {
         if (String(existentes[d][0]).replace(/\D/g, '') === waLimpio) {
+          var duplicateRow = d + 2;
+          if (cant && cant !== 'No indicado') {
+            sheet.getRange(duplicateRow, qualificationColumns.cantidadEmpleados).setValue(cant);
+          }
+          if (necesidadPrincipal) {
+            sheet.getRange(duplicateRow, qualificationColumns.necesidadPrincipal).setValue(necesidadPrincipal);
+          }
           return { success: true, duplicado: true, mensaje: 'Este WhatsApp ya esta registrado como lead', asesorAsignado: asesorAsignado, asesorNombre: asesorNombre };
         }
       }
@@ -217,7 +282,8 @@ function handleSaveLead(payload) {
       source,
       'NUEVO', asesorAsignado, '',
       clean(payload.notas),
-      clean(payload.autorizaDatos) || 'SI'
+      clean(payload.autorizaDatos) || 'SI',
+      necesidadPrincipal
     ]);
 
     // Contar la asignación solo si el lead sí fue creado. Así un WhatsApp
@@ -259,6 +325,7 @@ function handleSaveLead(payload) {
       + '📱 WhatsApp: ' + (payload.whatsapp || '') + '\n'
       + '📍 Ciudad: ' + (payload.ciudad || 'No indicada') + '\n'
       + '👥 Empleados: ' + (cant || 'No indicado') + '\n'
+      + '🎯 Desea mejorar: ' + (necesidadPrincipal || 'No indicado') + '\n'
       + '📋 Fuente: ' + (payload.fuente || 'landing') + '\n\n'
       + '✅ *Asignado a ti (' + asesorNombre + ').* Contactalo para cerrar la venta.';
     try {
@@ -508,7 +575,7 @@ function archiveDeletedLead_(ss, sourceSheet, leadValues, reason) {
   archive.appendRow(leadValues.concat([new Date(), reason]));
 }
 
-// Migra la hoja LEADS para agregar NOMBRE_CONTACTO sin perder datos
+// Migra la hoja LEADS para agregar todos los campos vigentes sin perder datos.
 function migrateLeadsSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('LEADS');
@@ -516,14 +583,19 @@ function migrateLeadsSheet() {
 
   var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   var hasNombreContacto = currentHeaders.indexOf('NOMBRE_CONTACTO') >= 0;
-  if (hasNombreContacto) return { success: true, message: 'La hoja ya tiene NOMBRE_CONTACTO' };
+  if (!hasNombreContacto) {
+    // Insertar columna B y poner header.
+    sheet.insertColumnBefore(2);
+    sheet.getRange(1, 2).setValue('NOMBRE_CONTACTO').setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
+    sheet.setColumnWidth(2, 160);
+  }
 
-  // Insertar columna B y poner header
-  sheet.insertColumnBefore(2);
-  sheet.getRange(1, 2).setValue('NOMBRE_CONTACTO').setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
-  sheet.setColumnWidth(2, 160);
-
-  return { success: true, message: 'Columna NOMBRE_CONTACTO agregada en posicion B' };
+  var qualificationColumns = ensureLeadQualificationColumns_(sheet);
+  return {
+    success: true,
+    message: 'Hoja LEADS alineada con los campos vigentes del CRM',
+    columns: qualificationColumns
+  };
 }
 
 // ═══════════════════════════════════════════════
@@ -1019,6 +1091,7 @@ function handleGetClientesCRM() {
 // Computa _diasMora y _diasParaVencer en cada cliente para las alertas visuales
 function getPanelData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureLeadQualificationColumns_(ss.getSheetByName('LEADS'));
   var data = {};
   try { data = getDatosLanding(); } catch(e) { data = {}; }
   try { data.leads = leerTabla(ss, 'LEADS') || []; } catch(e) { data.leads = []; }
@@ -1111,6 +1184,7 @@ function buildLeadEmailHtml(payload, nombreProducto, categoria) {
     + emailRow('Desea mejorar', payload.necesidadPrincipal)
     + emailRow('Empleados', payload.cantidadEmpleados)
     + emailRow('Categoria', categoria)
+    + emailRow('Desea mejorar', payload.necesidadPrincipal)
     + emailRow('Necesidad / contexto', payload.notas)
     + emailRow('Fuente', payload.fuente)
     + '</table></div>'

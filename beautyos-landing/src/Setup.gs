@@ -41,7 +41,7 @@ function crearHojasNuevas() {
   crearEstadosLead(ss);
   crearEstadosNovedad(ss);
   crearAsesores(ss);
-  // Migrar LEADS: agregar columna NOMBRE_CONTACTO si no existe
+  // Migrar LEADS sin borrar registros de instalaciones anteriores.
   var leadsSheet = ss.getSheetByName('LEADS');
   if (leadsSheet) {
     var headers = leadsSheet.getRange(1, 1, 1, leadsSheet.getLastColumn()).getValues()[0];
@@ -51,6 +51,7 @@ function crearHojasNuevas() {
       leadsSheet.setColumnWidth(2, 160);
       Logger.log('Columna NOMBRE_CONTACTO agregada a LEADS');
     }
+    ensureLeadQualificationColumns_(leadsSheet);
   }
   SpreadsheetApp.flush();
   Logger.log('Hojas nuevas creadas: ESTADOS_LEAD, ESTADOS_NOVEDAD, ASESORES. LEADS migrada.');
@@ -217,12 +218,13 @@ function crearLeads(ss) {
   var headers = [
     'FECHA', 'NOMBRE_CONTACTO', 'NOMBRE_NEGOCIO', 'WHATSAPP', 'EMAIL',
     'CIUDAD', 'CANTIDAD_EMPLEADOS', 'CATEGORIA', 'FUENTE',
-    'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS', 'AUTORIZA_DATOS'
+    'ESTADO', 'ASIGNADO_A', 'FECHA_CONTACTO', 'NOTAS', 'AUTORIZA_DATOS',
+    'NECESIDAD_PRINCIPAL'
   ];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold').setBackground('#1B6B6A').setFontColor('white');
   sheet.setFrozenRows(1);
-  var widths = [140, 160, 200, 140, 200, 120, 140, 130, 100, 120, 130, 140, 300];
+  var widths = [140, 160, 200, 140, 200, 120, 150, 130, 100, 120, 130, 140, 300, 130, 220];
   for (var i = 0; i < widths.length; i++) sheet.setColumnWidth(i + 1, widths[i]);
 }
 

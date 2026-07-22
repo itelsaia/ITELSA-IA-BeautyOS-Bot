@@ -1646,6 +1646,16 @@
                     </select>
                   </div>
                   <div class="field">
+                    <label for="empleados">Cantidad de empleados *</label
+                    ><select id="empleados" name="cantidadEmpleados" required>
+                      <option value="">Selecciona una opción</option>
+                      <option value="Solo yo">Solo yo</option>
+                      <option value="2 a 5">2 a 5 personas</option>
+                      <option value="6 a 10">6 a 10 personas</option>
+                      <option value="11 o mas">11 o más personas</option>
+                    </select>
+                  </div>
+                  <div class="field full">
                     <label for="necesidad">¿Qué deseas mejorar? *</label
                     ><select id="necesidad" name="necesidadPrincipal" required>
                       <option value="">Selecciona una opción</option>
@@ -2016,7 +2026,7 @@
             whatsapp: digits,
             tipoNegocio: data.get("tipoNegocio"),
             necesidadPrincipal: data.get("necesidadPrincipal"),
-            cantidadEmpleados: "No indicado",
+            cantidadEmpleados: data.get("cantidadEmpleados"),
             email: "",
             fuente: "landing-web",
             autorizaDatos: "SI",

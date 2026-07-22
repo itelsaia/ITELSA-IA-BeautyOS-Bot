@@ -102,10 +102,15 @@ $nombreNegocio = cleanText($input['nombreNegocio'] ?? '', 120);
 $ciudad = cleanText($input['ciudad'] ?? '', 100);
 $tipoNegocio = cleanText($input['tipoNegocio'] ?? '', 100);
 $necesidad = cleanText($input['necesidadPrincipal'] ?? '', 120);
+$cantidadEmpleados = cleanText($input['cantidadEmpleados'] ?? '', 40);
 $whatsapp = preg_replace('/\D+/', '', (string) ($input['whatsapp'] ?? '')) ?? '';
 
-if ($nombreContacto === '' || $nombreNegocio === '' || $ciudad === '' || $tipoNegocio === '' || $necesidad === '') {
+if ($nombreContacto === '' || $nombreNegocio === '' || $ciudad === '' || $tipoNegocio === '' || $necesidad === '' || $cantidadEmpleados === '') {
     respond(422, ['error' => 'Completa todos los campos obligatorios.']);
+}
+$employeeOptions = ['Solo yo', '2 a 5', '6 a 10', '11 o mas'];
+if (!in_array($cantidadEmpleados, $employeeOptions, true)) {
+    respond(422, ['error' => 'Selecciona una cantidad de empleados válida.']);
 }
 if (strlen($whatsapp) < 10 || strlen($whatsapp) > 15) {
     respond(422, ['error' => 'Revisa el número de WhatsApp.']);
@@ -126,7 +131,7 @@ $payload = [
     'whatsapp' => $whatsapp,
     'tipoNegocio' => $tipoNegocio,
     'necesidadPrincipal' => $necesidad,
-    'cantidadEmpleados' => 'No indicado',
+    'cantidadEmpleados' => $cantidadEmpleados,
     'email' => '',
     'fuente' => 'landing-hostinger',
     'autorizaDatos' => 'SI',
