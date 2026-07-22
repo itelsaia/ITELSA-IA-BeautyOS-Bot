@@ -707,7 +707,11 @@
       .include-item {
         position: relative;
         min-height: 106px;
-        background: linear-gradient(145deg, rgba(255,255,255,0.14), rgba(255,255,255,0.055));
+        background-image:
+          linear-gradient(100deg, rgba(4, 22, 33, 0.94) 0%, rgba(5, 32, 45, 0.79) 58%, rgba(4, 28, 40, 0.32) 100%),
+          var(--card-image);
+        background-size: cover;
+        background-position: center;
         border: 1px solid rgba(183, 237, 241, 0.26);
         border-radius: 18px;
         padding: 20px;
@@ -718,8 +722,8 @@
         color: #f6fbfc;
         font-size: 0.89rem;
         overflow: hidden;
-        backdrop-filter: blur(8px);
-        transition: transform 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
       }
       .include-item:before {
         content: "";
@@ -729,12 +733,17 @@
         right: -25px;
         bottom: -34px;
         border-radius: 50%;
-        background: rgba(216, 138, 91, 0.17);
+        background: rgba(216, 138, 91, 0.26);
       }
       .include-item:hover {
         transform: translateY(-6px);
         border-color: rgba(98, 237, 244, 0.75);
-        background: linear-gradient(145deg, rgba(0,216,232,0.25), rgba(255,255,255,0.1));
+        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 216, 232, 0.12);
+      }
+      .include-item svg,
+      .include-item span {
+        position: relative;
+        z-index: 1;
       }
       .include-item svg {
         width: 19px;
@@ -1973,10 +1982,16 @@
             );
           })
           .join("");
+        var includeBackgrounds = [
+          "agenda", "agenda", "sofi", "sofi",
+          "inventario", "agenda", "inventario", "sofi",
+          "sofi", "sofi", "sofi", "inventario"
+        ];
         document.getElementById("includeGrid").innerHTML = included
-          .map(function (x) {
+          .map(function (x, i) {
+            var image = window.BEAUTYOS_BRAND_ASSETS["card" + includeBackgrounds[i]];
             return (
-              '<div class="include-item">' +
+              '<div class="include-item" style="--card-image:url(\'' + image + '\')">' +
               icon("i-check") +
               "<span>" +
               x +
