@@ -16,6 +16,7 @@
       rel="stylesheet"
     />
     <?!= include('BrandAssets'); ?>
+    <?!= include('CardAssets'); ?>
     <style>
       :root {
         --ink: #071823;
@@ -2009,7 +2010,7 @@
         ];
         document.getElementById("includeGrid").innerHTML = included
           .map(function (x, i) {
-            var image = window.BEAUTYOS_BRAND_ASSETS["card" + includeBackgrounds[i]];
+            var image = window.BEAUTYOS_CARD_ASSETS[includeBackgrounds[i]];
             return (
               '<div class="include-item">' +
               '<img class="include-media" src="' + image + '" alt="" aria-hidden="true">' +
