@@ -35,10 +35,11 @@ async function loadClientConfig(sheetId) {
             }
         });
 
-        // Mapeo unificado para el agente (soporta claves de salon Y CRM comercial)
+        // Las nuevas instalaciones toman la clave IA desde el entorno privado.
+        // Se conserva el fallback al Sheet solo para migrar instalaciones antiguas.
         return {
             status: configRaw['ESTADO_SERVICIO'] || 'ACTIVO',
-            openApiKey: configRaw['CLAVE_OPENAI'] || configRaw['CHATGPT_API_KEY_DEFAULT'] || '',
+            openApiKey: process.env.OPENAI_API_KEY || configRaw['CLAVE_OPENAI'] || configRaw['CHATGPT_API_KEY_DEFAULT'] || '',
             businessName: configRaw['NOMBRE_NEGOCIO'] || configRaw['NOMBRE_PRODUCTO'] || '',
             agentName: configRaw['NOMBRE_AGENTE'] || configRaw['NOMBRE_AGENTE_COMERCIAL'] || '',
             welcomeMsg: configRaw['SALUDO_BASE'],

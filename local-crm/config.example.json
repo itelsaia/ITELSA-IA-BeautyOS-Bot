@@ -1,0 +1,7 @@
+{
+  "sheetId": "CONFIGURAR_SHEET_ID",
+  "credentialsPath": "../credenciales-google.json",
+  "webhookGasUrl": "CONFIGURAR_WEB_APP_URL",
+  "syncIntervalMinutes": 5,
+  "port": 5000
+}

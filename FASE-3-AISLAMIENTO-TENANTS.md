@@ -1,5 +1,7 @@
 # FASE 3 — Aislamiento de Tenants
 
+> **DOCUMENTO HISTÓRICO.** Conserva el razonamiento de la migración. El estado y la arquitectura vigentes están en `docs/ESTADO-BEAUTYOS.md` y `docs/ARQUITECTURA-INSTANCIAS.md`. No ejecutar los comandos destructivos de rollback sin una revisión explícita.
+
 > **Estado**: En implementación gradual
 > **Versión estable previa**: `stable-pre-fase3` (commit `ece932b`)
 > **Fecha inicio**: 2026-04-11

@@ -3317,11 +3317,7 @@ function renderConfig() {
   var estado = (f.ESTADO_SERVICIO || '').toUpperCase();
   html += '<div class="col-12"><label class="form-label">Estado del Servicio</label>';
   html += '<div class="d-flex align-items-center gap-2"><span class="badge-status ' + (estado === 'ACTIVO' ? 'badge-activo' : 'badge-inactivo') + '">' + estado + '</span><small class="text-muted">Control SaaS (Kill Switch)</small></div></div>';
-  html += '<div class="col-12"><label class="form-label">API Key OpenAI</label>';
-  var apiKey = f.CLAVE_OPENAI || '';
-  var masked = apiKey.length > 8 ? apiKey.substring(0, 7) + '...' + apiKey.substring(apiKey.length - 4) : '***';
-  html += '<div class="d-flex gap-2"><input type="password" class="form-control config-input" data-key="CLAVE_OPENAI" value="' + esc(apiKey) + '" id="inputApiKey">';
-  html += '<button class="btn btn-outline-secondary btn-sm" onclick="toggleApiKey()" type="button"><i class="fas fa-eye"></i></button></div></div>';
+  html += '<div class="col-12"><div class="alert alert-light border mb-0"><i class="fas fa-shield-alt me-2"></i>La credencial de IA se administra de forma privada y no se muestra en el CRM.</div></div>';
   html += '</div></div>';
   html += '</div>';
 
@@ -4155,7 +4151,7 @@ function vincularWhatsApp() {
   var input = document.querySelector('[data-key="URL_BOT_SERVER"]');
   var botUrl = (input && input.value) ? input.value.trim() : 'http://localhost:3000';
   if (!botUrl.startsWith('http')) botUrl = 'http://' + botUrl;
-  var instanceName = config.flat.INSTANCE_NAME || 'peluqueria-valentina';
+  var instanceName = config.flat.INSTANCE_NAME || 'demo-beautyos';
   var url = botUrl + '/qr/' + instanceName;
   window.open(url, 'vincularWhatsApp', 'width=520,height=700,scrollbars=yes,resizable=yes');
 }

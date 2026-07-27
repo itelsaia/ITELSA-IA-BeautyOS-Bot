@@ -19,14 +19,13 @@ function inicializarEntorno() {
   sheetConfig.clear();
   sheetConfig.appendRow(["CLAVE", "VALOR", "DESCRIPCION_TECNICA"]);
   sheetConfig.appendRow(["ESTADO_SERVICIO", "ACTIVO", "Kill Switch (Control SaaS)"]);
-  sheetConfig.appendRow(["CLAVE_OPENAI", "sk-...", "API Key IA"]);
-  sheetConfig.appendRow(["NOMBRE_NEGOCIO", "Estética Divina", "Contexto general"]);
-  sheetConfig.appendRow(["NOMBRE_AGENTE", "Valentina", "Identidad del Bot"]);
-  sheetConfig.appendRow(["SALUDO_BASE", "¡Hola! Soy Valentina, tu asistente de belleza.", "Mensaje inicial"]);
-  sheetConfig.appendRow(["CELULAR_DUEÑA", "573000000000", "Alertas Críticas"]);
-  sheetConfig.appendRow(["CORREO_DUEÑA", "admin@spa.com", "Reportes Email"]);
-  sheetConfig.appendRow(["ENLACE_LOGO", "https://...", "Branding Automático"]);
-  sheetConfig.appendRow(["COLOR_MARCA", "#E91E63", "UI Theme"]);
+  sheetConfig.appendRow(["NOMBRE_NEGOCIO", "CONFIGURAR_NEGOCIO", "Contexto general"]);
+  sheetConfig.appendRow(["NOMBRE_AGENTE", "CONFIGURAR_AGENTE", "Nombre elegido por el cliente"]);
+  sheetConfig.appendRow(["SALUDO_BASE", "CONFIGURAR_SALUDO", "Mensaje inicial"]);
+  sheetConfig.appendRow(["CELULAR_DUEÑA", "", "Alertas críticas"]);
+  sheetConfig.appendRow(["CORREO_DUEÑA", "", "Reportes por correo"]);
+  sheetConfig.appendRow(["ENLACE_LOGO", "", "Branding automático"]);
+  sheetConfig.appendRow(["COLOR_MARCA", "#00BFD6", "Color principal de la marca"]);
   sheetConfig.appendRow(["DIRECCION_NEGOCIO", "", "Direccion fisica del establecimiento"]);
   sheetConfig.appendRow(["ENLACE_UBICACION", "", "Enlace de Google Maps (copiar desde Compartir en Maps)"]);
   sheetConfig.appendRow(["INTERVALO_SLOTS_MIN", "15", "Intervalo en minutos entre opciones de horario (15, 20 o 30)"]);
@@ -42,7 +41,6 @@ function inicializarEntorno() {
   sheetConfig.appendRow(["MENSAJE_RECORDATORIO", "¡Hola {cliente}! 🕐 Te recordamos que tienes tu cita de {servicio} hoy a las {hora} con {profesional} en {negocio}. Si no puedes asistir, responde este mensaje para cancelar o reagendar. ¡Te esperamos!", "Template recordatorio antes de cita. Variables: {cliente}, {servicio}, {hora}, {profesional}, {negocio}"]);
   sheetConfig.appendRow(["MINUTOS_RECORDATORIO", "60", "Minutos de anticipacion para enviar recordatorio de cita (ej: 60 = 1 hora antes)"]);
   sheetConfig.appendRow(["URL_BOT_API", "", "URL del servidor Bot Express (ej: http://localhost:3000)"]);
-  sheetConfig.appendRow(["API_KEY_BOT", "", "Clave secreta para autenticar llamadas desde CRM al Bot"]);
   sheetConfig.appendRow(["INSTANCE_NAME", "", "Nombre de la instancia Evolution API del tenant"]);
   formatHeaders(sheetConfig);
 
@@ -62,8 +60,6 @@ function inicializarEntorno() {
   let sheetColaboradores = getOrCreateSheet(ss, "COLABORADORES");
   sheetColaboradores.clear();
   sheetColaboradores.appendRow(["ID_COLABORADOR", "NOMBRE", "CELULAR", "ROL", "PIN", "ESTADO", "COMPETENCIAS"]);
-  sheetColaboradores.appendRow(["ADMIN-001", "Andrea", "573001112233", "ADMIN", "1010", "ACTIVO", "Corte de cabello para dama,Diseño de cejas,Tinte"]);
-  sheetColaboradores.appendRow(["COL-001", "Camila", "573004445566", "STAFF", "2020", "ACTIVO", "Manicure,Pedicure,Diseño de cejas"]);
   formatHeaders(sheetColaboradores);
 
   // 5. DISPONIBILIDAD

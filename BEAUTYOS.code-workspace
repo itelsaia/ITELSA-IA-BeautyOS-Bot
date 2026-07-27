@@ -1,0 +1,24 @@
+{
+  "folders": [
+    {
+      "name": "BeautyOS",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/.git": true,
+      "**/node_modules": true,
+      "**/.wwebjs_cache": true,
+      ".codex-preview": true,
+      "tmp-*": true
+    },
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.wwebjs_cache": true,
+      ".codex-preview": true,
+      "tmp-*": true,
+      "_clientes": true
+    }
+  }
+}

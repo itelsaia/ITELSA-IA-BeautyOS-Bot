@@ -1,0 +1,20 @@
+{
+  "demo-beautyos": {
+    "displayName": "Demo BeautyOS",
+    "sheetId": "CONFIGURAR_SHEET_ID",
+    "webhookGasUrl": "CONFIGURAR_WEB_APP_URL",
+    "instanceName": "demo-beautyos",
+    "syncInterval": 300000,
+    "type": "salon",
+    "enabled": false
+  },
+  "cliente-ejemplo": {
+    "displayName": "Negocio del cliente",
+    "sheetId": "CONFIGURAR_SHEET_ID",
+    "webhookGasUrl": "CONFIGURAR_WEB_APP_URL",
+    "instanceName": "cliente-ejemplo",
+    "syncInterval": 300000,
+    "type": "salon",
+    "enabled": false
+  }
+}

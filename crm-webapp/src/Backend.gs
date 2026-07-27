@@ -511,11 +511,12 @@ function generarMensajeDifusion(promoData) {
   var sheetConfig = ss.getSheetByName("CONFIGURACION");
   if (!sheetConfig) throw new Error("No se encontró la hoja CONFIGURACION");
 
-  // Leer API key de OpenAI
+  // Las nuevas instalaciones guardan secretos en Script Properties.
+  // El fallback al Sheet permite migrar instalaciones antiguas sin interrumpirlas.
   var configData = sheetConfig.getDataRange().getValues();
-  var apiKey = '';
+  var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || '';
   for (var i = 1; i < configData.length; i++) {
-    if (configData[i][0] === 'CLAVE_OPENAI') { apiKey = configData[i][1]; break; }
+    if (!apiKey && configData[i][0] === 'CLAVE_OPENAI') { apiKey = configData[i][1]; break; }
   }
   if (!apiKey) throw new Error("No hay API Key de OpenAI configurada");
 
@@ -2083,7 +2084,7 @@ function enviarWhatsAppAgradecimiento(citaId, mensaje) {
   }
 
   var botUrl = cfg['URL_BOT_API'];
-  var apiKey = cfg['API_KEY_BOT'];
+  var apiKey = PropertiesService.getScriptProperties().getProperty('BOT_API_KEY') || cfg['API_KEY_BOT'];
   var instanceName = cfg['INSTANCE_NAME'];
 
   if (!botUrl || !apiKey || !instanceName) {

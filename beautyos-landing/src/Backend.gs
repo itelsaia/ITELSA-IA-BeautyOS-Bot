@@ -1160,9 +1160,7 @@ function getPanelData() {
 
   var deployUrl = '';
   try { deployUrl = ScriptApp.getService().getUrl(); } catch(e) {}
-  var landingUrl = deployUrl
-    ? deployUrl.replace(/\?.*$/, '')
-    : 'https://script.google.com/macros/s/AKfycbwtUhZBPQAy2Xh-badiGlIFVvUb1ufd9xCiNxIs1fmA5VsWPod4oV7E5Tbsf6GOVapPFw/exec';
+  var landingUrl = deployUrl ? deployUrl.replace(/\?.*$/, '') : '';
 
   // Devolver como JSON string para evitar problemas de serialización en google.script.run
   return JSON.stringify({ data: data, landingUrl: landingUrl });

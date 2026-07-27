@@ -16,11 +16,16 @@ Thumbs.db
 
 # Clasp local (archivos dinámicos si se requiere)
 .clasp.json
+*.clasp.local.json
+crm-webapp/.clasp.prod.json
 
 # Bot Data (legacy whatsapp-web.js)
 agent-bot/baileys_auth_info/
 agent-bot/bot_sessions/
 agent-bot/qr.png
+agent-bot/pairing_qr.png
+agent-bot/.wwebjs_cache/
+agent-bot/error.txt
 
 # Evolution API (datos locales de Docker)
 evolution-api.env
@@ -38,3 +43,19 @@ beautyos-landing/hostinger/*.zip
 
 # Retry queue persistence (datos sensibles de leads pendientes)
 agent-bot/data/
+
+# Configuración privada por instancia
+tenants.json
+local-crm/config.json
+_clientes/
+ops/
+docs/privado/
+
+# Configuración privada del proxy Hostinger
+beautyos-landing/hostinger/beautyos/api/config.php
+
+# Artefactos locales y previsualizaciones
+.codex-preview/
+tmp-*
+tmp/
+temp/
