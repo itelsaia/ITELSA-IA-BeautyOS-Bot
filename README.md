@@ -32,10 +32,11 @@ El demo compartido nunca se convierte directamente en producción. Cuando el pro
 ## Inicio
 
 1. Abrir `BEAUTYOS.code-workspace`.
-2. Leer [Índice de documentación](docs/README.md).
-3. Consultar [Estado actual](docs/ESTADO-BEAUTYOS.md).
-4. Para un demo, seguir [Preparar un demo](docs/PREPARAR-DEMO.md).
-5. Para una venta, seguir [Proceso demo a cliente](docs/PROCESO-DEMO-A-CLIENTE.md).
+2. Para abrir el CRM y Sheet del demo, ejecutar `ABRIR-DEMO-BEAUTYOS.ps1`.
+3. Leer [Índice de documentación](docs/README.md).
+4. Consultar [Estado actual](docs/ESTADO-BEAUTYOS.md).
+5. Para un demo, seguir [Preparar un demo](docs/PREPARAR-DEMO.md).
+6. Para una venta, seguir [Proceso demo a cliente](docs/PROCESO-DEMO-A-CLIENTE.md).
 
 ## Seguridad
 
