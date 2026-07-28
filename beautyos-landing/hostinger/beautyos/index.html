@@ -32,7 +32,6 @@
     <script>
       window.BEAUTYOS_BRAND_ASSETS = {
         logo: "assets/beautyos-logo-oficial-hostinger-v1.webp",
-        hero: "assets/beautyos-hero-salon-hostinger-v1.webp",
       };
       window.BEAUTYOS_CARD_ASSETS = {
         agenda: "assets/beautyos-agenda-hostinger-v1.webp",
@@ -275,59 +274,102 @@
       }
       .hero {
         position: relative;
-        min-height: 840px;
-        padding: 92px 0;
-        background:
-          radial-gradient(
-            circle at 77% 25%,
-            rgba(0, 191, 214, 0.16),
-            transparent 30%
-          ),
-          linear-gradient(120deg, #04131d 0%, #092939 58%, #071823 100%);
+        min-height: 760px;
+        padding: 82px 0;
+        display: flex;
+        align-items: center;
+        background-color: #04131d;
+        background-image: url("assets/beautyos-hero-salon-hostinger-v1.webp");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
         color: white;
         overflow: hidden;
+        isolation: isolate;
+      }
+      .hero:before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background:
+          linear-gradient(
+            90deg,
+            rgba(2, 17, 27, 0.97) 0%,
+            rgba(2, 22, 33, 0.9) 38%,
+            rgba(2, 22, 33, 0.48) 66%,
+            rgba(2, 22, 33, 0.3) 100%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(2, 17, 27, 0.25) 0%,
+            transparent 50%,
+            rgba(2, 17, 27, 0.72) 100%
+          );
+        pointer-events: none;
       }
       .hero:after {
         content: "";
         position: absolute;
         inset: auto 0 0;
-        height: 120px;
-        background: linear-gradient(transparent, rgba(4, 20, 30, 0.35));
+        z-index: 1;
+        height: 150px;
+        background: linear-gradient(transparent, rgba(4, 20, 30, 0.72));
         pointer-events: none;
       }
       .hero-grid {
         position: relative;
         z-index: 2;
-        display: grid;
-        grid-template-columns: 1.03fr 0.97fr;
-        gap: 50px;
-        align-items: center;
+        width: 100%;
+      }
+      .hero-copy {
+        width: min(100%, 760px);
+        padding: clamp(30px, 4vw, 50px);
+        border: 1px solid rgba(154, 236, 241, 0.24);
+        border-radius: 32px;
+        background: linear-gradient(
+          135deg,
+          rgba(3, 24, 35, 0.82),
+          rgba(3, 33, 45, 0.55)
+        );
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow:
+          0 35px 90px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
       }
       .hero .eyebrow {
         color: var(--cyan-bright);
-        margin-bottom: 22px;
+        margin-bottom: 18px;
       }
       .hero h1 {
-        font-size: clamp(2.7rem, 5vw, 5rem);
+        max-width: 690px;
+        font-size: clamp(3rem, 5vw, 4.9rem);
         color: white;
         letter-spacing: -0.06em;
-        margin-bottom: 25px;
+        margin-bottom: 22px;
+        text-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
       }
       .hero h1 span {
         display: block;
         color: var(--cyan-bright);
       }
       .hero-sub {
-        font-size: 1.12rem;
-        color: #c5d6dd;
-        max-width: 650px;
-        margin: 0 0 28px;
+        font-size: 1.08rem;
+        color: #d8e7ec;
+        max-width: 620px;
+        margin: 0 0 24px;
       }
       .price-strip {
         display: flex;
         align-items: center;
         gap: 18px;
-        margin: 28px 0;
+        width: fit-content;
+        margin: 24px 0;
+        padding: 15px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 16px;
+        background: rgba(2, 20, 30, 0.48);
       }
       .price-main {
         font-family: "Manrope";
@@ -349,6 +391,15 @@
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
+      }
+      .hero-actions .btn-outline {
+        background: rgba(4, 27, 38, 0.58);
+        border-color: rgba(255, 255, 255, 0.34);
+      }
+      .hero-form-note {
+        margin: 14px 0 0;
+        color: #c4d8df;
+        font-size: 0.8rem;
       }
       .trust-row {
         display: flex;
@@ -501,13 +552,16 @@
       }
       .hero-glow {
         position: absolute;
-        width: 370px;
-        height: 370px;
+        z-index: 1;
+        width: 430px;
+        height: 430px;
         border: 1px solid rgba(0, 216, 232, 0.18);
         border-radius: 50%;
-        right: -190px;
-        top: 80px;
-        box-shadow: 0 0 90px rgba(0, 216, 232, 0.08);
+        right: -170px;
+        top: -130px;
+        box-shadow:
+          0 0 110px rgba(0, 216, 232, 0.1),
+          inset 0 0 90px rgba(0, 216, 232, 0.05);
       }
       .pain {
         background: var(--mist);
@@ -1247,8 +1301,34 @@
           flex-basis: 68px;
         }
         .hero {
-          padding: 50px 0 70px;
           min-height: auto;
+          padding: 205px 0 42px;
+          align-items: flex-end;
+          background-position: 55% center;
+        }
+        .hero:before {
+          background:
+            linear-gradient(
+              180deg,
+              rgba(2, 17, 27, 0.12) 0%,
+              rgba(2, 22, 33, 0.2) 21%,
+              rgba(2, 17, 27, 0.82) 43%,
+              rgba(2, 17, 27, 0.98) 100%
+            ),
+            linear-gradient(
+              90deg,
+              rgba(2, 17, 27, 0.38),
+              rgba(2, 17, 27, 0.06)
+            );
+        }
+        .hero-copy {
+          padding: 28px 22px;
+          border-radius: 25px;
+          background: linear-gradient(
+            145deg,
+            rgba(3, 24, 35, 0.86),
+            rgba(3, 33, 45, 0.66)
+          );
         }
         .hero-grid {
           gap: 30px;
@@ -1260,6 +1340,7 @@
           font-size: 1rem;
         }
         .price-strip {
+          width: 100%;
           align-items: flex-start;
           flex-direction: column;
           gap: 8px;
@@ -1270,32 +1351,6 @@
         }
         .hero-actions .btn {
           width: 100%;
-        }
-        .hero-visual {
-          min-height: 430px;
-        }
-        .hero-photo {
-          left: 20px;
-          right: 0;
-          bottom: 35px;
-          border-radius: 100px 20px 20px 20px;
-        }
-        .logo-orbit {
-          width: 125px;
-          right: -8px;
-          top: 0;
-          padding: 9px;
-          border-radius: 20px;
-        }
-        .dashboard-card {
-          width: 68%;
-          padding: 10px;
-        }
-        .chat-card {
-          width: 165px;
-          right: -4px;
-          bottom: 18px;
-          padding: 10px;
         }
         .pain-grid,
         .feature-grid {
@@ -1384,14 +1439,15 @@
         }
       }
       @media (max-width: 440px) {
-        .hero-visual {
-          min-height: 390px;
+        .hero {
+          padding-top: 190px;
+          background-position: 53% center;
         }
-        .chat-card {
-          display: none;
+        .hero-copy {
+          padding: 24px 18px;
         }
-        .dashboard-card {
-          width: 80%;
+        .hero h1 {
+          font-size: clamp(2.2rem, 10vw, 2.75rem);
         }
         .footer-grid {
           gap: 30px;
@@ -1465,58 +1521,19 @@
             </div>
             <div class="hero-actions">
               <a class="btn btn-primary" href="#contacto"
-                >Agendar demostración</a
-              ><a class="btn btn-outline" data-wa href="#"
-                ><svg aria-hidden="true"><use href="#i-chat"></use></svg>Hablar
-                con Nora</a
+                >Solicitar demostración</a
+              ><a class="btn btn-outline" href="#contacto"
+                >Completar formulario</a
               >
             </div>
+            <p class="hero-form-note">
+              Déjanos tus datos y te contactaremos para acordar una demostración
+              guiada.
+            </p>
             <div class="trust-row">
               <span><b>✓</b> Configuración acompañada</span
               ><span><b>✓</b> Soporte en español</span
               ><span><b>✓</b> Sin permanencia</span>
-            </div>
-          </div>
-          <div class="hero-visual" aria-label="BeautyOS en acción">
-            <div class="hero-photo">
-              <img
-                id="heroPhoto"
-                alt="Salón de belleza moderno y profesional"
-              />
-            </div>
-            <div class="logo-orbit">
-              <img data-brand-logo alt="BeautyOS by ITELSA IA" />
-            </div>
-            <div class="dashboard-card" aria-hidden="true">
-              <div class="dash-head">
-                <span>Panel de control BeautyOS</span
-                ><span class="dotset"><i></i><i></i><i></i></span>
-              </div>
-              <div class="dash-stats">
-                <div class="dash-stat"><b>18</b>Citas hoy</div>
-                <div class="dash-stat"><b>92%</b>Ocupación</div>
-                <div class="dash-stat"><b>+24%</b>Ventas</div>
-              </div>
-              <div class="dash-chart">
-                <svg viewBox="0 0 300 55" preserveAspectRatio="none">
-                  <path
-                    d="M0 46 C35 42 42 20 75 30 S118 48 150 23 S205 5 230 18 S270 23 300 5"
-                    fill="none"
-                    stroke="#00bfd6"
-                    stroke-width="4"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div class="chat-card" aria-hidden="true">
-              <div class="chat-top"><i></i>Tu agente · Tu negocio</div>
-              <div class="bubble sofi">
-                ¡Hola! ¿Te ayudo a agendar tu cita? ✨
-              </div>
-              <div class="bubble client">Sí, para el viernes</div>
-              <div class="bubble sofi">
-                Perfecto. Tengo 3 horarios disponibles.
-              </div>
             </div>
           </div>
         </div>
@@ -1941,7 +1958,6 @@
         document.querySelectorAll("[data-brand-logo]").forEach(function (img) {
           img.src = ASSETS.logo || "";
         });
-        document.getElementById("heroPhoto").src = ASSETS.hero || "";
         document.querySelectorAll("[data-wa]").forEach(function (a) {
           a.href =
             "https://wa.me/" +
