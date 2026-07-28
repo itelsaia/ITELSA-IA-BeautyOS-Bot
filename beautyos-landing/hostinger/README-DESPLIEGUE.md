@@ -24,7 +24,8 @@ landing vive únicamente dentro de la carpeta `beautyos`.
 ## Comprobaciones posteriores
 
 1. Abrir `https://www.itelsaia.com/beautyos/` en una ventana privada.
-2. Confirmar que carguen el logo, el hero y las cuatro tarjetas de beneficios.
+2. Confirmar que carguen el logo, el hero, las cuatro tarjetas de beneficios y
+   la galería visual de capacidades.
 3. Abrir `https://www.itelsaia.com/beautyos/api/lead.php`. Debe responder en JSON
    que el método no está permitido; eso confirma que PHP está funcionando.
 4. Enviar un prospecto de prueba desde el formulario y confirmar que aparezca

@@ -34,6 +34,20 @@
         logo: "assets/beautyos-logo-oficial-hostinger-v1.webp",
         hero: "assets/beautyos-hero-salon-hostinger-v1.webp",
       };
+      window.BEAUTYOS_CARD_ASSETS = {
+        agenda: "assets/beautyos-agenda-hostinger-v1.webp",
+        recordatorios: "assets/beautyos-recordatorios-hostinger-v1.webp",
+        crm: "assets/beautyos-crm-hostinger-v1.webp",
+        agente: "assets/beautyos-agente-virtual-hostinger-v1.webp",
+        servicios: "assets/beautyos-servicios-precios-hostinger-v1.webp",
+        equipo: "assets/beautyos-equipo-horarios-hostinger-v1.webp",
+        inventario: "assets/beautyos-inventario-hostinger-v1.webp",
+        campanas: "assets/beautyos-campanas-hostinger-v1.webp",
+        prospectos: "assets/beautyos-prospectos-hostinger-v1.webp",
+        reportes: "assets/beautyos-reportes-hostinger-v1.webp",
+        landing: "assets/beautyos-landing-hostinger-v1.webp",
+        soporte: "assets/beautyos-soporte-hostinger-v1.webp",
+      };
     </script>
     <style>
       :root {
@@ -739,44 +753,50 @@
       .includes .section-lead {
         color: #c9dce3;
       }
+      .includes .section-head {
+        max-width: 860px;
+      }
       .include-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
+        gap: 18px;
       }
       .include-item {
         position: relative;
-        min-height: 106px;
+        min-height: 205px;
         background: #082633;
-        border: 1px solid rgba(183, 237, 241, 0.26);
-        border-radius: 18px;
-        padding: 20px;
-        display: flex;
-        gap: 11px;
-        align-items: center;
-        font-weight: 700;
+        border: 1px solid rgba(183, 237, 241, 0.32);
+        border-radius: 22px;
         color: #f6fbfc;
-        font-size: 0.89rem;
         overflow: hidden;
-        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
-        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        isolation: isolate;
+        box-shadow:
+          0 18px 38px rgba(0, 0, 0, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transition:
+          transform 0.28s ease,
+          border-color 0.28s ease,
+          box-shadow 0.28s ease;
       }
       .include-item:before {
         content: "";
-        width: 72px;
-        height: 72px;
+        width: 120px;
+        height: 120px;
         position: absolute;
-        right: -25px;
-        bottom: -34px;
+        right: -48px;
+        top: -52px;
         border-radius: 50%;
-        background: rgba(216, 138, 91, 0.26);
+        background: rgba(0, 216, 232, 0.2);
+        filter: blur(4px);
         z-index: 2;
       }
       .include-item:after {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(3, 19, 29, 0.94) 0%, rgba(4, 29, 41, 0.72) 55%, rgba(4, 28, 40, 0.2) 100%);
+        background:
+          linear-gradient(180deg, rgba(3, 19, 29, 0.12) 5%, rgba(3, 19, 29, 0.42) 42%, rgba(3, 19, 29, 0.98) 100%),
+          linear-gradient(120deg, rgba(0, 191, 214, 0.14), transparent 55%);
         z-index: 1;
         pointer-events: none;
       }
@@ -787,28 +807,70 @@
         height: 100%;
         object-fit: cover;
         object-position: center;
-        opacity: 0.72;
+        opacity: 0.88;
         transform: scale(1.02);
-        transition: transform 0.35s ease, opacity 0.35s ease;
+        transition:
+          transform 0.4s ease,
+          opacity 0.4s ease;
       }
       .include-item:hover {
-        transform: translateY(-6px);
-        border-color: rgba(98, 237, 244, 0.75);
-        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 216, 232, 0.12);
+        transform: translateY(-7px);
+        border-color: rgba(98, 237, 244, 0.9);
+        box-shadow:
+          0 24px 48px rgba(0, 0, 0, 0.3),
+          0 0 0 1px rgba(0, 216, 232, 0.18);
       }
       .include-item:hover .include-media {
-        opacity: 0.86;
+        opacity: 1;
         transform: scale(1.08);
       }
-      .include-item svg,
-      .include-item span {
-        position: relative;
+      .include-content {
+        position: absolute;
+        inset: auto 0 0;
         z-index: 3;
+        padding: 22px;
       }
-      .include-item svg {
-        width: 19px;
-        color: var(--cyan-bright);
-        flex: 0 0 19px;
+      .include-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .include-check {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #03212c;
+        background: var(--cyan-bright);
+        box-shadow: 0 8px 22px rgba(0, 216, 232, 0.35);
+        font-weight: 900;
+      }
+      .include-number {
+        color: rgba(255, 255, 255, 0.76);
+        font: 800 0.72rem "Manrope";
+        letter-spacing: 0.12em;
+      }
+      .include-content h3 {
+        color: white;
+        font-size: 1.03rem;
+        line-height: 1.25;
+        margin: 0 0 7px;
+      }
+      .include-content p {
+        color: #c9dce3;
+        font-size: 0.8rem;
+        line-height: 1.45;
+        margin: 0;
+      }
+      .swipe-hint {
+        display: none;
+        position: relative;
+        color: #b9d5dc;
+        font-size: 0.8rem;
+        text-align: center;
+        margin: 18px 0 0;
       }
       .steps {
         background: white;
@@ -1252,7 +1314,30 @@
           grid-template-columns: 1fr;
         }
         .include-grid {
-          grid-template-columns: 1fr 1fr;
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scroll-padding-inline: 2px;
+          overscroll-behavior-inline: contain;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding: 4px 2px 20px;
+        }
+        .include-grid::-webkit-scrollbar {
+          display: none;
+        }
+        .include-item {
+          flex: 0 0 min(82vw, 330px);
+          min-height: 240px;
+          scroll-snap-align: center;
+          scroll-snap-stop: always;
+        }
+        .include-content {
+          padding: 21px;
+        }
+        .swipe-hint {
+          display: block;
         }
         .steps-row {
           grid-template-columns: 1fr;
@@ -1299,9 +1384,6 @@
         }
       }
       @media (max-width: 440px) {
-        .include-grid {
-          grid-template-columns: 1fr;
-        }
         .hero-visual {
           min-height: 390px;
         }
@@ -1345,7 +1427,7 @@
         >
         <div class="nav-links">
           <a href="#solucion">Beneficios</a><a href="#sofi">Agente virtual</a
-          ><a href="#como-funciona">Cómo funciona</a><a href="#precio">Precio</a
+          ><a href="#incluye">Qué incluye</a><a href="#precio">Precio</a
           ><a class="nav-cta" href="#contacto">Agendar demo</a>
         </div>
         <button
@@ -1507,6 +1589,29 @@
               >Quiero ver una demostración</a
             >
           </div>
+        </div>
+      </section>
+
+      <section class="section includes" id="incluye">
+        <div class="container">
+          <div class="section-head">
+            <span class="eyebrow">Un sistema que crece contigo</span>
+            <h2>Todo lo que necesitas para atender y crecer con tranquilidad</h2>
+            <p class="section-lead">
+              Una solución para salones, spas, centros estéticos, barberías,
+              estudios de uñas y profesionales independientes. Las capacidades
+              se habilitan según el plan y las necesidades de tu negocio.
+            </p>
+          </div>
+          <div
+            class="include-grid"
+            id="includeGrid"
+            role="list"
+            aria-label="Capacidades disponibles en BeautyOS"
+          ></div>
+          <p class="swipe-hint" aria-hidden="true">
+            Desliza para conocer todas las capacidades →
+          </p>
         </div>
       </section>
 
@@ -1885,6 +1990,89 @@
               "</h3><p>" +
               x[2] +
               "</p></article>"
+            );
+          })
+          .join("");
+        var included = [
+          [
+            "agenda",
+            "Agenda de citas",
+            "Organiza reservas, disponibilidad y cambios sin cruces.",
+          ],
+          [
+            "recordatorios",
+            "Recordatorios automáticos",
+            "Reduce olvidos con confirmaciones antes de cada cita.",
+          ],
+          [
+            "crm",
+            "CRM de clientes",
+            "Conserva datos e historial para brindar mejor atención.",
+          ],
+          [
+            "agente",
+            "Agente virtual personalizado",
+            "Atiende por WhatsApp con el nombre y tono de tu negocio.",
+          ],
+          [
+            "servicios",
+            "Servicios y precios",
+            "Mantén actualizado tu catálogo, duración y tarifas.",
+          ],
+          [
+            "equipo",
+            "Equipo y horarios",
+            "Asigna citas según disponibilidad y competencias.",
+          ],
+          [
+            "inventario",
+            "Inventario básico",
+            "Controla insumos y movimientos esenciales de la operación.",
+          ],
+          [
+            "campanas",
+            "Campañas comerciales",
+            "Comunica promociones autorizadas a tus clientes.",
+          ],
+          [
+            "prospectos",
+            "Seguimiento de prospectos",
+            "Registra oportunidades y próximas acciones comerciales.",
+          ],
+          [
+            "reportes",
+            "Reportes de gestión",
+            "Consulta indicadores para tomar mejores decisiones.",
+          ],
+          [
+            "landing",
+            "Landing profesional",
+            "Presenta tu oferta y capta contactos según el alcance contratado.",
+          ],
+          [
+            "soporte",
+            "Soporte y acompañamiento",
+            "Recibe orientación durante la configuración y el uso.",
+          ],
+        ];
+        var cardAssets = window.BEAUTYOS_CARD_ASSETS || {};
+        document.getElementById("includeGrid").innerHTML = included
+          .map(function (x, i) {
+            var number = i + 1 < 10 ? "0" + (i + 1) : String(i + 1);
+            return (
+              '<article class="include-item" role="listitem">' +
+              '<img class="include-media" src="' +
+              (cardAssets[x[0]] || "") +
+              '" alt="" loading="lazy" decoding="async">' +
+              '<div class="include-content"><div class="include-meta">' +
+              '<span class="include-check" aria-hidden="true">✓</span>' +
+              '<span class="include-number">' +
+              number +
+              "</span></div><h3>" +
+              x[1] +
+              "</h3><p>" +
+              x[2] +
+              "</p></div></article>"
             );
           })
           .join("");
