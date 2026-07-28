@@ -34,20 +34,6 @@
         logo: "assets/beautyos-logo-oficial-hostinger-v1.webp",
         hero: "assets/beautyos-hero-salon-hostinger-v1.webp",
       };
-      window.BEAUTYOS_CARD_ASSETS = {
-        agenda: "assets/beautyos-agenda-hostinger-v1.webp",
-        recordatorios: "assets/beautyos-recordatorios-hostinger-v1.webp",
-        crm: "assets/beautyos-crm-hostinger-v1.webp",
-        agente: "assets/beautyos-agente-virtual-hostinger-v1.webp",
-        servicios: "assets/beautyos-servicios-precios-hostinger-v1.webp",
-        equipo: "assets/beautyos-equipo-horarios-hostinger-v1.webp",
-        inventario: "assets/beautyos-inventario-hostinger-v1.webp",
-        campanas: "assets/beautyos-campanas-hostinger-v1.webp",
-        prospectos: "assets/beautyos-prospectos-hostinger-v1.webp",
-        reportes: "assets/beautyos-reportes-hostinger-v1.webp",
-        landing: "assets/beautyos-landing-hostinger-v1.webp",
-        soporte: "assets/beautyos-soporte-hostinger-v1.webp",
-      };
     </script>
     <style>
       :root {
@@ -392,7 +378,7 @@
           linear-gradient(90deg, rgba(7, 24, 35, 0.36), transparent 40%),
           linear-gradient(0deg, rgba(7, 24, 35, 0.42), transparent 45%);
       }
-      /* El hero comunica una sola idea visual: el salón. El dashboard y Sofi
+      /* El hero comunica una sola idea visual: el salón. El dashboard y el agente
          se muestran en sus propias secciones para conservar jerarquía y aire. */
       .logo-orbit {
         display: none;
@@ -559,7 +545,7 @@
       }
       .feature-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 15px;
       }
       .feature {
@@ -829,7 +815,7 @@
       }
       .steps-row {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 10px;
         counter-reset: steps;
       }
@@ -1358,9 +1344,9 @@
           ></a
         >
         <div class="nav-links">
-          <a href="#solucion">Solución</a><a href="#sofi">Agente personalizado</a
-          ><a href="#incluye">Qué incluye</a><a href="#precio">Precio</a
-          ><a class="nav-cta" data-wa href="#">Hablar con Sofi</a>
+          <a href="#solucion">Beneficios</a><a href="#sofi">Agente virtual</a
+          ><a href="#como-funciona">Cómo funciona</a><a href="#precio">Precio</a
+          ><a class="nav-cta" href="#contacto">Agendar demo</a>
         </div>
         <button
           class="menu-btn"
@@ -1380,13 +1366,12 @@
           <div class="hero-copy">
             <span class="eyebrow">Tecnología creada para la belleza</span>
             <h1>
-              Sistema integral de gestión para
-              <span>salones de belleza, spas y centros estéticos</span>
+              Atiende, agenda y organiza tu
+              <span>negocio de belleza desde un solo lugar</span>
             </h1>
             <p class="hero-sub">
-              BeautyOS by ITELSA IA automatiza citas, recordatorios, clientes,
-              ventas, inventario y marketing para que tu negocio trabaje con más
-              organización, más eficiencia y mejor seguimiento.
+              BeautyOS integra un agente virtual por WhatsApp, agenda y CRM para
+              que respondas a tiempo y mantengas el control de tu operación.
             </p>
             <div class="price-strip">
               <div class="price-main">
@@ -1397,11 +1382,11 @@
               </div>
             </div>
             <div class="hero-actions">
-              <a class="btn btn-primary" data-wa href="#"
+              <a class="btn btn-primary" href="#contacto"
+                >Agendar demostración</a
+              ><a class="btn btn-outline" data-wa href="#"
                 ><svg aria-hidden="true"><use href="#i-chat"></use></svg>Hablar
-                con Sofi · Asesora BeautyOS</a
-              ><a class="btn btn-outline" href="#incluye"
-                >Ver qué incluye BeautyOS</a
+                con Nora</a
               >
             </div>
             <div class="trust-row">
@@ -1455,29 +1440,14 @@
         </div>
       </section>
 
-      <section class="section pain" id="problemas">
-        <div class="container">
-          <div class="section-head">
-            <span class="eyebrow">El reto diario</span>
-            <h2>Más claridad y tiempo para cuidar lo que hace especial a tu negocio</h2>
-            <p class="section-lead">
-              Cuando la información vive en cuadernos, chats y hojas separadas,
-              es fácil perder tiempo, dinero y oportunidades.
-            </p>
-          </div>
-          <div class="pain-grid" id="painGrid"></div>
-        </div>
-      </section>
-
       <section class="section solution" id="solucion">
         <div class="container">
           <div class="section-head">
-            <span class="eyebrow">Una sola plataforma</span>
-            <h2>Todo tu negocio, conectado y bajo control</h2>
+            <span class="eyebrow">Lo esencial, sin complicaciones</span>
+            <h2>Cuatro beneficios para operar mejor</h2>
             <p class="section-lead">
-              BeautyOS by ITELSA IA reúne las herramientas clave para que puedas
-              atender mejor, organizarte y tomar decisiones con información
-              real.
+              Menos tareas manuales, más rapidez para tus clientes y mayor
+              visibilidad para tomar decisiones.
             </p>
           </div>
           <div class="feature-grid" id="featureGrid"></div>
@@ -1523,7 +1493,7 @@
               comerciales siguiendo la información de tu empresa.
             </p>
             <div class="agent-clarity">
-              <strong>Sofi es la asesora comercial de BeautyOS</strong>
+              <strong>Nora es la asesora comercial de ITELSA IA</strong>
               Ella te orienta antes de adquirir la solución. No será el agente de
               tu empresa: tu negocio tendrá uno propio y tú elegirás su nombre.
             </div>
@@ -1533,24 +1503,10 @@
               ><span><b>✓</b> Conversación natural en español</span
               ><span><b>✓</b> Prospectos registrados en tu CRM</span>
             </div>
-            <a class="btn btn-primary" data-wa href="#"
-              >Consultar con Sofi sobre mi agente</a
+            <a class="btn btn-primary" href="#contacto"
+              >Quiero ver una demostración</a
             >
           </div>
-        </div>
-      </section>
-
-      <section class="section includes" id="incluye">
-        <div class="container">
-          <div class="section-head">
-            <span class="eyebrow">Qué incluye</span>
-            <h2>Todo lo que necesitas para atender y crecer con tranquilidad</h2>
-            <p class="section-lead">
-              Un ecosistema pensado para salones, spas, centros estéticos,
-              barberías, estudios de uñas y profesionales independientes.
-            </p>
-          </div>
-          <div class="include-grid" id="includeGrid"></div>
         </div>
       </section>
 
@@ -1558,33 +1514,23 @@
         <div class="container">
           <div class="section-head">
             <span class="eyebrow">Implementación acompañada</span>
-            <h2>Así ponemos BeautyOS a trabajar contigo</h2>
+            <h2>Empieza en tres pasos</h2>
           </div>
           <div class="steps-row">
             <div class="step">
               <div class="step-num">01</div>
-              <h3>Conocemos tu negocio</h3>
-              <p>Servicios, equipo y forma de trabajo.</p>
+              <h3>Agenda una demostración</h3>
+              <p>Revisamos tus necesidades y te mostramos el flujo.</p>
             </div>
             <div class="step">
               <div class="step-num">02</div>
-              <h3>Configuramos la plataforma</h3>
-              <p>Adaptamos BeautyOS a tu operación.</p>
+              <h3>Configuramos BeautyOS</h3>
+              <p>Cargamos tu identidad, servicios, equipo y horarios.</p>
             </div>
             <div class="step">
               <div class="step-num">03</div>
-              <h3>Cargamos tu información</h3>
-              <p>Clientes, servicios, precios y horarios.</p>
-            </div>
-            <div class="step">
-              <div class="step-num">04</div>
-              <h3>Configuramos tu agente</h3>
-              <p>Le damos el nombre, tono e información de tu negocio.</p>
-            </div>
-            <div class="step">
-              <div class="step-num">05</div>
-              <h3>Te acompañamos</h3>
-              <p>Capacitación, soporte y mejora continua.</p>
+              <h3>Activa y recibe acompañamiento</h3>
+              <p>Validamos contigo, capacitamos y damos soporte.</p>
             </div>
           </div>
         </div>
@@ -1595,20 +1541,20 @@
           <div class="pricing-card">
             <div>
               <span class="eyebrow">Inversión simple</span>
-              <h2>Más orden y seguimiento por el valor de $6.000 al día</h2>
+              <h2>Un plan claro para comenzar</h2>
               <p>
-                Empieza a profesionalizar la gestión de tu negocio con
-                acompañamiento de un equipo colombiano.
+                Agenda, CRM operativo, agente virtual, reportes y acompañamiento
+                en una misma solución.
               </p>
             </div>
             <div class="price-box">
               <div class="daily">Desde $6.000 COP al día</div>
               <div class="monthly">$180.000 <small>COP / mes</small></div>
               <p>
-                IVA incluido. Consulta con Sofi, asesora comercial de BeautyOS,
-                las condiciones de implementación vigentes.
-              </p>
-              <a class="btn btn-primary" data-wa href="#">Quiero información</a>
+                 IVA incluido. La configuración inicial se define según las
+                 necesidades de tu negocio.
+               </p>
+              <a class="btn btn-primary" href="#contacto">Agendar demo</a>
             </div>
           </div>
         </div>
@@ -1618,17 +1564,16 @@
         <div class="container">
           <div class="lead-wrap">
             <div class="lead-copy">
-              <span class="eyebrow">Hablemos de tu negocio</span>
-              <h2>Descubre cómo BeautyOS puede ayudarte</h2>
+              <span class="eyebrow">Demostración guiada sin costo</span>
+              <h2>Agenda una demostración de BeautyOS</h2>
               <p>
-                Cuéntanos qué deseas mejorar. Sofi, nuestra asesora comercial, o
-                un integrante del equipo te contactará con una orientación más
-                precisa.
+                Déjanos tus datos. Nora o un integrante del equipo te contactará
+                para acordar la fecha y mostrarte BeautyOS aplicado a tu negocio.
               </p>
               <div class="lead-benefits">
-                <div><b>01</b> Evaluación inicial de tu necesidad</div>
-                <div><b>02</b> Demostración enfocada en tu operación</div>
-                <div><b>03</b> Acompañamiento para dar el siguiente paso</div>
+                <div><b>01</b> Sesión guiada de 30 a 40 minutos</div>
+                <div><b>02</b> Flujos aplicados a tu operación</div>
+                <div><b>03</b> Espacio para resolver tus preguntas</div>
               </div>
             </div>
             <div class="form-panel">
@@ -1731,7 +1676,7 @@
                   type="submit"
                   id="submitBtn"
                 >
-                  Solicitar información
+                  Agendar demostración
                 </button>
                 <div
                   class="form-status"
@@ -1768,11 +1713,11 @@
             </div>
           </div>
           <div>
-            <div class="footer-title">Sofi · Asesora comercial BeautyOS</div>
+            <div class="footer-title">Nora · Asesora comercial ITELSA IA</div>
             <div class="footer-links">
               <a data-wa href="#">+57 310 882 8904</a
               ><a href="#solucion">Conocer la solución</a
-              ><a href="#contacto">Solicitar información</a>
+              ><a href="#contacto">Agendar demostración</a>
             </div>
           </div>
         </div>
@@ -1789,7 +1734,7 @@
       class="wa-float"
       data-wa
       href="#"
-      aria-label="Hablar con Sofi, asesora comercial de BeautyOS"
+      aria-label="Hablar con Nora, asesora comercial de ITELSA IA"
       ><svg aria-hidden="true"><use href="#i-chat"></use></svg
     ></a>
 
@@ -1884,9 +1829,9 @@
 
     <script>
       (function () {
-        var SOFI_NUMBER = "573108828904";
-        var SOFI_TEXT =
-          "Hola Sofi, quiero más información sobre BeautyOS para mi negocio de belleza.";
+        var NORA_NUMBER = "573108828904";
+        var NORA_TEXT =
+          "Hola Nora, quiero agendar una demostración de BeautyOS para mi negocio.";
         var ASSETS = window.BEAUTYOS_BRAND_ASSETS || {};
         document.querySelectorAll("[data-brand-logo]").forEach(function (img) {
           img.src = ASSETS.logo || "";
@@ -1895,103 +1840,39 @@
         document.querySelectorAll("[data-wa]").forEach(function (a) {
           a.href =
             "https://wa.me/" +
-            SOFI_NUMBER +
+             NORA_NUMBER +
             "?text=" +
-            encodeURIComponent(SOFI_TEXT);
+             encodeURIComponent(NORA_TEXT);
           a.target = "_blank";
           a.rel = "noopener";
         });
         document.getElementById("year").textContent = new Date().getFullYear();
 
-        var pains = [
-          [
-            "i-calendar",
-            "Citas perdidas o mal organizadas",
-            "La agenda manual aumenta cruces, olvidos y espacios sin aprovechar.",
-          ],
-          [
-            "i-chat",
-            "Mensajes sin responder",
-            "Cada consulta tardía puede convertirse en una venta que se va con otro negocio.",
-          ],
-          [
-            "i-users",
-            "Clientes sin seguimiento",
-            "Sin historial ni recordatorios, es más difícil fidelizar y recuperar clientes.",
-          ],
-          [
-            "i-box",
-            "Inventario sin control",
-            "Los faltantes y compras tardías afectan la operación y la experiencia.",
-          ],
-          [
-            "i-chart",
-            "Ventas sin información clara",
-            "Tomar decisiones sin datos impide saber qué funciona y qué debes mejorar.",
-          ],
-          [
-            "i-spark",
-            "Marketing improvisado",
-            "Publicar sin estrategia dificulta mantener una comunicación constante.",
-          ],
-        ];
         var features = [
           [
             "i-calendar",
-            "Agenda y recordatorios",
-            "Organiza citas, horarios y confirmaciones desde un solo lugar.",
+            "Agenda sin cruces",
+            "Organiza citas, disponibilidad y recordatorios en un solo lugar.",
           ],
           [
             "i-chat",
-            "Agente virtual personalizado",
-            "Atiende con el nombre, el tono y la información de tu negocio.",
+            "Atención por WhatsApp",
+            "Responde consultas y apoya reservas con un agente personalizado.",
           ],
           [
-            "i-box",
-            "Operación e inventario",
-            "Controla servicios, recursos y movimientos clave del negocio.",
-          ],
-          [
-            "i-spark",
-            "Marketing y fidelización",
-            "Crea campañas y mantén una relación activa con tus clientes.",
+            "i-users",
+            "Clientes y equipo",
+            "Centraliza el historial y asigna servicios según cada colaborador.",
           ],
           [
             "i-chart",
-            "Reportes de gestión",
-            "Consulta indicadores para decidir con mayor claridad.",
+            "Control del negocio",
+            "Consulta citas, servicios e indicadores para decidir con claridad.",
           ],
-        ];
-        var included = [
-          "Agenda de citas",
-          "Recordatorios automáticos",
-          "CRM de clientes",
-          "Agente virtual con nombre propio",
-          "Servicios y precios",
-          "Equipo y horarios",
-          "Inventario básico",
-          "Campañas comerciales",
-          "Seguimiento de prospectos",
-          "Reportes de gestión",
-          "Landing profesional",
-          "Soporte y acompañamiento",
         ];
         function icon(id) {
           return '<svg aria-hidden="true"><use href="#' + id + '"></use></svg>';
         }
-        document.getElementById("painGrid").innerHTML = pains
-          .map(function (x) {
-            return (
-              '<article class="pain-card"><span class="icon">' +
-              icon(x[0]) +
-              "</span><div><h3>" +
-              x[1] +
-              "</h3><p>" +
-              x[2] +
-              "</p></div></article>"
-            );
-          })
-          .join("");
         document.getElementById("featureGrid").innerHTML = features
           .map(function (x, i) {
             return (
@@ -2007,25 +1888,6 @@
             );
           })
           .join("");
-        var includeBackgrounds = [
-          "agenda", "recordatorios", "crm", "agente",
-          "servicios", "equipo", "inventario", "campanas",
-          "prospectos", "reportes", "landing", "soporte"
-        ];
-        document.getElementById("includeGrid").innerHTML = included
-          .map(function (x, i) {
-            var image = window.BEAUTYOS_CARD_ASSETS[includeBackgrounds[i]];
-            return (
-              '<div class="include-item">' +
-              '<img class="include-media" src="' + image + '" alt="" aria-hidden="true">' +
-              icon("i-check") +
-              "<span>" +
-              x +
-              "</span></div>"
-            );
-          })
-          .join("");
-
         var menu = document.getElementById("menuBtn"),
           nav = document.getElementById("nav");
         menu.addEventListener("click", function () {
@@ -2101,8 +1963,8 @@
               if (result && result.error) throw new Error(result.error);
               showStatus(
                 result && result.duplicado
-                  ? "Tu WhatsApp ya estaba registrado. Sofi, asesora comercial de BeautyOS, podrá continuar la conversación contigo."
-                  : "¡Gracias! Tu solicitud quedó registrada. Sofi, asesora comercial de BeautyOS, o un integrante del equipo te contactará.",
+                  ? "Tu WhatsApp ya estaba registrado. Nora podrá continuar la conversación contigo para agendar el demo."
+                  : "¡Gracias! Tu solicitud de demostración quedó registrada. Nora o un integrante del equipo te contactará para acordar la fecha.",
                 "ok",
               );
               if (!(result && result.duplicado)) form.reset();
@@ -2116,7 +1978,7 @@
             })
             .finally(function () {
               submit.disabled = false;
-              submit.textContent = "Solicitar información";
+              submit.textContent = "Agendar demostración";
             });
         });
       })();
