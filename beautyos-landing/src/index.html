@@ -237,58 +237,104 @@
       .hero {
         position: relative;
         min-height: 840px;
-        padding: 172px 0 92px;
-        background:
-          radial-gradient(
-            circle at 77% 25%,
-            rgba(0, 191, 214, 0.16),
-            transparent 30%
-          ),
-          linear-gradient(120deg, #04131d 0%, #092939 58%, #071823 100%);
+        padding: 150px 0 82px;
+        display: flex;
+        align-items: center;
+        background-color: #04131d;
+        background-image: var(
+          --hero-image,
+          linear-gradient(120deg, #04131d, #092939)
+        );
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
         color: white;
         overflow: hidden;
+        isolation: isolate;
+      }
+      .hero:before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background:
+          linear-gradient(
+            90deg,
+            rgba(2, 17, 27, 0.97) 0%,
+            rgba(2, 22, 33, 0.9) 38%,
+            rgba(2, 22, 33, 0.48) 66%,
+            rgba(2, 22, 33, 0.3) 100%
+          ),
+          linear-gradient(
+            180deg,
+            rgba(2, 17, 27, 0.25) 0%,
+            transparent 50%,
+            rgba(2, 17, 27, 0.72) 100%
+          );
+        pointer-events: none;
       }
       .hero:after {
         content: "";
         position: absolute;
         inset: auto 0 0;
-        height: 120px;
-        background: linear-gradient(transparent, rgba(4, 20, 30, 0.35));
+        z-index: 1;
+        height: 150px;
+        background: linear-gradient(transparent, rgba(4, 20, 30, 0.72));
         pointer-events: none;
       }
       .hero-grid {
         position: relative;
         z-index: 2;
-        display: grid;
-        grid-template-columns: 1.03fr 0.97fr;
-        gap: 50px;
-        align-items: center;
+        width: 100%;
+      }
+      .hero-copy {
+        width: min(100%, 760px);
+        padding: clamp(30px, 4vw, 50px);
+        border: 1px solid rgba(154, 236, 241, 0.24);
+        border-radius: 32px;
+        background: linear-gradient(
+          135deg,
+          rgba(3, 24, 35, 0.82),
+          rgba(3, 33, 45, 0.55)
+        );
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow:
+          0 35px 90px rgba(0, 0, 0, 0.34),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
       }
       .hero .eyebrow {
         color: var(--cyan-bright);
-        margin-bottom: 22px;
+        margin-bottom: 18px;
       }
       .hero h1 {
-        font-size: clamp(2.7rem, 5vw, 5rem);
+        max-width: 690px;
+        font-size: clamp(3rem, 5vw, 4.9rem);
         color: white;
         letter-spacing: -0.06em;
-        margin-bottom: 25px;
+        margin-bottom: 22px;
+        text-shadow: 0 8px 30px rgba(0, 0, 0, 0.32);
       }
       .hero h1 span {
         display: block;
         color: var(--cyan-bright);
       }
       .hero-sub {
-        font-size: 1.12rem;
-        color: #c5d6dd;
-        max-width: 650px;
-        margin: 0 0 28px;
+        font-size: 1.08rem;
+        color: #d8e7ec;
+        max-width: 620px;
+        margin: 0 0 24px;
       }
       .price-strip {
         display: flex;
         align-items: center;
         gap: 18px;
-        margin: 28px 0;
+        width: fit-content;
+        margin: 24px 0;
+        padding: 15px 18px;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 16px;
+        background: rgba(2, 20, 30, 0.48);
       }
       .price-main {
         font-family: "Manrope";
@@ -310,6 +356,15 @@
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
+      }
+      .hero-actions .btn-outline {
+        background: rgba(4, 27, 38, 0.58);
+        border-color: rgba(255, 255, 255, 0.34);
+      }
+      .hero-form-note {
+        margin: 14px 0 0;
+        color: #c4d8df;
+        font-size: 0.8rem;
       }
       .trust-row {
         display: flex;
@@ -353,7 +408,7 @@
           linear-gradient(90deg, rgba(7, 24, 35, 0.36), transparent 40%),
           linear-gradient(0deg, rgba(7, 24, 35, 0.42), transparent 45%);
       }
-      /* El hero comunica una sola idea visual: el salón. El dashboard y Sofi
+      /* El hero comunica una sola idea visual: el salón. El dashboard y el agente
          se muestran en sus propias secciones para conservar jerarquía y aire. */
       .logo-orbit {
         display: none;
@@ -462,13 +517,16 @@
       }
       .hero-glow {
         position: absolute;
-        width: 370px;
-        height: 370px;
+        z-index: 1;
+        width: 430px;
+        height: 430px;
         border: 1px solid rgba(0, 216, 232, 0.18);
         border-radius: 50%;
-        right: -190px;
-        top: 80px;
-        box-shadow: 0 0 90px rgba(0, 216, 232, 0.08);
+        right: -170px;
+        top: -130px;
+        box-shadow:
+          0 0 110px rgba(0, 216, 232, 0.1),
+          inset 0 0 90px rgba(0, 216, 232, 0.05);
       }
       .pain {
         background: var(--mist);
@@ -520,7 +578,7 @@
       }
       .feature-grid {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         gap: 15px;
       }
       .feature {
@@ -714,44 +772,50 @@
       .includes .section-lead {
         color: #c9dce3;
       }
+      .includes .section-head {
+        max-width: 860px;
+      }
       .include-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 15px;
+        gap: 18px;
       }
       .include-item {
         position: relative;
-        min-height: 106px;
+        min-height: 205px;
         background: #082633;
-        border: 1px solid rgba(183, 237, 241, 0.26);
-        border-radius: 18px;
-        padding: 20px;
-        display: flex;
-        gap: 11px;
-        align-items: center;
-        font-weight: 700;
+        border: 1px solid rgba(183, 237, 241, 0.32);
+        border-radius: 22px;
         color: #f6fbfc;
-        font-size: 0.89rem;
         overflow: hidden;
-        box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
-        transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+        isolation: isolate;
+        box-shadow:
+          0 18px 38px rgba(0, 0, 0, 0.2),
+          inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        transition:
+          transform 0.28s ease,
+          border-color 0.28s ease,
+          box-shadow 0.28s ease;
       }
       .include-item:before {
         content: "";
-        width: 72px;
-        height: 72px;
+        width: 120px;
+        height: 120px;
         position: absolute;
-        right: -25px;
-        bottom: -34px;
+        right: -48px;
+        top: -52px;
         border-radius: 50%;
-        background: rgba(216, 138, 91, 0.26);
+        background: rgba(0, 216, 232, 0.2);
+        filter: blur(4px);
         z-index: 2;
       }
       .include-item:after {
         content: "";
         position: absolute;
         inset: 0;
-        background: linear-gradient(90deg, rgba(3, 19, 29, 0.94) 0%, rgba(4, 29, 41, 0.72) 55%, rgba(4, 28, 40, 0.2) 100%);
+        background:
+          linear-gradient(180deg, rgba(3, 19, 29, 0.12) 5%, rgba(3, 19, 29, 0.42) 42%, rgba(3, 19, 29, 0.98) 100%),
+          linear-gradient(120deg, rgba(0, 191, 214, 0.14), transparent 55%);
         z-index: 1;
         pointer-events: none;
       }
@@ -762,35 +826,77 @@
         height: 100%;
         object-fit: cover;
         object-position: center;
-        opacity: 0.72;
+        opacity: 0.88;
         transform: scale(1.02);
-        transition: transform 0.35s ease, opacity 0.35s ease;
+        transition:
+          transform 0.4s ease,
+          opacity 0.4s ease;
       }
       .include-item:hover {
-        transform: translateY(-6px);
-        border-color: rgba(98, 237, 244, 0.75);
-        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 216, 232, 0.12);
+        transform: translateY(-7px);
+        border-color: rgba(98, 237, 244, 0.9);
+        box-shadow:
+          0 24px 48px rgba(0, 0, 0, 0.3),
+          0 0 0 1px rgba(0, 216, 232, 0.18);
       }
       .include-item:hover .include-media {
-        opacity: 0.86;
+        opacity: 1;
         transform: scale(1.08);
       }
-      .include-item svg,
-      .include-item span {
-        position: relative;
+      .include-content {
+        position: absolute;
+        inset: auto 0 0;
         z-index: 3;
+        padding: 22px;
       }
-      .include-item svg {
-        width: 19px;
-        color: var(--cyan-bright);
-        flex: 0 0 19px;
+      .include-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .include-check {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #03212c;
+        background: var(--cyan-bright);
+        box-shadow: 0 8px 22px rgba(0, 216, 232, 0.35);
+        font-weight: 900;
+      }
+      .include-number {
+        color: rgba(255, 255, 255, 0.76);
+        font: 800 0.72rem "Manrope";
+        letter-spacing: 0.12em;
+      }
+      .include-content h3 {
+        color: white;
+        font-size: 1.03rem;
+        line-height: 1.25;
+        margin: 0 0 7px;
+      }
+      .include-content p {
+        color: #c9dce3;
+        font-size: 0.8rem;
+        line-height: 1.45;
+        margin: 0;
+      }
+      .swipe-hint {
+        display: none;
+        position: relative;
+        color: #b9d5dc;
+        font-size: 0.8rem;
+        text-align: center;
+        margin: 18px 0 0;
       }
       .steps {
         background: white;
       }
       .steps-row {
         display: grid;
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 10px;
         counter-reset: steps;
       }
@@ -1156,8 +1262,34 @@
           height: 46px;
         }
         .hero {
-          padding: 130px 0 70px;
+          padding: 205px 0 42px;
           min-height: auto;
+          align-items: flex-end;
+          background-position: 55% center;
+        }
+        .hero:before {
+          background:
+            linear-gradient(
+              180deg,
+              rgba(2, 17, 27, 0.12) 0%,
+              rgba(2, 22, 33, 0.2) 21%,
+              rgba(2, 17, 27, 0.82) 43%,
+              rgba(2, 17, 27, 0.98) 100%
+            ),
+            linear-gradient(
+              90deg,
+              rgba(2, 17, 27, 0.38),
+              rgba(2, 17, 27, 0.06)
+            );
+        }
+        .hero-copy {
+          padding: 28px 22px;
+          border-radius: 25px;
+          background: linear-gradient(
+            145deg,
+            rgba(3, 24, 35, 0.86),
+            rgba(3, 33, 45, 0.66)
+          );
         }
         .hero-grid {
           gap: 30px;
@@ -1169,6 +1301,7 @@
           font-size: 1rem;
         }
         .price-strip {
+          width: 100%;
           align-items: flex-start;
           flex-direction: column;
           gap: 8px;
@@ -1179,32 +1312,6 @@
         }
         .hero-actions .btn {
           width: 100%;
-        }
-        .hero-visual {
-          min-height: 430px;
-        }
-        .hero-photo {
-          left: 20px;
-          right: 0;
-          bottom: 35px;
-          border-radius: 100px 20px 20px 20px;
-        }
-        .logo-orbit {
-          width: 125px;
-          right: -8px;
-          top: 0;
-          padding: 9px;
-          border-radius: 20px;
-        }
-        .dashboard-card {
-          width: 68%;
-          padding: 10px;
-        }
-        .chat-card {
-          width: 165px;
-          right: -4px;
-          bottom: 18px;
-          padding: 10px;
         }
         .pain-grid,
         .feature-grid {
@@ -1223,7 +1330,30 @@
           grid-template-columns: 1fr;
         }
         .include-grid {
-          grid-template-columns: 1fr 1fr;
+          display: flex;
+          gap: 14px;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          scroll-padding-inline: 2px;
+          overscroll-behavior-inline: contain;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+          padding: 4px 2px 20px;
+        }
+        .include-grid::-webkit-scrollbar {
+          display: none;
+        }
+        .include-item {
+          flex: 0 0 min(82vw, 330px);
+          min-height: 240px;
+          scroll-snap-align: center;
+          scroll-snap-stop: always;
+        }
+        .include-content {
+          padding: 21px;
+        }
+        .swipe-hint {
+          display: block;
         }
         .steps-row {
           grid-template-columns: 1fr;
@@ -1270,17 +1400,15 @@
         }
       }
       @media (max-width: 440px) {
-        .include-grid {
-          grid-template-columns: 1fr;
+        .hero {
+          padding-top: 190px;
+          background-position: 53% center;
         }
-        .hero-visual {
-          min-height: 390px;
+        .hero-copy {
+          padding: 24px 18px;
         }
-        .chat-card {
-          display: none;
-        }
-        .dashboard-card {
-          width: 80%;
+        .hero h1 {
+          font-size: clamp(2.2rem, 10vw, 2.75rem);
         }
         .footer-grid {
           gap: 30px;
@@ -1315,9 +1443,9 @@
           ></a
         >
         <div class="nav-links">
-          <a href="#solucion">Solución</a><a href="#sofi">Agente personalizado</a
+          <a href="#solucion">Beneficios</a><a href="#sofi">Agente virtual</a
           ><a href="#incluye">Qué incluye</a><a href="#precio">Precio</a
-          ><a class="nav-cta" data-wa href="#">Hablar con Sofi</a>
+          ><a class="nav-cta" href="#contacto">Agendar demo</a>
         </div>
         <button
           class="menu-btn"
@@ -1337,13 +1465,12 @@
           <div class="hero-copy">
             <span class="eyebrow">Tecnología creada para la belleza</span>
             <h1>
-              Sistema integral de gestión para
-              <span>salones de belleza, spas y centros estéticos</span>
+              Atiende, agenda y organiza tu
+              <span>negocio de belleza desde un solo lugar</span>
             </h1>
             <p class="hero-sub">
-              BeautyOS by ITELSA IA automatiza citas, recordatorios, clientes,
-              ventas, inventario y marketing para que tu negocio trabaje con más
-              organización, más eficiencia y mejor seguimiento.
+              BeautyOS integra un agente virtual por WhatsApp, agenda y CRM para
+              que respondas a tiempo y mantengas el control de tu operación.
             </p>
             <div class="price-strip">
               <div class="price-main">
@@ -1354,87 +1481,33 @@
               </div>
             </div>
             <div class="hero-actions">
-              <a class="btn btn-primary" data-wa href="#"
-                ><svg aria-hidden="true"><use href="#i-chat"></use></svg>Hablar
-                con Sofi · Asesora BeautyOS</a
-              ><a class="btn btn-outline" href="#incluye"
-                >Ver qué incluye BeautyOS</a
+              <a class="btn btn-primary" href="#contacto"
+                >Solicitar demostración</a
+              ><a class="btn btn-outline" href="#contacto"
+                >Completar formulario</a
               >
             </div>
+            <p class="hero-form-note">
+              Déjanos tus datos y te contactaremos para acordar una demostración
+              guiada.
+            </p>
             <div class="trust-row">
               <span><b>✓</b> Configuración acompañada</span
               ><span><b>✓</b> Soporte en español</span
               ><span><b>✓</b> Sin permanencia</span>
             </div>
           </div>
-          <div class="hero-visual" aria-label="BeautyOS en acción">
-            <div class="hero-photo">
-              <img
-                id="heroPhoto"
-                alt="Salón de belleza moderno y profesional"
-              />
-            </div>
-            <div class="logo-orbit">
-              <img data-brand-logo alt="BeautyOS by ITELSA IA" />
-            </div>
-            <div class="dashboard-card" aria-hidden="true">
-              <div class="dash-head">
-                <span>Panel de control BeautyOS</span
-                ><span class="dotset"><i></i><i></i><i></i></span>
-              </div>
-              <div class="dash-stats">
-                <div class="dash-stat"><b>18</b>Citas hoy</div>
-                <div class="dash-stat"><b>92%</b>Ocupación</div>
-                <div class="dash-stat"><b>+24%</b>Ventas</div>
-              </div>
-              <div class="dash-chart">
-                <svg viewBox="0 0 300 55" preserveAspectRatio="none">
-                  <path
-                    d="M0 46 C35 42 42 20 75 30 S118 48 150 23 S205 5 230 18 S270 23 300 5"
-                    fill="none"
-                    stroke="#00bfd6"
-                    stroke-width="4"
-                  />
-                </svg>
-              </div>
-            </div>
-            <div class="chat-card" aria-hidden="true">
-              <div class="chat-top"><i></i>Tu agente · Tu negocio</div>
-              <div class="bubble sofi">
-                ¡Hola! ¿Te ayudo a agendar tu cita? ✨
-              </div>
-              <div class="bubble client">Sí, para el viernes</div>
-              <div class="bubble sofi">
-                Perfecto. Tengo 3 horarios disponibles.
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section pain" id="problemas">
-        <div class="container">
-          <div class="section-head">
-            <span class="eyebrow">El reto diario</span>
-            <h2>Más claridad y tiempo para cuidar lo que hace especial a tu negocio</h2>
-            <p class="section-lead">
-              Cuando la información vive en cuadernos, chats y hojas separadas,
-              es fácil perder tiempo, dinero y oportunidades.
-            </p>
-          </div>
-          <div class="pain-grid" id="painGrid"></div>
         </div>
       </section>
 
       <section class="section solution" id="solucion">
         <div class="container">
           <div class="section-head">
-            <span class="eyebrow">Una sola plataforma</span>
-            <h2>Todo tu negocio, conectado y bajo control</h2>
+            <span class="eyebrow">Lo esencial, sin complicaciones</span>
+            <h2>Cuatro beneficios para operar mejor</h2>
             <p class="section-lead">
-              BeautyOS by ITELSA IA reúne las herramientas clave para que puedas
-              atender mejor, organizarte y tomar decisiones con información
-              real.
+              Menos tareas manuales, más rapidez para tus clientes y mayor
+              visibilidad para tomar decisiones.
             </p>
           </div>
           <div class="feature-grid" id="featureGrid"></div>
@@ -1480,7 +1553,7 @@
               comerciales siguiendo la información de tu empresa.
             </p>
             <div class="agent-clarity">
-              <strong>Sofi es la asesora comercial de BeautyOS</strong>
+              <strong>Nora es la asesora comercial de ITELSA IA</strong>
               Ella te orienta antes de adquirir la solución. No será el agente de
               tu empresa: tu negocio tendrá uno propio y tú elegirás su nombre.
             </div>
@@ -1490,8 +1563,8 @@
               ><span><b>✓</b> Conversación natural en español</span
               ><span><b>✓</b> Prospectos registrados en tu CRM</span>
             </div>
-            <a class="btn btn-primary" data-wa href="#"
-              >Consultar con Sofi sobre mi agente</a
+            <a class="btn btn-primary" href="#contacto"
+              >Quiero ver una demostración</a
             >
           </div>
         </div>
@@ -1500,14 +1573,23 @@
       <section class="section includes" id="incluye">
         <div class="container">
           <div class="section-head">
-            <span class="eyebrow">Qué incluye</span>
+            <span class="eyebrow">Un sistema que crece contigo</span>
             <h2>Todo lo que necesitas para atender y crecer con tranquilidad</h2>
             <p class="section-lead">
-              Un ecosistema pensado para salones, spas, centros estéticos,
-              barberías, estudios de uñas y profesionales independientes.
+              Una solución para salones, spas, centros estéticos, barberías,
+              estudios de uñas y profesionales independientes. Las capacidades
+              se habilitan según el plan y las necesidades de tu negocio.
             </p>
           </div>
-          <div class="include-grid" id="includeGrid"></div>
+          <div
+            class="include-grid"
+            id="includeGrid"
+            role="list"
+            aria-label="Capacidades disponibles en BeautyOS"
+          ></div>
+          <p class="swipe-hint" aria-hidden="true">
+            Desliza para conocer todas las capacidades →
+          </p>
         </div>
       </section>
 
@@ -1515,33 +1597,23 @@
         <div class="container">
           <div class="section-head">
             <span class="eyebrow">Implementación acompañada</span>
-            <h2>Así ponemos BeautyOS a trabajar contigo</h2>
+            <h2>Empieza en tres pasos</h2>
           </div>
           <div class="steps-row">
             <div class="step">
               <div class="step-num">01</div>
-              <h3>Conocemos tu negocio</h3>
-              <p>Servicios, equipo y forma de trabajo.</p>
+              <h3>Agenda una demostración</h3>
+              <p>Revisamos tus necesidades y te mostramos el flujo.</p>
             </div>
             <div class="step">
               <div class="step-num">02</div>
-              <h3>Configuramos la plataforma</h3>
-              <p>Adaptamos BeautyOS a tu operación.</p>
+              <h3>Configuramos BeautyOS</h3>
+              <p>Cargamos tu identidad, servicios, equipo y horarios.</p>
             </div>
             <div class="step">
               <div class="step-num">03</div>
-              <h3>Cargamos tu información</h3>
-              <p>Clientes, servicios, precios y horarios.</p>
-            </div>
-            <div class="step">
-              <div class="step-num">04</div>
-              <h3>Configuramos tu agente</h3>
-              <p>Le damos el nombre, tono e información de tu negocio.</p>
-            </div>
-            <div class="step">
-              <div class="step-num">05</div>
-              <h3>Te acompañamos</h3>
-              <p>Capacitación, soporte y mejora continua.</p>
+              <h3>Activa y recibe acompañamiento</h3>
+              <p>Validamos contigo, capacitamos y damos soporte.</p>
             </div>
           </div>
         </div>
@@ -1552,20 +1624,20 @@
           <div class="pricing-card">
             <div>
               <span class="eyebrow">Inversión simple</span>
-              <h2>Más orden y seguimiento por el valor de $6.000 al día</h2>
+              <h2>Un plan claro para comenzar</h2>
               <p>
-                Empieza a profesionalizar la gestión de tu negocio con
-                acompañamiento de un equipo colombiano.
+                Agenda, CRM operativo, agente virtual, reportes y acompañamiento
+                en una misma solución.
               </p>
             </div>
             <div class="price-box">
               <div class="daily">Desde $6.000 COP al día</div>
               <div class="monthly">$180.000 <small>COP / mes</small></div>
               <p>
-                IVA incluido. Consulta con Sofi, asesora comercial de BeautyOS,
-                las condiciones de implementación vigentes.
+                IVA incluido. La configuración inicial se define según las
+                necesidades de tu negocio.
               </p>
-              <a class="btn btn-primary" data-wa href="#">Quiero información</a>
+              <a class="btn btn-primary" href="#contacto">Agendar demo</a>
             </div>
           </div>
         </div>
@@ -1575,17 +1647,16 @@
         <div class="container">
           <div class="lead-wrap">
             <div class="lead-copy">
-              <span class="eyebrow">Hablemos de tu negocio</span>
-              <h2>Descubre cómo BeautyOS puede ayudarte</h2>
+              <span class="eyebrow">Demostración guiada sin costo</span>
+              <h2>Agenda una demostración de BeautyOS</h2>
               <p>
-                Cuéntanos qué deseas mejorar. Sofi, nuestra asesora comercial, o
-                un integrante del equipo te contactará con una orientación más
-                precisa.
+                Déjanos tus datos. Nora o un integrante del equipo te contactará
+                para acordar la fecha y mostrarte BeautyOS aplicado a tu negocio.
               </p>
               <div class="lead-benefits">
-                <div><b>01</b> Evaluación inicial de tu necesidad</div>
-                <div><b>02</b> Demostración enfocada en tu operación</div>
-                <div><b>03</b> Acompañamiento para dar el siguiente paso</div>
+                <div><b>01</b> Sesión guiada de 30 a 40 minutos</div>
+                <div><b>02</b> Flujos aplicados a tu operación</div>
+                <div><b>03</b> Espacio para resolver tus preguntas</div>
               </div>
             </div>
             <div class="form-panel">
@@ -1688,7 +1759,7 @@
                   type="submit"
                   id="submitBtn"
                 >
-                  Solicitar información
+                  Agendar demostración
                 </button>
                 <div
                   class="form-status"
@@ -1725,11 +1796,11 @@
             </div>
           </div>
           <div>
-            <div class="footer-title">Sofi · Asesora comercial BeautyOS</div>
+            <div class="footer-title">Nora · Asesora comercial ITELSA IA</div>
             <div class="footer-links">
               <a data-wa href="#">+57 310 882 8904</a
               ><a href="#solucion">Conocer la solución</a
-              ><a href="#contacto">Solicitar información</a>
+              ><a href="#contacto">Agendar demostración</a>
             </div>
           </div>
         </div>
@@ -1746,7 +1817,7 @@
       class="wa-float"
       data-wa
       href="#"
-      aria-label="Hablar con Sofi, asesora comercial de BeautyOS"
+      aria-label="Hablar con Nora, asesora comercial de ITELSA IA"
       ><svg aria-hidden="true"><use href="#i-chat"></use></svg
     ></a>
 
@@ -1841,114 +1912,54 @@
 
     <script>
       (function () {
-        var SOFI_NUMBER = "573108828904";
-        var SOFI_TEXT =
-          "Hola Sofi, quiero más información sobre BeautyOS para mi negocio de belleza.";
+        var NORA_NUMBER = "573108828904";
+        var NORA_TEXT =
+          "Hola Nora, quiero agendar una demostración de BeautyOS para mi negocio.";
         var ASSETS = window.BEAUTYOS_BRAND_ASSETS || {};
         document.querySelectorAll("[data-brand-logo]").forEach(function (img) {
           img.src = ASSETS.logo || "";
         });
-        document.getElementById("heroPhoto").src = ASSETS.hero || "";
+        if (ASSETS.hero) {
+          document
+            .querySelector(".hero")
+            .style.setProperty("--hero-image", 'url("' + ASSETS.hero + '")');
+        }
         document.querySelectorAll("[data-wa]").forEach(function (a) {
           a.href =
             "https://wa.me/" +
-            SOFI_NUMBER +
+            NORA_NUMBER +
             "?text=" +
-            encodeURIComponent(SOFI_TEXT);
+            encodeURIComponent(NORA_TEXT);
           a.target = "_blank";
           a.rel = "noopener";
         });
         document.getElementById("year").textContent = new Date().getFullYear();
 
-        var pains = [
-          [
-            "i-calendar",
-            "Citas perdidas o mal organizadas",
-            "La agenda manual aumenta cruces, olvidos y espacios sin aprovechar.",
-          ],
-          [
-            "i-chat",
-            "Mensajes sin responder",
-            "Cada consulta tardía puede convertirse en una venta que se va con otro negocio.",
-          ],
-          [
-            "i-users",
-            "Clientes sin seguimiento",
-            "Sin historial ni recordatorios, es más difícil fidelizar y recuperar clientes.",
-          ],
-          [
-            "i-box",
-            "Inventario sin control",
-            "Los faltantes y compras tardías afectan la operación y la experiencia.",
-          ],
-          [
-            "i-chart",
-            "Ventas sin información clara",
-            "Tomar decisiones sin datos impide saber qué funciona y qué debes mejorar.",
-          ],
-          [
-            "i-spark",
-            "Marketing improvisado",
-            "Publicar sin estrategia dificulta mantener una comunicación constante.",
-          ],
-        ];
         var features = [
           [
             "i-calendar",
-            "Agenda y recordatorios",
-            "Organiza citas, horarios y confirmaciones desde un solo lugar.",
+            "Agenda sin cruces",
+            "Organiza citas, disponibilidad y recordatorios en un solo lugar.",
           ],
           [
             "i-chat",
-            "Agente virtual personalizado",
-            "Atiende con el nombre, el tono y la información de tu negocio.",
+            "Atención por WhatsApp",
+            "Responde consultas y apoya reservas con un agente personalizado.",
           ],
           [
-            "i-box",
-            "Operación e inventario",
-            "Controla servicios, recursos y movimientos clave del negocio.",
-          ],
-          [
-            "i-spark",
-            "Marketing y fidelización",
-            "Crea campañas y mantén una relación activa con tus clientes.",
+            "i-users",
+            "Clientes y equipo",
+            "Centraliza el historial y asigna servicios según cada colaborador.",
           ],
           [
             "i-chart",
-            "Reportes de gestión",
-            "Consulta indicadores para decidir con mayor claridad.",
+            "Control del negocio",
+            "Consulta citas, servicios e indicadores para decidir con claridad.",
           ],
-        ];
-        var included = [
-          "Agenda de citas",
-          "Recordatorios automáticos",
-          "CRM de clientes",
-          "Agente virtual con nombre propio",
-          "Servicios y precios",
-          "Equipo y horarios",
-          "Inventario básico",
-          "Campañas comerciales",
-          "Seguimiento de prospectos",
-          "Reportes de gestión",
-          "Landing profesional",
-          "Soporte y acompañamiento",
         ];
         function icon(id) {
           return '<svg aria-hidden="true"><use href="#' + id + '"></use></svg>';
         }
-        document.getElementById("painGrid").innerHTML = pains
-          .map(function (x) {
-            return (
-              '<article class="pain-card"><span class="icon">' +
-              icon(x[0]) +
-              "</span><div><h3>" +
-              x[1] +
-              "</h3><p>" +
-              x[2] +
-              "</p></div></article>"
-            );
-          })
-          .join("");
         document.getElementById("featureGrid").innerHTML = features
           .map(function (x, i) {
             return (
@@ -1964,21 +1975,86 @@
             );
           })
           .join("");
-        var includeBackgrounds = [
-          "agenda", "recordatorios", "crm", "agente",
-          "servicios", "equipo", "inventario", "campanas",
-          "prospectos", "reportes", "landing", "soporte"
+        var included = [
+          [
+            "agenda",
+            "Agenda de citas",
+            "Organiza reservas, disponibilidad y cambios sin cruces.",
+          ],
+          [
+            "recordatorios",
+            "Recordatorios automáticos",
+            "Reduce olvidos con confirmaciones antes de cada cita.",
+          ],
+          [
+            "crm",
+            "CRM de clientes",
+            "Conserva datos e historial para brindar mejor atención.",
+          ],
+          [
+            "agente",
+            "Agente virtual personalizado",
+            "Atiende por WhatsApp con el nombre y tono de tu negocio.",
+          ],
+          [
+            "servicios",
+            "Servicios y precios",
+            "Mantén actualizado tu catálogo, duración y tarifas.",
+          ],
+          [
+            "equipo",
+            "Equipo y horarios",
+            "Asigna citas según disponibilidad y competencias.",
+          ],
+          [
+            "inventario",
+            "Inventario básico",
+            "Controla insumos y movimientos esenciales de la operación.",
+          ],
+          [
+            "campanas",
+            "Campañas comerciales",
+            "Comunica promociones autorizadas a tus clientes.",
+          ],
+          [
+            "prospectos",
+            "Seguimiento de prospectos",
+            "Registra oportunidades y próximas acciones comerciales.",
+          ],
+          [
+            "reportes",
+            "Reportes de gestión",
+            "Consulta indicadores para tomar mejores decisiones.",
+          ],
+          [
+            "landing",
+            "Landing profesional",
+            "Presenta tu oferta y capta contactos según el alcance contratado.",
+          ],
+          [
+            "soporte",
+            "Soporte y acompañamiento",
+            "Recibe orientación durante la configuración y el uso.",
+          ],
         ];
+        var cardAssets = window.BEAUTYOS_CARD_ASSETS || {};
         document.getElementById("includeGrid").innerHTML = included
           .map(function (x, i) {
-            var image = window.BEAUTYOS_CARD_ASSETS[includeBackgrounds[i]];
+            var number = i + 1 < 10 ? "0" + (i + 1) : String(i + 1);
             return (
-              '<div class="include-item">' +
-              '<img class="include-media" src="' + image + '" alt="" aria-hidden="true">' +
-              icon("i-check") +
-              "<span>" +
-              x +
-              "</span></div>"
+              '<article class="include-item" role="listitem">' +
+              '<img class="include-media" src="' +
+              (cardAssets[x[0]] || "") +
+              '" alt="" loading="lazy" decoding="async">' +
+              '<div class="include-content"><div class="include-meta">' +
+              '<span class="include-check" aria-hidden="true">✓</span>' +
+              '<span class="include-number">' +
+              number +
+              "</span></div><h3>" +
+              x[1] +
+              "</h3><p>" +
+              x[2] +
+              "</p></div></article>"
             );
           })
           .join("");
@@ -2048,29 +2124,29 @@
                 "ok",
               );
               submit.disabled = false;
-              submit.textContent = "Solicitar información";
+              submit.textContent = "Agendar demostración";
             }, 700);
             return;
           }
           google.script.run
             .withSuccessHandler(function (result) {
               submit.disabled = false;
-              submit.textContent = "Solicitar información";
+              submit.textContent = "Agendar demostración";
               if (result && result.error) {
                 showStatus(result.error, "error");
                 return;
               }
               showStatus(
                 result && result.duplicado
-                  ? "Tu WhatsApp ya estaba registrado. Sofi, asesora comercial de BeautyOS, podrá continuar la conversación contigo."
-                  : "¡Gracias! Tu solicitud quedó registrada. Sofi, asesora comercial de BeautyOS, o un integrante del equipo te contactará.",
+                  ? "Tu WhatsApp ya estaba registrado. Nora podrá continuar la conversación contigo para agendar el demo."
+                  : "¡Gracias! Tu solicitud de demostración quedó registrada. Nora o un integrante del equipo te contactará para acordar la fecha.",
                 "ok",
               );
               if (!(result && result.duplicado)) form.reset();
             })
             .withFailureHandler(function (err) {
               submit.disabled = false;
-              submit.textContent = "Solicitar información";
+              submit.textContent = "Agendar demostración";
               showStatus(
                 "No pudimos enviar la solicitud en este momento. Escríbenos por WhatsApp o inténtalo de nuevo.",
                 "error",
